@@ -4,9 +4,24 @@ export function registerServiceWorker() {
       try {
         const registration = await navigator.serviceWorker.register("/service-worker.js");
         console.log("[SW] Registered:", registration.scope);
+
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                console.log("[SW] Nova versão disponível — recarregue para atualizar");
+              }
+            });
+          }
+        });
       } catch (error) {
         console.error("[SW] Registration failed:", error);
       }
+    });
+
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      window.location.reload();
     });
   }
 }
