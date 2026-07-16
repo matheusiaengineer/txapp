@@ -75,7 +75,7 @@ export function ParticlesBackground() {
         ctx.fill();
       });
 
-      particles.forEach((p) => {
+      particles.forEach((p, idx) => {
         p.pulse += 0.02;
         p.x += p.vx;
         p.y += p.vy;
@@ -89,7 +89,7 @@ export function ParticlesBackground() {
         ctx.fillStyle = `rgba(62, 203, 142, ${pulseAlpha})`;
         ctx.fill();
 
-        if (i % 3 === 0) {
+        if (idx % 3 === 0) {
           for (const other of particles) {
             if (p === other) continue;
             const dx = p.x - other.x;
@@ -125,5 +125,3 @@ export function ParticlesBackground() {
     />
   );
 }
-
-let i = 0;

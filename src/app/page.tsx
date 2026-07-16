@@ -14,11 +14,12 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { signIn, signUp, getDashboardRoute, type Role } from "@/lib/auth/auth-service";
 import { CountUp } from "@/components/ui/count-up";
-import { ParticlesBackground } from "@/components/ui/particles-background";
 import { AnimatedSection, StaggerSection, StaggerItem } from "@/components/ui/animated-section";
 import { RippleButton } from "@/components/ui/ripple-button";
 import { LiveIndicator } from "@/components/ui/live-indicator";
-import { Vehicle3D } from "@/components/ui/vehicle-3d";
+
+const ParticlesBackground = dynamic(() => import("@/components/ui/particles-background").then(m => m.ParticlesBackground), { ssr: false });
+const Vehicle3D = dynamic(() => import("@/components/ui/vehicle-3d").then(m => m.Vehicle3D), { ssr: false });
 
 const TxdMap = dynamic(() => import("@/components/txd/txd-map"), { ssr: false });
 

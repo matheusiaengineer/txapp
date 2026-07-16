@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,7 +13,7 @@ import Link from "next/link";
 import { useUser } from "@/lib/hooks/use-user";
 import { useDriverData } from "@/lib/hooks/use-driver-data";
 
-export default function DriverDashboard() {
+function DriverDashboardContent() {
   const { user, loading: userLoading } = useUser();
   const { profile, vehicle, trips, earnings, loading: dataLoading } = useDriverData(user?.id);
   const searchParams = useSearchParams();
@@ -417,5 +417,13 @@ export default function DriverDashboard() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+export default function DriverDashboard() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>}>
+      <DriverDashboardContent />
+    </Suspense>
   );
 }

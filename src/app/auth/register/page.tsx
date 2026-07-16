@@ -68,10 +68,7 @@ function RegisterForm() {
 
   useEffect(() => {
     if (step === totalSteps) {
-      const timer = setTimeout(() => {
-        router.push(getDashboardRoute(profileType as Role));
-      }, 2000);
-      return () => clearTimeout(timer);
+      router.replace(getDashboardRoute(profileType as Role));
     }
   }, [step, totalSteps, profileType, router]);
 

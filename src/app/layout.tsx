@@ -54,6 +54,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="min-h-full flex flex-col" style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <ClientLayout>{children}</ClientLayout>
+        <script dangerouslySetInnerHTML={{
+          __html: `(function(){try{if(!window.__txdLoaded){var r=new XMLHttpRequest();r.open("GET","/api/health",true);r.timeout=5000;r.onload=function(){window.__txdLoaded=true};r.onerror=function(){setTimeout(function(){window.location.reload()},5000)};r.send()}}catch(e){}})()`
+        }} />
       </body>
     </html>
   );

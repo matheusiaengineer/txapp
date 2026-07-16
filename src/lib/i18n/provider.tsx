@@ -56,8 +56,6 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return value;
   }, [locale]);
 
-  if (!mounted) return <>{children}</>;
-
   return (
     <I18nCtx.Provider value={{ locale, setLocale, t, dir: loc?.dir || "ltr", locales: LOCALES }}>
       {children}
