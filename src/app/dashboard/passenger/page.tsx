@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { useUser } from "@/lib/hooks/use-user";
 import { usePassengerData } from "@/lib/hooks/use-passenger-data";
+import { triggerHaptic } from "@/lib/haptics";
 
 interface Service {
   id: string; name: string; icon: typeof Car; color: string; priceRange: string; eta: string;
@@ -104,6 +105,18 @@ export default function PassengerDashboard() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [depositStatus, setDepositStatus] = useState<{ balance: number; qualified: boolean; required: number } | null>(null);
   const [showVerificationBanner, setShowVerificationBanner] = useState(true);
+  const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([]);
+  const [nearbyDriversCount, setNearbyDriversCount] = useState<number | null>(null);
+  const [placeholderText, setPlaceholderText] = useState("Para onde você vai?");
+  
+  const placeholders = [
+    "Para onde você vai?",
+    "Que tal ir ao shopping?",
+    "Buscar um TXD Moto?",
+    "Precisa enviar uma encomenda?",
+    "Indo para o aeroporto?",
+  ];
+
   const greeting = (() => {
     const h = new Date().getHours();
     return h < 6 ? "Boa madrugada" : h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
@@ -120,12 +133,35 @@ export default function PassengerDashboard() {
     checkDeposit();
   }, []);
 
+  useEffect(() => {
+    async function fetchNearby() {
+      try {
+        const res = await fetch("/api/location/nearby?radius=20");
+        const data = await res.json();
+        if (data.drivers) {
+          setNearbyDrivers(data.drivers);
+          setNearbyDriversCount(data.count);
+        }
+      } catch {}
+    }
+    fetchNearby();
+    const interval = setInterval(fetchNearby, 8000);
+    return () => clearInterval(interval);
+  }, []);
+
   const nextPromo = useCallback(() => setCurrentPromo(p => (p + 1) % promos.length), []);
 
   useEffect(() => {
     const timer = setInterval(nextPromo, 5000);
     return () => clearInterval(timer);
   }, [nextPromo]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPlaceholderText(placeholders[Math.floor(Math.random() * placeholders.length)]);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   const quickActions = addresses.length ? addresses.slice(0, 4).map(a => ({
     label: a.type === "home" ? "Casa" : a.type === "work" ? "Trabalho" : "Endereço",
@@ -174,12 +210,30 @@ export default function PassengerDashboard() {
         </Suspense>
 
         {/* Search Bar */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6 relative z-10">
           <Link href="/ride">
-            <div className="glass-panel flex items-center gap-3 p-4 transition-colors hover:border-primary/30 cursor-pointer">
-              <Search className="w-5 h-5 text-gray-400 shrink-0" />
-              <span className="text-gray-500 text-sm flex-1">Para onde você vai?</span>
-              <span className="bg-primary text-background text-xs font-bold px-4 py-1.5 rounded-full shrink-0">Ir</span>
+            <div 
+              onClick={() => triggerHaptic("light")}
+              className="glass-panel flex items-center gap-3 p-4 transition-all duration-300 hover:border-primary/50 cursor-pointer shadow-[0_4px_30px_rgba(0,0,0,0.1)] hover:shadow-[0_4px_30px_rgba(62,203,142,0.15)] group">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Search className="w-5 h-5 text-primary shrink-0" />
+              </div>
+              <div className="flex-1 overflow-hidden relative h-6">
+                <AnimatePresence mode="wait">
+                  <motion.span 
+                    key={placeholderText}
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -20, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-gray-400 font-medium text-sm md:text-base absolute inset-0 flex items-center">
+                    {placeholderText}
+                  </motion.span>
+                </AnimatePresence>
+              </div>
+              <span className="bg-primary text-background text-xs font-bold px-5 py-2 rounded-full shrink-0 shadow-lg shadow-primary/20 group-hover:bg-primary-hover">
+                Buscar
+              </span>
             </div>
           </Link>
         </motion.div>
@@ -244,13 +298,13 @@ export default function PassengerDashboard() {
                   const Icon = service.icon;
                   return (
                     <button key={service.id} className="glass-panel p-3 sm:p-4 flex flex-col items-center gap-2 text-center group cursor-pointer hover:border-primary/30 transition-all">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110"
-                        style={{ backgroundColor: `${service.color}20` }}>
-                        <Icon className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: service.color }} />
+                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 group-hover:-translate-y-1 shadow-lg"
+                        style={{ backgroundColor: `${service.color}20`, boxShadow: `0 4px 20px ${service.color}15` }}>
+                        <Icon className="w-5 h-5 sm:w-7 sm:h-7" style={{ color: service.color }} />
                       </div>
-                      <span className="text-xs sm:text-sm font-semibold">{service.name}</span>
+                      <span className="text-xs sm:text-sm font-bold mt-1">{service.name}</span>
                       <span className="text-[10px] text-gray-500">{service.priceRange}</span>
-                      <span className="text-[9px] text-primary font-medium">{service.eta}</span>
+                      <span className="text-[10px] text-primary font-bold px-2 py-0.5 rounded-full bg-primary/10">{service.eta}</span>
                     </button>
                   );
                 })}
@@ -280,7 +334,12 @@ export default function PassengerDashboard() {
             {/* Map Preview */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-5 sm:p-6 relative overflow-hidden">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">Motoristas próximos</h3>
+                <h3 className="font-semibold">
+                  Motoristas próximos
+                  {nearbyDriversCount !== null && (
+                    <span className="ml-2 text-xs text-primary font-mono">({nearbyDriversCount})</span>
+                  )}
+                </h3>
                 <Link href="/ride" className="text-xs text-primary flex items-center gap-1">
                   Ver mapa <ChevronRight className="w-3 h-3" />
                 </Link>
@@ -290,14 +349,23 @@ export default function PassengerDashboard() {
                   <div className="absolute inset-0 opacity-30"
                     style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #3ECB8E 0%, transparent 50%), radial-gradient(circle at 80% 30%, #3ECB8E 0%, transparent 50%), radial-gradient(circle at 50% 70%, #3ECB8E 0%, transparent 50%)" }} />
                   <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(#2a2a2a 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
-                  {[{ top: "30%", left: "25%" }, { top: "45%", left: "55%" }, { top: "60%", left: "35%" }, { top: "25%", left: "70%" }, { top: "70%", left: "60%" }].map((pos, i) => (
-                    <motion.div key={i} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2 + i * 0.3, delay: i * 0.2 }}
-                      className="absolute" style={{ top: pos.top, left: pos.left }}>
-                      <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-                        <Navigation className="w-3 h-3 text-background" />
-                      </div>
-                    </motion.div>
-                  ))}
+                  {nearbyDrivers.length > 0
+                    ? nearbyDrivers.slice(0, 8).map((d: any, i: number) => (
+                        <motion.div key={d.driverId} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2 + i * 0.3, delay: i * 0.2 }}
+                          className="absolute" style={{ top: `${20 + (d.lat * 100 % 50)}%`, left: `${20 + (d.lng * 100 % 60)}%` }}>
+                          <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
+                            <Navigation className="w-3 h-3 text-background" />
+                          </div>
+                        </motion.div>
+                      ))
+                    : [{ top: "30%", left: "25%" }, { top: "45%", left: "55%" }, { top: "60%", left: "35%" }, { top: "25%", left: "70%" }, { top: "70%", left: "60%" }].map((pos, i) => (
+                        <motion.div key={i} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2 + i * 0.3, delay: i * 0.2 }}
+                          className="absolute opacity-30" style={{ top: pos.top, left: pos.left }}>
+                          <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
+                            <Navigation className="w-3 h-3 text-background" />
+                          </div>
+                        </motion.div>
+                      ))}
                 </div>
               </Link>
             </motion.div>

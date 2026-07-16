@@ -13,7 +13,7 @@ import { SERVICE_CATEGORIES } from "@/lib/mobility/service-categories";
 import { pricingEngine } from "@/lib/mobility/pricing-engine";
 import type { PriceEstimate } from "@/lib/mobility/pricing-engine";
 
-type PageState = "search" | "selecting" | "confirming" | "searching" | "found" | "tracking";
+type PageState = "search" | "selecting" | "confirming" | "searching" | "found" | "tracking" | "no_drivers";
 
 interface MockPlace {
   display: string;
@@ -34,6 +34,8 @@ function formatCurrency(v: number): string {
   return `R$ ${v.toFixed(2)}`;
 }
 
+import { TxdGoogleMap } from "@/components/map/GoogleMap";
+
 export default function RidePage() {
   const router = useRouter();
   const [pageState, setPageState] = useState<PageState>("search");
@@ -49,6 +51,10 @@ export default function RidePage() {
     checked: false, isQualified: false, balance: 0, required: 25,
   });
 
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [directions, setDirections] = useState<any>(null);
+
   const [driverInfo, setDriverInfo] = useState({
     name: "Carlos Silva",
     rating: 4.9,
@@ -60,7 +66,9 @@ export default function RidePage() {
   });
   const [eta, setEta] = useState(8);
   const [elapsed, setElapsed] = useState(0);
+  const [noDrivers, setNoDrivers] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const nearbyPollRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const selectedCategory = SERVICE_CATEGORIES.find(c => c.id === selectedId);
   const selectedEstimate = estimates.find(e => e.categoryId === selectedId);
@@ -86,15 +94,20 @@ export default function RidePage() {
     if (field === "pickup") {
       setPickup(place.address);
       setPickupSuggestions([]);
+      setPickupCoords({ lat: place.lat, lng: place.lng });
     } else {
       setDestination(place.address);
       setDestSuggestions([]);
+      setDestCoords({ lat: place.lat, lng: place.lng });
     }
     setActiveInput(null);
   }
 
   async function handleSearchRide() {
     if (!pickup || !destination) return;
+
+    // Optional: Fetch directions from Directions API if loaded
+
     const distKm = 5 + Math.random() * 10;
     const durMin = 10 + Math.random() * 30;
     const surge = pricingEngine.calculateSurgeMultiplier("medium");
@@ -124,21 +137,61 @@ export default function RidePage() {
       router.push(`/deposit?service=${serviceType}`);
       return;
     }
+    setNoDrivers(false);
     setPageState("searching");
-    setTimeout(() => {
-      setPageState("found");
-      let etaCount = 8;
-      setEta(etaCount);
-      timerRef.current = setInterval(() => {
-        etaCount--;
-        setEta(prev => Math.max(0, prev - 1));
-        setElapsed(prev => prev + 1);
-        if (etaCount <= 0 && timerRef.current) {
-          clearInterval(timerRef.current);
-          setPageState("tracking");
+
+    const lat = pickupCoords?.lat || -23.561;
+    const lng = pickupCoords?.lng || -46.656;
+    const modality = selectedId === "moto" ? "mototaxi" : selectedCategory?.type === "freight" ? "fretes" : "carro";
+    let pollCount = 0;
+
+    nearbyPollRef.current = setInterval(async () => {
+      pollCount++;
+      try {
+        const res = await fetch(`/api/location/nearby?lat=${lat}&lng=${lng}&radius=15&modality=${modality}`);
+        const data = await res.json();
+        if (data.drivers && data.drivers.length > 0) {
+          clearInterval(nearbyPollRef.current);
+          nearbyPollRef.current = undefined;
+
+          const d = data.drivers[0];
+          setDriverInfo({
+            name: d.driverId.slice(0, 8),
+            rating: 4.8,
+            car: "Veículo disponível",
+            plate: d.driverId.slice(0, 7).toUpperCase(),
+            color: "Prata",
+            phone: "(11) 99999-0000",
+            photo: d.driverId.charAt(0).toUpperCase(),
+          });
+
+          setPageState("found");
+          let etaCount = 8;
+          setEta(etaCount);
+          timerRef.current = setInterval(() => {
+            etaCount--;
+            setEta(prev => Math.max(0, prev - 1));
+            setElapsed(prev => prev + 1);
+            if (etaCount <= 0 && timerRef.current) {
+              clearInterval(timerRef.current);
+              setPageState("tracking");
+            }
+          }, 1000);
+        } else if (pollCount > 20) {
+          clearInterval(nearbyPollRef.current);
+          nearbyPollRef.current = undefined;
+          setNoDrivers(true);
+          setPageState("no_drivers");
         }
-      }, 1000);
-    }, 2000 + Math.random() * 1000);
+      } catch {
+        if (pollCount > 20) {
+          clearInterval(nearbyPollRef.current);
+          nearbyPollRef.current = undefined;
+          setNoDrivers(true);
+          setPageState("no_drivers");
+        }
+      }
+    }, 2000);
   }
 
   const startTracking = useCallback(() => {
@@ -147,38 +200,36 @@ export default function RidePage() {
   }, []);
 
   useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (nearbyPollRef.current) clearInterval(nearbyPollRef.current);
+    };
   }, []);
 
   function reset() {
     if (timerRef.current) clearInterval(timerRef.current);
+    if (nearbyPollRef.current) { clearInterval(nearbyPollRef.current); nearbyPollRef.current = undefined; }
     setPageState("search");
     setPickup("");
     setDestination("");
+    setPickupCoords(null);
+    setDestCoords(null);
+    setDirections(null);
     setEstimates([]);
     setSelectedId("");
     setStep(1);
     setElapsed(0);
+    setNoDrivers(false);
   }
 
   return (
     <main className="min-h-screen bg-background flex flex-col relative overflow-hidden">
-      {/* Map preview area */}
-      <div className="relative w-full flex-1 min-h-[200px] bg-gradient-to-br from-[#0a1628] via-[#0d2137] to-[#0f2a3f]">
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-1/4 left-1/3 w-64 h-64 border border-primary/20 rounded-full" />
-          <div className="absolute top-1/3 left-1/4 w-48 h-48 border border-primary/10 rounded-full" />
-          <div className="absolute bottom-1/4 right-1/3 w-80 h-80 border border-blue-500/10 rounded-full" />
-        </div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="flex flex-col items-center gap-1">
-            <MapPin className="w-6 h-6 text-primary" />
-            <div className="w-0.5 h-12 bg-gradient-to-b from-primary to-transparent" />
-            <div className="w-4 h-4 bg-primary rounded-full" />
-          </div>
-        </div>
+      {/* Map area */}
+      <div className="relative w-full flex-1 min-h-[300px]">
+        <TxdGoogleMap pickupCoords={pickupCoords} destinationCoords={destCoords} directions={directions} />
+        
         {pageState !== "search" && pickup && (
-          <div className="absolute top-6 left-6 right-6 glass-panel p-3 flex items-center gap-3">
+          <div className="absolute top-6 left-6 right-6 glass-panel p-3 flex items-center gap-3 z-10">
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <div className="w-2 h-2 rounded-full bg-primary" />
@@ -194,7 +245,7 @@ export default function RidePage() {
       </div>
 
       {/* Bottom sheet */}
-      <div className="relative z-10 mt-[-2rem] rounded-t-3xl bg-background border-t border-card-border flex-1 flex flex-col max-h-[75vh]">
+      <div className="relative z-20 mt-[-2rem] rounded-t-3xl bg-background border-t border-card-border flex-1 flex flex-col max-h-[75vh]">
         <div className="flex justify-center pt-3 pb-2">
           <div className="w-10 h-1 rounded-full bg-gray-600" />
         </div>
@@ -486,6 +537,33 @@ export default function RidePage() {
                     </button>
                   </>
                 )}
+              </motion.div>
+            )}
+
+            {pageState === "no_drivers" && (
+              <motion.div
+                key="no_drivers" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="flex flex-col items-center justify-center py-12 space-y-6"
+              >
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center">
+                  <Navigation className="w-8 h-8 text-amber-400" />
+                </div>
+                <div className="text-center">
+                  <h2 className="text-xl font-bold text-white">Nenhum motorista disponível</h2>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Não encontramos motoristas próximos para esta categoria. Tente novamente em alguns minutos ou escolha outra modalidade.
+                  </p>
+                </div>
+                <button onClick={() => { setPageState("selecting"); setStep(1); }}
+                  className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3.5 rounded-xl transition-all text-sm"
+                >
+                  Escolher outra categoria
+                </button>
+                <button onClick={reset}
+                  className="w-full bg-card-bg border border-card-border hover:border-primary/30 text-gray-300 font-semibold py-3.5 rounded-xl transition-all text-sm"
+                >
+                  Nova busca
+                </button>
               </motion.div>
             )}
           </AnimatePresence>

@@ -11,6 +11,7 @@ import {
 import { SERVICE_CATEGORIES } from "@/lib/mobility/service-categories";
 import { freightEngine } from "@/lib/freight/freight-engine";
 import type { FreightQuote, FreightShipment } from "@/lib/freight/freight-engine";
+import { triggerHaptic } from "@/lib/haptics";
 
 const TOTAL_STEPS = 5;
 
@@ -62,6 +63,7 @@ export default function FreightPage() {
   }
 
   function selectPlace(place: typeof MOCK_PLACES[0], field: "pickup" | "destination") {
+    triggerHaptic("light");
     if (field === "pickup") { setPickup(place.address); setPickupSuggestions([]); }
     else { setDestination(place.address); setDestSuggestions([]); }
   }
@@ -82,6 +84,7 @@ export default function FreightPage() {
   }
 
   async function generateQuotes() {
+    triggerHaptic("medium");
     setLoading(true);
     const distKm = 5 + Math.random() * 30;
     const results = await Promise.all(
@@ -92,6 +95,7 @@ export default function FreightPage() {
     setQuotes(results.sort((a, b) => a.total - b.total));
     setSelectedQuoteId(results[0]?.id || "");
     setLoading(false);
+    triggerHaptic("success");
     setStep(3);
   }
 
@@ -331,14 +335,22 @@ export default function FreightPage() {
                       transition={{ delay: i * 0.05 }}
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.99 }}
-                      onClick={() => { setSelectedQuoteId(q.id); setStep(4); }}
-                      className={`w-full text-left rounded-2xl p-4 transition-all cursor-pointer border ${
+                      onClick={() => { triggerHaptic("light"); setSelectedQuoteId(q.id); }}
+                      className={`relative w-full text-left rounded-2xl p-4 transition-all cursor-pointer overflow-hidden ${
                         selected
-                          ? "border-primary bg-primary/10 shadow-[0_0_20px_rgba(62,203,142,0.15)]"
-                          : "border-card-border bg-card-bg hover:border-white/20"
+                          ? "border border-primary bg-primary/10 shadow-[0_0_20px_rgba(62,203,142,0.2)]"
+                          : "border border-card-border bg-card-bg hover:border-white/20"
                       }`}
                     >
-                      <div className="flex items-center gap-4">
+                      {selected && (
+                        <motion.div 
+                          className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent -skew-x-12"
+                          initial={{ x: "-100%" }}
+                          animate={{ x: "200%" }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                        />
+                      )}
+                      <div className="flex items-center gap-4 relative z-10">
                         <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                           style={{ backgroundColor: (cat?.color || "#E74C3C") + "20" }}>
                           <Package className="w-6 h-6" style={{ color: cat?.color || "#E74C3C" }} />
@@ -358,6 +370,13 @@ export default function FreightPage() {
                     </motion.button>
                   );
                 })}
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button onClick={() => setStep(4)} disabled={!selectedQuoteId}
+                  className="w-full bg-primary hover:bg-primary-hover disabled:opacity-30 disabled:cursor-not-allowed text-background font-bold py-3.5 rounded-xl transition-all text-base"
+                >
+                  Continuar com a Seleção
+                </button>
               </div>
             </motion.div>
           )}

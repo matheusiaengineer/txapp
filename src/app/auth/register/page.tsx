@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+
 import {
   User, Car, Building, Truck, ArrowLeft, Check, ChevronRight,
   Globe, Shield, Camera, FileText, Smartphone, Loader2,
@@ -275,10 +275,10 @@ function RegisterForm() {
         </div>
 
         <div className="glass-panel p-6 md:p-10 relative overflow-hidden">
-          <AnimatePresence mode="wait">
+          <div>
             {/* STEP 1: SELECIONAR PERFIL */}
             {step === 1 && (
-              <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5 md:space-y-6">
+              <div className="space-y-5 md:space-y-6">
                 <h2 className="text-xl md:text-2xl font-bold text-center">Escolha seu Perfil</h2>
                 <p className="text-gray-400 text-center text-xs md:text-sm">Selecione como você usará a plataforma</p>
                 <div className="grid grid-cols-2 gap-3 md:gap-4">
@@ -297,12 +297,12 @@ function RegisterForm() {
                     </button>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {/* STEP 2: PAÍS / CIDADANIA */}
             {step === 2 && (
-              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+              <div className="space-y-6">
                 <div className="flex items-center gap-4 mb-2">
                   <Globe className="w-8 h-8 text-primary" />
                   <div>
@@ -317,12 +317,12 @@ function RegisterForm() {
                 <button onClick={nextStep} className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[0.98]">
                   Continuar <ChevronRight className="w-5 h-5" />
                 </button>
-              </motion.div>
+              </div>
             )}
 
             {/* STEP 3: DOCUMENTOS (para motorista/empresa) OU SELFIE (para passageiro) */}
             {step === 3 && profileType === "passenger" && (
-              <motion.div key="step3-selfie" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+              <div className="space-y-6">
                 <div className="flex items-center gap-4 mb-2">
                   <Camera className="w-8 h-8 text-primary" />
                   <div>
@@ -335,11 +335,11 @@ function RegisterForm() {
                 <button onClick={handleNext} disabled={!selfieBlob}
                   className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-background font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[0.98]"
                 >Continuar <ChevronRight className="w-5 h-5" /></button>
-              </motion.div>
+              </div>
             )}
 
             {step === 3 && profileType !== "passenger" && (
-              <motion.div key="step3-docs" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+              <div className="space-y-6">
                 {profileType === "driver" || profileType === "transporter" ? (
                   <>
                     <div className="flex items-center gap-4 mb-2">
@@ -439,12 +439,12 @@ function RegisterForm() {
                 <button onClick={handleNext} className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[0.98]">
                   Continuar <ChevronRight className="w-5 h-5" />
                 </button>
-              </motion.div>
+              </div>
             )}
 
             {/* STEP 4: SELFIE (para motorista/empresa) */}
             {step === 4 && profileType !== "passenger" && (
-              <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+              <div className="space-y-6">
                 <div className="flex items-center gap-4 mb-2">
                   <Shield className="w-8 h-8 text-primary" />
                   <div>
@@ -462,7 +462,7 @@ function RegisterForm() {
 
             {/* STEP 5 (ou 4 para passageiro): DADOS PESSOAIS + ESPECÍFICOS */}
             {step === dataStep && (
-              <motion.div key="step-data" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5">
+              <div className="space-y-5">
                 <div className="flex items-center gap-4 mb-2">
                   <User className="w-8 h-8 text-primary" />
                   <div>
@@ -580,12 +580,12 @@ function RegisterForm() {
                 >
                   {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Criando conta...</> : <>Criar Conta <Check className="w-5 h-5" /></>}
                 </button>
-              </motion.div>
+              </div>
             )}
 
             {/* STEP FINAL: CONTA CRIADA */}
             {step === totalSteps && (
-              <motion.div key="done" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-10 space-y-6">
+              <div className="text-center py-10 space-y-6">
                 <div className="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
                   <Check className="w-10 h-10 text-primary" />
                 </div>
@@ -602,9 +602,9 @@ function RegisterForm() {
                 <button onClick={() => router.push(getDashboardRoute(profileType as Role))}
                   className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-4 rounded-xl transition-all hover:scale-[0.98]"
                 >Ir para o Dashboard</button>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          </div>
         </div>
       </div>
     </div>

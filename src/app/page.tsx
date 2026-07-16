@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight, Car, MapPin, Package, Shield, Truck, Search, Star,
   Globe, Smartphone, CheckCircle, Lock, Menu, X, Bike, Building2,
@@ -35,13 +35,8 @@ function SectionHeader({ badge, title, desc }: { badge: string; title: string; d
   );
 }
 
-function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
-  return (
-    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.6, delay, ease: easing }} className={className}>
-      {children}
-    </motion.div>
-  );
+function FadeIn({ children, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
+  return <div className={className}>{children}</div>;
 }
 
 const NAV_LINKS = [
@@ -286,19 +281,16 @@ export default function Home() {
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-              className="md:hidden txd-glass-strong mx-4 rounded-2xl overflow-hidden">
-              <div className="p-4 space-y-2">
-                {NAV_LINKS.map(l => <a key={l.label} href={l.href} onClick={() => setMenuOpen(false)} className="block py-3 px-4 text-gray-300 hover:text-white hover:bg-white/5 rounded-xl transition text-sm">{l.label}</a>)}
-                <hr className="border-white/5 my-2" />
-                <button onClick={() => { setMenuOpen(false); openAuth("login"); }} className="w-full py-3 text-center text-sm text-gray-300 hover:text-white">Entrar</button>
-                <button onClick={() => { setMenuOpen(false); openAuth("register"); }} className="w-full py-3 text-center text-sm font-bold bg-primary text-black rounded-xl hover:bg-primary-hover transition">Criar conta</button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {menuOpen && (
+          <div className="md:hidden txd-glass-strong mx-4 rounded-2xl overflow-hidden">
+            <div className="p-4 space-y-2">
+              {NAV_LINKS.map(l => <a key={l.label} href={l.href} onClick={() => setMenuOpen(false)} className="block py-3 px-4 text-gray-300 hover:text-white hover:bg-white/5 rounded-xl transition text-sm">{l.label}</a>)}
+              <hr className="border-white/5 my-2" />
+              <button onClick={() => { setMenuOpen(false); openAuth("login"); }} className="w-full py-3 text-center text-sm text-gray-300 hover:text-white">Entrar</button>
+              <button onClick={() => { setMenuOpen(false); openAuth("register"); }} className="w-full py-3 text-center text-sm font-bold bg-primary text-black rounded-xl hover:bg-primary-hover transition">Criar conta</button>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* HERO */}
@@ -306,7 +298,7 @@ export default function Home() {
         <div className="absolute inset-0 txd-grid-bg opacity-40" />
         <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
           <div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: easing }}>
+            <div>
               <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-6">
                 <span className="w-2 h-2 rounded-full bg-primary animate-txd-pulse-glow" />
                 <span className="text-primary text-sm font-medium">
@@ -341,9 +333,8 @@ export default function Home() {
                 <span className="txd-gradient-text txd-text-glow">todos</span>.
               </h1>
               <p className="text-sm sm:text-lg md:text-xl text-gray-400 mb-7 max-w-lg leading-relaxed">Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.</p>
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.15, ease: easing }}
-              className="flex flex-wrap gap-3 mb-7">
+            </div>
+            <div className="flex flex-wrap gap-3 mb-7">
               <button onClick={() => openAuth("register", "passenger")}
                 className="bg-primary hover:bg-primary-hover text-black font-bold px-6 py-4 rounded-full transition-all hover:scale-95 txd-green-glow-sm flex items-center gap-2 text-sm md:text-base">
                 <Car className="w-5 h-5" /> Solicitar corrida
@@ -352,45 +343,39 @@ export default function Home() {
                 className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-6 py-4 rounded-full transition-all hover:scale-95 flex items-center gap-2 text-sm md:text-base">
                 <Bike className="w-5 h-5" /> Seja motorista
               </button>
-            </motion.div>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              className="flex flex-wrap gap-3 md:gap-6 text-xs md:text-sm">
+            </div>
+            <div className="flex flex-wrap gap-3 md:gap-6 text-xs md:text-sm">
               {[ { icon: Shield, text: "Motoristas verificados" }, { icon: Navigation, text: "Rastreamento" }, { icon: CreditCard, text: "Pagamento flexível" } ].map((item, i) => (
                 <div key={i} className="flex items-center gap-1.5 md:gap-2 text-gray-400"><item.icon className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary" />{item.text}</div>
               ))}
               {userLocation && (
                 <div className="flex items-center gap-1.5 text-gray-400"><Crosshair className="w-3.5 h-3.5 text-primary" />{userLocation.city}</div>
               )}
-            </motion.div>
+            </div>
           </div>
           <div className="relative flex items-center justify-center">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2, ease: easing }}
-              className="relative">
+            <div className="relative">
               <div className="absolute -inset-10 bg-gradient-radial from-primary/30 via-primary/10 to-transparent blur-3xl opacity-40 animate-txd-float" />
               <div className="relative">
                 <Vehicle3D />
               </div>
-              <motion.div
+              <div
                 className="absolute -top-8 -right-8 w-28 h-28 rounded-full border border-primary/20 bg-black/40 backdrop-blur-xl flex items-center justify-center"
-                animate={{ scale: [1, 1.05, 1], rotate: [0, 5, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
               >
                 <div className="text-center">
                   <div className="txd-gradient-text text-xl font-bold">4.9★</div>
                   <div className="text-[8px] text-gray-500">Avaliação</div>
                 </div>
-              </motion.div>
-              <motion.div
+              </div>
+              <div
                 className="absolute -bottom-6 -left-8 w-24 h-24 rounded-2xl border border-primary/20 bg-black/40 backdrop-blur-xl flex items-center justify-center"
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               >
                 <div className="text-center">
                   <div className="text-primary font-bold text-lg">3s</div>
                   <div className="text-[8px] text-gray-500">aceite</div>
                 </div>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 md:px-6 mt-12 md:mt-16 w-full relative z-10">
@@ -469,18 +454,14 @@ export default function Home() {
       <section id="beneficios" className="py-16 md:py-24 px-4 md:px-6">
         <AnimatedSection><SectionHeader badge="Benefícios" title="Vantagens para cada perfil" desc="Seja passageiro, motorista ou empresa — o TXDAPP foi feito para você." /></AnimatedSection>
         <div className="max-w-4xl mx-auto">
-          <LayoutGroup>
-            <div className="flex bg-white/5 rounded-2xl p-1.5 mb-10 max-w-md mx-auto">
+          <div className="flex bg-white/5 rounded-2xl p-1.5 mb-10 max-w-md mx-auto">
               {[ { id: "passenger", label: "Passageiro" }, { id: "driver", label: "Motorista" }, { id: "company", label: "Empresa" } ].map(tab => (
-                <button key={tab.id} onClick={() => setBenefitTab(tab.id)} className="relative flex-1 py-2.5 rounded-xl text-sm font-medium transition">
-                  {benefitTab === tab.id && <motion.div layoutId="benefit-pill" className="absolute inset-0 bg-primary rounded-xl" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
-                  <span className={`relative z-10 ${benefitTab === tab.id ? "text-black" : "text-gray-400"}`}>{tab.label}</span>
+                <button key={tab.id} onClick={() => setBenefitTab(tab.id)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition ${benefitTab === tab.id ? "bg-primary text-black" : "text-gray-400"}`}>
+                  <span className="relative z-10">{tab.label}</span>
                 </button>
               ))}
             </div>
-          </LayoutGroup>
-          <AnimatePresence mode="wait">
-            <motion.div key={benefitTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}
+          <div
               className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
               {benefits[benefitTab].map((b, i) => (
                 <div key={i} className="txd-card p-4 md:p-5 txd-card-hover transition-all">
@@ -489,8 +470,7 @@ export default function Home() {
                   <p className="text-gray-400 text-xs leading-relaxed">{b.desc}</p>
                 </div>
               ))}
-            </motion.div>
-          </AnimatePresence>
+            </div>
         </div>
       </section>
 
@@ -514,8 +494,7 @@ export default function Home() {
             ))}
           </div>
           <div className="lg:col-span-2 flex justify-center">
-            <motion.div key={appPreviewTab} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }}
-              className="relative w-[300px]">
+            <div className="relative w-[300px]">
               <div className="absolute -inset-4 bg-gradient-radial from-primary/30 to-transparent blur-2xl opacity-30" />
               <div className="relative txd-glass-strong rounded-[2.5rem] p-[2.5px] shadow-2xl">
                 <div className="relative w-full aspect-[9/19] rounded-[2.3rem] overflow-hidden bg-gradient-to-b from-[#0a0d12] to-[#0e1218]">
@@ -547,7 +526,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>

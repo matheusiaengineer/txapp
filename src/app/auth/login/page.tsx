@@ -68,11 +68,7 @@ export default function LoginPage() {
       <div className="absolute top-[-20%] left-[-10%] w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-10%] w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md z-10"
-      >
+      <div className="w-full max-w-md z-10">
         <div className="text-center mb-6 md:mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4 md:mb-6">
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-background font-bold">TX</div>
@@ -167,15 +163,12 @@ export default function LoginPage() {
               </div>
             )}
 
-            <AnimatePresence>
-              {error && (
-                <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
-                  className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-xs md:text-sm text-red-400">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {error && (
+              <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-xs md:text-sm text-red-400">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
+              </div>
+            )}
 
             {method !== "biometric" && (
               <div className="flex items-center justify-between">
@@ -216,7 +209,7 @@ export default function LoginPage() {
           Não tem conta?{" "}
           <Link href="/auth/register" className="text-primary hover:underline font-medium">Criar conta</Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

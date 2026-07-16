@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -12,6 +12,8 @@ import {
 import Link from "next/link";
 import { useUser } from "@/lib/hooks/use-user";
 import { useDriverData } from "@/lib/hooks/use-driver-data";
+import { triggerHaptic } from "@/lib/haptics";
+import { RadarLoader } from "@/components/ui/radar-loader";
 
 function DriverDashboardContent() {
   const { user, loading: userLoading } = useUser();
@@ -27,6 +29,7 @@ function DriverDashboardContent() {
   });
   const [showModalityConfig, setShowModalityConfig] = useState(false);
   const [showVerificationBanner, setShowVerificationBanner] = useState(searchParams.get("new") === "true");
+  const heartbeatRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -43,6 +46,49 @@ function DriverDashboardContent() {
     }
     fetchQualified();
   }, []);
+
+  useEffect(() => {
+    function sendHeartbeat(status: string) {
+      if (!user?.id || !navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const activeModalities = Object.entries(modalities)
+            .filter(([, v]) => v)
+            .map(([k]) => k);
+          fetch("/api/location/heartbeat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              driverId: user.id,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              heading: pos.coords.heading,
+              speed: pos.coords.speed,
+              accuracy: pos.coords.accuracy,
+              status,
+              modalities: activeModalities,
+            }),
+          }).catch(() => {});
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 10000 }
+      );
+    }
+
+    if (isOnline) {
+      sendHeartbeat("ONLINE");
+      heartbeatRef.current = setInterval(() => sendHeartbeat("ONLINE"), 3000);
+    } else {
+      sendHeartbeat("OFFLINE");
+    }
+
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = undefined;
+      }
+    };
+  }, [isOnline, user?.id, modalities]);
 
   if (userLoading) {
     return (
@@ -119,11 +165,15 @@ function DriverDashboardContent() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-lg font-bold">{isOnline ? "Online" : "Offline"}</p>
-              <p className="text-sm text-gray-400">{isOnline ? "Recebendo corridas" : "Toque para ativar"}</p>
+              <p className="text-sm text-gray-400">{isOnline ? "Recebendo corridas e buscando passageiros" : "Toque para ativar"}</p>
             </div>
-            <button onClick={() => setIsOnline(!isOnline)}
-              className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${isOnline ? "bg-primary text-background shadow-lg shadow-primary/30" : "bg-red-500/20 text-red-400"}`}>
-              <Power className={`w-7 h-7 ${isOnline ? "" : "opacity-50"}`} />
+            <button onClick={() => { 
+                triggerHaptic("medium");
+                setIsOnline(!isOnline); 
+              }}
+              className={`relative w-16 h-16 rounded-full flex items-center justify-center transition-all duration-300 ${isOnline ? "bg-primary text-background shadow-[0_0_30px_rgba(62,203,142,0.6)]" : "bg-red-500/20 text-red-400"}`}>
+              {isOnline && <span className="absolute inset-0 rounded-full animate-ping bg-primary/40 opacity-75"></span>}
+              <Power className={`w-7 h-7 relative z-10 ${isOnline ? "" : "opacity-50"}`} />
             </button>
           </div>
           {profile && (
@@ -250,8 +300,12 @@ function DriverDashboardContent() {
 
         {/* Simulated Ride Request */}
         {isOnline && !currentRequest && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-6">
+            <div className="mb-6 transform scale-75">
+              <RadarLoader />
+            </div>
             <button onClick={() => {
+              triggerHaptic("success");
               setCurrentRequest({
                 id: "sim-" + Date.now(),
                 pickup: "Av. Paulista, 1000",
@@ -270,12 +324,13 @@ function DriverDashboardContent() {
                 });
               }, 1000);
             }}
-              className="w-full glass-panel p-5 text-center hover:border-primary/30 transition-all cursor-pointer">
+              className="w-full max-w-sm glass-panel p-5 text-center border border-primary/20 hover:border-primary/50 transition-all cursor-pointer relative overflow-hidden group">
+              <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-3">
                 <Navigation className="w-7 h-7 text-primary" />
               </div>
-              <p className="font-bold text-lg mb-1">Simular corrida</p>
-              <p className="text-sm text-gray-400">Toque para testar o fluxo de solicitação</p>
+              <p className="font-bold text-lg mb-1">Simular nova corrida</p>
+              <p className="text-sm text-gray-400">Toque aqui para forçar um chamado</p>
             </button>
           </motion.div>
         )}

@@ -119,16 +119,35 @@ export function Vehicle3D() {
   const springRotateY = useSpring(rotateY, { stiffness: 100, damping: 20 });
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isFlipping) {
-        setIsFlipping(true);
-        setTimeout(() => {
-          setActiveIndex(prev => (prev + 1) % VEHICLES.length);
-          setIsFlipping(false);
-        }, 600);
+    let interval: NodeJS.Timeout;
+
+    const startInterval = () => {
+      interval = setInterval(() => {
+        if (!isFlipping && document.visibilityState === "visible") {
+          setIsFlipping(true);
+          setTimeout(() => {
+            setActiveIndex(prev => (prev + 1) % VEHICLES.length);
+            setIsFlipping(false);
+          }, 600);
+        }
+      }, 3000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        clearInterval(interval);
+      } else {
+        startInterval();
       }
-    }, 3000);
-    return () => clearInterval(interval);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    startInterval();
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [isFlipping]);
 
   function handleMouseMove(e: React.MouseEvent) {
