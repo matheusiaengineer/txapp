@@ -110,7 +110,7 @@ export default function Home() {
           setLocating(false);
         },
         () => {},
-        { timeout: 5000, enableHighAccuracy: true }
+        { timeout: 3000, enableHighAccuracy: false }
       );
     }
   }, []);
@@ -182,14 +182,14 @@ export default function Home() {
       {/* AUTH MODAL */}
       <AnimatePresence>
         {authOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setAuthOpen(false)}>
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              onClick={e => e.stopPropagation()}
-              className="w-full max-w-md txd-glass-strong rounded-3xl p-8 relative">
-              <button onClick={() => setAuthOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition"><X className="w-4 h-4" /></button>
-              <div className="text-center mb-6">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setAuthOpen(false)}>
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ type: "spring", damping: 28, stiffness: 320 }}
+                onClick={e => e.stopPropagation()}
+                className="w-full max-w-md txd-glass-strong rounded-3xl p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto">
+                <button onClick={() => setAuthOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition"><X className="w-4 h-4" /></button>
+                <div className="text-center mb-6">
                 <span className="txd-gradient-text font-bold text-lg">TXDAPP</span>
                 <p className="text-gray-400 text-sm mt-1">{authMode === "login" ? "Entre na sua conta" : "Crie sua conta grátis"}</p>
               </div>
@@ -328,21 +328,21 @@ export default function Home() {
                           setUserLocation({ lat: latitude, lng: longitude, city });
                         } catch { setUserLocation({ lat: latitude, lng: longitude, city: "Sua região" }); }
                         setLocating(false);
-                      }, () => setLocating(false), { timeout: 5000, enableHighAccuracy: true });
+                      }, () => setLocating(false), { timeout: 3000, enableHighAccuracy: false });
                     }
                   }} className="text-xs text-gray-500 hover:text-white transition ml-1 flex items-center gap-1">
                     <Crosshair className="w-3 h-3" /> Detectar
                   </button>
                 )}
               </div>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
+              <h1 className="text-[1.6rem] sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
                 Mobilidade inteligente para{" "}
                 <span className="txd-gradient-text txd-text-glow">passageiros</span>,{" "}
                 <span className="txd-gradient-text txd-text-glow">entregadores</span>,{" "}
                 <span className="txd-gradient-text txd-text-glow">empresas</span> e{" "}
                 <span className="txd-gradient-text txd-text-glow">transportadores</span>.
               </h1>
-              <p className="text-lg md:text-xl text-gray-400 mb-8 max-w-lg">Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.</p>
+              <p className="text-sm sm:text-lg md:text-xl text-gray-400 mb-8 max-w-lg leading-relaxed">Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.</p>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.15, ease: easing }}
               className="flex flex-wrap gap-4 mb-8">

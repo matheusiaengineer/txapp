@@ -7,7 +7,7 @@ import {
   Power, Wallet, TrendingUp, Navigation, Clock, ThumbsUp, Star,
   MapPin, DollarSign, Target, Gift, Bell, X, Check, Route, Car,
   Calendar, User, Zap, Loader2, Camera, Video, Bike, Package,
-  Truck, Settings2, SlidersHorizontal,
+  Truck, Settings2, SlidersHorizontal, CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/lib/hooks/use-user";
@@ -127,21 +127,21 @@ export default function DriverDashboard() {
             </button>
           </div>
           {profile && (
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="bg-background border border-card-border rounded-xl p-2">
-                <ThumbsUp className="w-4 h-4 text-primary mx-auto mb-1" />
-                <span className="font-bold">{profile.acceptance_rate?.toFixed(0) || 100}%</span>
-                <span className="text-gray-500 block">Aceitação</span>
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center text-xs">
+              <div className="bg-background border border-card-border rounded-xl p-1.5 sm:p-2">
+                <ThumbsUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary mx-auto mb-1" />
+                <span className="font-bold text-[10px] sm:text-xs">{profile.acceptance_rate?.toFixed(0) || 100}%</span>
+                <span className="text-gray-500 block text-[9px] sm:text-xs">Aceitação</span>
               </div>
-              <div className="bg-background border border-card-border rounded-xl p-2">
-                <Star className="w-4 h-4 text-yellow-400 mx-auto mb-1" />
-                <span className="font-bold">{profile.rating?.toFixed(1) || 5.0}</span>
-                <span className="text-gray-500 block">Avaliação</span>
+              <div className="bg-background border border-card-border rounded-xl p-1.5 sm:p-2">
+                <Star className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-400 mx-auto mb-1" />
+                <span className="font-bold text-[10px] sm:text-xs">{profile.rating?.toFixed(1) || 5.0}</span>
+                <span className="text-gray-500 block text-[9px] sm:text-xs">Avaliação</span>
               </div>
-              <div className="bg-background border border-card-border rounded-xl p-2">
-                <Zap className="w-4 h-4 text-primary mx-auto mb-1" />
-                <span className="font-bold">{profile.total_trips || 0}</span>
-                <span className="text-gray-500 block">Corridas</span>
+              <div className="bg-background border border-card-border rounded-xl p-1.5 sm:p-2">
+                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary mx-auto mb-1" />
+                <span className="font-bold text-[10px] sm:text-xs">{profile.total_trips || 0}</span>
+                <span className="text-gray-500 block text-[9px] sm:text-xs">Corridas</span>
               </div>
             </div>
           )}
@@ -368,7 +368,7 @@ export default function DriverDashboard() {
           </div>
         </motion.div>
 
-        {/* Quick links */}
+          {/* Quick links */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-3">
           <Link href="/dashboard/driver/earnings">
             <div className="glass-panel p-4 flex items-center gap-3 hover:border-primary/30 transition-all">
@@ -392,6 +392,28 @@ export default function DriverDashboard() {
             <Target className="w-5 h-5 text-primary" />
             <div><p className="text-sm font-semibold">Metas</p><p className="text-xs text-gray-500">Bônus disponíveis</p></div>
           </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <button onClick={async () => {
+            try {
+              const res = await fetch("/api/stripe/connect", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: user?.id, email: user?.email, country: "BR" }),
+              });
+              const data = await res.json();
+              if (data.onboardingUrl) window.location.href = data.onboardingUrl;
+            } catch {}
+          }}
+            className="w-full glass-panel p-4 flex items-center gap-3 hover:border-primary/30 transition-all">
+            <CreditCard className="w-5 h-5 text-primary" />
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold">Receber pagamentos</p>
+              <p className="text-xs text-gray-500">Conecte sua conta Stripe para receber</p>
+            </div>
+            <DollarSign className="w-4 h-4 text-primary" />
+          </button>
         </motion.div>
       </div>
     </div>

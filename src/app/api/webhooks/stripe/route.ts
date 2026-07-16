@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripeService } from "@/lib/payment/stripe-service";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
@@ -14,12 +15,41 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  const supabase = await createClient();
+
   switch (event.type) {
-    case "payment_intent.succeeded":
-      console.log("[Webhook] Payment succeeded:", event.data.id);
+    case "payment_intent.succeeded": {
+      const pi = event.data as any;
+      const tripId = pi.metadata?.trip_id;
+      const driverId = pi.metadata?.driver_id;
+      if (tripId) {
+        await supabase.from("trips").update({
+          status: "PAYMENT_CONFIRMED",
+          final_fare: pi.amount / 100,
+          payment_id: pi.id,
+          updated_at: new Date().toISOString(),
+        }).eq("id", tripId);
+      }
+      if (driverId) {
+        const amount = pi.amount_received || pi.amount;
+        const fee = pi.application_fee_amount || 0;
+        const driverAmount = (amount - fee) / 100;
+        await supabase.from("driver_earnings").upsert({
+          driver_id: driverId,
+          amount: driverAmount,
+          trip_id: tripId,
+          payment_intent: pi.id,
+          status: "available",
+          created_at: new Date().toISOString(),
+        });
+      }
       break;
+    }
     case "payment_intent.payment_failed":
       console.error("[Webhook] Payment failed:", event.data.id);
+      break;
+    case "transfer.created":
+    case "payout.paid":
       break;
     default:
       console.log("[Webhook] Unhandled event:", event.type);

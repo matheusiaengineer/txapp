@@ -178,7 +178,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel rounded-none border-t border-card-border px-2 py-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel rounded-none border-t border-card-border px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
         <div className="flex items-center justify-around">
           {navItems.slice(0, 4).map((item) => {
             const active = isActive(item.href);

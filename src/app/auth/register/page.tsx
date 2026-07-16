@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -65,6 +65,15 @@ function RegisterForm() {
 
   const stepLabels = getStepLabels(profileType);
   const totalSteps = getStepCount(profileType);
+
+  useEffect(() => {
+    if (step === totalSteps) {
+      const timer = setTimeout(() => {
+        router.push(getDashboardRoute(profileType as Role));
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, totalSteps, profileType, router]);
 
   const nextStep = useCallback(() => setStep(s => Math.min(s + 1, totalSteps)), [totalSteps]);
 

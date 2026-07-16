@@ -35,6 +35,11 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#3ECB8E",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -47,7 +52,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="512x512" />
         <link rel="apple-touch-icon" href="/icon.svg" sizes="512x512" />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
