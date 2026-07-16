@@ -460,8 +460,6 @@ CREATE POLICY "Upload fotos veículo" ON storage.objects FOR INSERT WITH CHECK (
 -- 9. REALTIME
 -- =========================================================================
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.driver_heartbeats;
-
 -- =========================================================================
 -- 10. VERIFICAÇÃO
 -- =========================================================================
