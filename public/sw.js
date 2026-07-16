@@ -1,38 +1,27 @@
-const CACHE_NAME = "txd-v1";
+const CACHE_NAME = "txd-v2";
 const urlsToCache = [
   "/",
-  "/auth/login",
-  "/auth/register",
-  "/dashboard/passenger",
-  "/dashboard/driver",
-  "/chat",
-  "/ride",
-  "/freight",
-  "/payment",
-  "/notifications",
-  "/settings",
-  "/community",
+  "/manifest.json",
+  "/icon.svg",
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log("[SW] Caching app shell");
       return cache.addAll(urlsToCache);
     })
   );
 });
 
 self.addEventListener("fetch", (event) => {
+  if (event.request.mode === "navigate") {
+    event.respondWith(fetch(event.request).catch(() => caches.match("/")));
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((response) => {
-      if (response) return response;
-      return fetch(event.request).catch(() => {
-        return new Response(
-          JSON.stringify({ error: "offline", message: "Você está offline. Algumas funcionalidade podem não estar disponíveis." }),
-          { status: 503, headers: { "Content-Type": "application/json" } }
-        );
-      });
+      return response || fetch(event.request);
     })
   );
 });
