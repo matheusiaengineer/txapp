@@ -1,0 +1,241 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Bell, BellRing, Check, ChevronLeft, Clock, MessageSquare,
+  AlertTriangle, CreditCard, Gift, Shield, Info, Trash2, Filter,
+  CheckCheck, ArrowLeft, X,
+} from "lucide-react";
+import Link from "next/link";
+import { notificationService, type AppNotification } from "@/lib/notification/notification-service";
+
+const typeIcons: Record<string, React.ReactNode> = {
+  trip: <Clock className="w-5 h-5 text-primary" />,
+  payment: <CreditCard className="w-5 h-5 text-success" />,
+  promotion: <Gift className="w-5 h-5 text-warning" />,
+  security: <Shield className="w-5 h-5 text-error" />,
+  system: <Info className="w-5 h-5 text-info" />,
+  message: <MessageSquare className="w-5 h-5 text-accent" />,
+  verification: <AlertTriangle className="w-5 h-5 text-warning" />,
+};
+
+const typeLabels: Record<string, string> = {
+  all: "Todas", trip: "Corridas", payment: "Pagamentos",
+  promotion: "Promoções", security: "Segurança", system: "Sistema",
+  message: "Mensagens", verification: "Verificação",
+};
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Agora mesmo";
+  if (mins < 60) return `${mins} min atrás`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h atrás`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d atrás`;
+  return new Date(dateStr).toLocaleDateString("pt-BR");
+}
+
+function groupByDate(notifications: AppNotification[]): Record<string, AppNotification[]> {
+  const groups: Record<string, AppNotification[]> = {};
+  const now = new Date();
+  const today = now.toDateString();
+  const yesterday = new Date(now.getTime() - 86400000).toDateString();
+  const weekAgo = new Date(now.getTime() - 7 * 86400000);
+
+  notifications.forEach(n => {
+    const d = new Date(n.createdAt);
+    const key = d.toDateString() === today ? "Hoje" :
+      d.toDateString() === yesterday ? "Ontem" :
+      d >= weekAgo ? "Esta semana" : "Anterior";
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(n);
+  });
+
+  const order = ["Hoje", "Ontem", "Esta semana", "Anterior"];
+  const sorted: Record<string, AppNotification[]> = {};
+  order.forEach(k => { if (groups[k]) sorted[k] = groups[k]; });
+  return sorted;
+}
+
+export default function NotificationsPage() {
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [filter, setFilter] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+  const [swipingId, setSwipingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const all = await notificationService.getAll();
+    setNotifications(all);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const unsub = notificationService.subscribe(() => load());
+    return unsub;
+  }, [load]);
+
+  const filtered = filter === "all"
+    ? notifications
+    : notifications.filter(n => n.type === filter);
+
+  const grouped = groupByDate(filtered);
+
+  async function handleMarkAll() {
+    await notificationService.markAllAsRead();
+  }
+
+  async function handleMarkRead(id: string) {
+    await notificationService.markAsRead(id);
+  }
+
+  async function handleDelete(id: string) {
+    await notificationService.delete(id);
+  }
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  return (
+    <main className="min-h-screen bg-background pb-20">
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="p-2 rounded-xl hover:bg-card-bg transition-colors">
+              <ArrowLeft className="w-5 h-5 text-gray-400" />
+            </Link>
+            <h1 className="text-2xl font-bold text-white">Notificações</h1>
+            {unreadCount > 0 && (
+              <span className="text-xs bg-primary/20 text-primary font-medium px-2.5 py-0.5 rounded-full">
+                {unreadCount} novas
+              </span>
+            )}
+          </div>
+          {unreadCount > 0 && (
+            <button
+              onClick={handleMarkAll}
+              className="flex items-center gap-1.5 text-sm text-primary hover:underline font-medium"
+            >
+              <CheckCheck className="w-4 h-4" />
+              Ler todas
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-none">
+          {Object.entries(typeLabels).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                filter === key
+                  ? "bg-primary text-background"
+                  : "bg-card-bg text-gray-400 hover:text-white border border-card-border"
+              }`}
+            >
+              {label}
+              {key !== "all" && notifications.filter(n => n.type === key && !n.read).length > 0 && (
+                <span className="ml-1.5 text-[10px] bg-primary text-background rounded-full px-1.5 py-0.5">
+                  {notifications.filter(n => n.type === key && !n.read).length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="glass-panel p-4 animate-pulse">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-card-border" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-card-border rounded w-3/4" />
+                    <div className="h-3 bg-card-border rounded w-1/2" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="glass-panel p-12 text-center">
+            <Bell className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+            <h2 className="text-xl font-bold text-white mb-2">Nenhuma notificação</h2>
+            <p className="text-gray-400 text-sm">
+              {filter === "all" ? "Você está em dia!" : `Nenhuma notificação do tipo "${typeLabels[filter]}"`}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(grouped).map(([group, items]) => (
+              <div key={group}>
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">{group}</h3>
+                <div className="space-y-2">
+                  <AnimatePresence mode="popLayout">
+                    {items.map(n => (
+                      <motion.div
+                        key={n.id}
+                        layout
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: 100 }}
+                        className={`glass-panel overflow-hidden transition-all ${
+                          swipingId === n.id ? "scale-[0.98]" : ""
+                        }`}
+                      >
+                        <div className="relative">
+                          <div
+                            className="absolute inset-0 bg-error/20"
+                            style={{ width: swipingId === n.id ? "100%" : "0%", transition: "width 0.2s" }}
+                          />
+                          <div className="relative p-4 flex items-start gap-3">
+                            <div className="mt-0.5">{typeIcons[n.type] || <Info className="w-5 h-5 text-gray-500" />}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`font-medium text-sm ${n.read ? "text-gray-300" : "text-white"}`}>
+                                  {n.title}
+                                </span>
+                                <span className="text-[10px] text-gray-500 whitespace-nowrap">{timeAgo(n.createdAt)}</span>
+                              </div>
+                              <p className="text-xs text-gray-400 mt-0.5">{n.body}</p>
+                              {n.actionUrl && (
+                                <Link href={n.actionUrl} className="inline-block mt-2 text-xs text-primary font-medium hover:underline">
+                                  Ver detalhes
+                                </Link>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {!n.read && (
+                                <button
+                                  onClick={() => handleMarkRead(n.id)}
+                                  className="p-1.5 rounded-lg hover:bg-card-border/50 transition-colors"
+                                  title="Marcar como lida"
+                                >
+                                  <Check className="w-4 h-4 text-gray-500" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDelete(n.id)}
+                                className="p-1.5 rounded-lg hover:bg-error/20 transition-colors"
+                                title="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4 text-gray-500 hover:text-error" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

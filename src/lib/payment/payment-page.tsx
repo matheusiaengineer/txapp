@@ -1,0 +1,1050 @@
+"use client";
+
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Wallet,
+  Plus,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Copy,
+  CreditCard,
+  Smartphone,
+  Ticket,
+  Gift,
+  Trash2,
+  Star,
+  ChevronRight,
+  Coins,
+  Banknote,
+  Clock,
+  Check,
+  X,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Users,
+  Split,
+  Landmark,
+} from "lucide-react";
+import { walletService, type WalletTransaction } from "./wallet-service";
+import { formatCurrencyValue, CURRENCIES, type Currency } from "./currencies";
+
+interface PaymentPageProps {
+  userId?: string;
+  userName?: string;
+  userEmail?: string;
+  userCpf?: string;
+}
+
+const supportedCurrencies = CURRENCIES.filter(c => c.code === "BRL" || c.code === "USD" || c.code === "BTC" || c.code === "ETH" || c.code === "USDT");
+
+const presetAmounts = [20, 50, 100, 200, 500];
+
+const mockTransactions: WalletTransaction[] = [
+  { id: "tx_1", userId: "user1", type: "deposit", amount: 100, currency: "BRL", balanceBefore: 0, balanceAfter: 100, description: "Depósito via PIX", status: "completed", paymentMethod: "PIX", createdAt: new Date(Date.now() - 86400000).toISOString(), completedAt: new Date(Date.now() - 86400000).toISOString() },
+  { id: "tx_2", userId: "user1", type: "payment", amount: 24.90, currency: "BRL", balanceBefore: 100, balanceAfter: 75.10, description: "TXD Pop - Av. Paulista → Shopping", status: "completed", referenceId: "trip_1", createdAt: new Date(Date.now() - 43200000).toISOString(), completedAt: new Date(Date.now() - 43200000).toISOString() },
+  { id: "tx_3", userId: "user1", type: "deposit", amount: 200, currency: "BRL", balanceBefore: 75.10, balanceAfter: 275.10, description: "Depósito via Cartão de Crédito", status: "completed", paymentMethod: "Credit Card", createdAt: new Date(Date.now() - 21600000).toISOString(), completedAt: new Date(Date.now() - 21600000).toISOString() },
+  { id: "tx_4", userId: "user1", type: "payment", amount: 89.50, currency: "BRL", balanceBefore: 275.10, balanceAfter: 185.60, description: "TXD Comfort - Casa → Aeroporto", status: "completed", referenceId: "trip_2", createdAt: new Date(Date.now() - 7200000).toISOString(), completedAt: new Date(Date.now() - 7200000).toISOString() },
+  { id: "tx_5", userId: "user1", type: "cashback", amount: 5, currency: "BRL", balanceBefore: 185.60, balanceAfter: 190.60, description: "Cashback TXD - Corrida elegível", status: "completed", createdAt: new Date(Date.now() - 3600000).toISOString(), completedAt: new Date(Date.now() - 3600000).toISOString() },
+  { id: "tx_6", userId: "user1", type: "bonus", amount: 20, currency: "BRL", balanceBefore: 190.60, balanceAfter: 210.60, description: "Bônus de indicação", status: "completed", createdAt: new Date(Date.now() - 1800000).toISOString(), completedAt: new Date(Date.now() - 1800000).toISOString() },
+];
+
+const mockPaymentMethods = [
+  { id: "pm_1", type: "credit" as const, name: "Visa •••• 4532", lastFour: "4532", isDefault: true },
+  { id: "pm_2", type: "pix" as const, name: "PIX • ana@email.com", isDefault: false },
+  { id: "pm_3", type: "debit" as const, name: "Mastercard •••• 8910", lastFour: "8910", isDefault: false },
+];
+
+const mockBankAccounts = [
+  { id: "ba_1", bank: "Nubank", agency: "0001", account: "12345-6", type: "Conta Corrente", isDefault: true },
+  { id: "ba_2", bank: "Itaú", agency: "341", account: "98765-4", type: "Poupança", isDefault: false },
+];
+
+type TabType = "deposit" | "withdraw" | "history" | "methods" | "split";
+
+export function PaymentPage({
+  userId = "user1",
+  userName = "Ana Oliveira",
+  userEmail = "ana.oliveira@email.com",
+  userCpf = "123.456.789-00",
+}: PaymentPageProps) {
+  const [activeTab, setActiveTab] = useState<TabType>("deposit");
+  const [selectedCurrency, setSelectedCurrency] = useState("BRL");
+  const [depositAmount, setDepositAmount] = useState(100);
+  const [depositMethod, setDepositMethod] = useState<"pix" | "card" | "boleto" | "crypto">("pix");
+  const [withdrawAmount, setWithdrawAmount] = useState(0);
+  const [withdrawMethod, setWithdrawMethod] = useState<"instant" | "scheduled">("instant");
+  const [selectedBank, setSelectedBank] = useState(mockBankAccounts[0].id);
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [showAddBank, setShowAddBank] = useState(false);
+  const [copiedPix, setCopiedPix] = useState(false);
+  const [txFilter, setTxFilter] = useState<"all" | "deposit" | "payment" | "cashback" | "bonus">("all");
+  const [balanceVisible, setBalanceVisible] = useState(true);
+  const [splitAmount, setSplitAmount] = useState(50);
+  const [splitPassengers, setSplitPassengers] = useState(["", ""]);
+  const [cardForm, setCardForm] = useState({ number: "", expiry: "", cvv: "", name: "" });
+  const [bankForm, setBankForm] = useState({ bank: "", agency: "", account: "", type: "Conta Corrente" });
+  const [couponCode, setCouponCode] = useState("");
+  const [processing, setProcessing] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const currency = CURRENCIES.find(c => c.code === selectedCurrency) || CURRENCIES[0];
+  const balance = walletService.getBalance(userId, selectedCurrency);
+
+  const currentBalance = mockTransactions
+    .filter(t => t.userId === userId && t.currency === selectedCurrency && t.status === "completed")
+    .reduce((acc, t) => {
+      if (t.type === "deposit" || t.type === "cashback" || t.type === "bonus") return acc + t.amount;
+      if (t.type === "payment") return acc - t.amount;
+      return acc;
+    }, 0);
+
+  const filteredTxs = mockTransactions
+    .filter(t => t.userId === userId)
+    .filter(t => txFilter === "all" || t.type === txFilter);
+
+  const handleDepositPreset = (amount: number) => setDepositAmount(amount);
+
+  const handleDeposit = async () => {
+    setProcessing(true);
+    setMessage(null);
+    try {
+      await walletService.deposit(userId, depositAmount, selectedCurrency, depositMethod.toUpperCase());
+      setMessage({ type: "success", text: `Depósito de ${formatCurrencyValue(depositAmount, selectedCurrency)} realizado com sucesso via ${depositMethod.toUpperCase()}!` });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao processar depósito" });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    setProcessing(true);
+    setMessage(null);
+    try {
+      await walletService.withdraw(userId, withdrawAmount, selectedCurrency, withdrawMethod === "instant" ? "Transferência Instantânea" : "Transferência Agendada");
+      setMessage({ type: "success", text: `Saque de ${formatCurrencyValue(withdrawAmount, selectedCurrency)} solicitado com sucesso!` });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Erro ao processar saque" });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleSplitPayment = () => {
+    setProcessing(true);
+    setMessage(null);
+    const passengers = splitPassengers.filter(p => p.trim()).map(p => ({ userId: p, amount: splitAmount / (splitPassengers.filter(x => x.trim()).length) }));
+    walletService.splitPayment("trip_split_demo", passengers, selectedCurrency);
+    setMessage({ type: "success", text: `Pagamento dividido entre ${passengers.length} passageiros!` });
+    setProcessing(false);
+  };
+
+  const handleCopyPixKey = () => {
+    navigator.clipboard.writeText(userEmail);
+    setCopiedPix(true);
+    setTimeout(() => setCopiedPix(false), 2000);
+  };
+
+  const getTxIcon = (type: string) => {
+    switch (type) {
+      case "deposit": return Plus;
+      case "payment": return ArrowUpRight;
+      case "cashback": return Gift;
+      case "bonus": return Coins;
+      case "refund": return ArrowDownLeft;
+      default: return ArrowUpRight;
+    }
+  };
+
+  const getTxColor = (type: string) => {
+    switch (type) {
+      case "deposit": return "text-blue-400 bg-blue-400/15";
+      case "payment": return "text-red-400 bg-red-400/15";
+      case "cashback": return "text-green-400 bg-green-400/15";
+      case "bonus": return "text-yellow-400 bg-yellow-400/15";
+      default: return "text-gray-400 bg-white/5";
+    }
+  };
+
+  const tabs: { id: TabType; label: string; icon: typeof Wallet }[] = [
+    { id: "deposit", label: "Depositar", icon: Plus },
+    { id: "withdraw", label: "Sacar", icon: ArrowUpRight },
+    { id: "history", label: "Extrato", icon: Clock },
+    { id: "methods", label: "Métodos", icon: CreditCard },
+    { id: "split", label: "Dividir", icon: Split },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-6">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold">Pagamentos</h1>
+              <p className="text-sm text-gray-400 mt-1">Sistema de pagamentos e carteira digital</p>
+            </div>
+            <CurrencySelector value={selectedCurrency} onChange={setSelectedCurrency} currencies={supportedCurrencies} />
+          </div>
+        </motion.div>
+
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`p-4 rounded-2xl flex items-center gap-3 text-sm font-medium ${
+              message.type === "success" ? "bg-green-400/15 text-green-400 border border-green-400/20" : "bg-red-400/15 text-red-400 border border-red-400/20"
+            }`}
+          >
+            {message.type === "success" ? <Check className="w-5 h-5 shrink-0" /> : <X className="w-5 h-5 shrink-0" />}
+            {message.text}
+          </motion.div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-panel p-6 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-primary/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-primary" />
+                    <span className="text-sm text-gray-400">Saldo TXD Wallet</span>
+                  </div>
+                  <button onClick={() => setBalanceVisible(!balanceVisible)} className="text-gray-500 hover:text-gray-300 transition-colors">
+                    {balanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-4xl sm:text-5xl font-bold mb-1">
+                  {balanceVisible ? formatCurrencyValue(currentBalance, selectedCurrency) : "••••••"}
+                </p>
+                <p className="text-sm text-gray-500 mb-6">Disponível para viagens e saques</p>
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setActiveTab("deposit")}
+                    className="flex items-center gap-2 bg-primary text-background font-semibold px-5 py-2.5 rounded-full text-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar fundos
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setActiveTab("withdraw")}
+                    className="flex items-center gap-2 glass-panel text-sm font-medium px-5 py-2.5 rounded-full"
+                  >
+                    <ArrowDownLeft className="w-4 h-4" />
+                    Transferir
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+              {tabs.map(tab => {
+                const Icon = tab.icon;
+                return (
+                  <motion.button
+                    key={tab.id}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      activeTab === tab.id
+                        ? "bg-primary text-background"
+                        : "glass-panel text-gray-400 hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {tab.label}
+                  </motion.button>
+                );
+              })}
+            </div>
+
+            <AnimatePresence mode="wait">
+              {activeTab === "deposit" && (
+                <motion.div
+                  key="deposit"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="glass-panel p-6 space-y-6"
+                >
+                  <h2 className="text-lg font-semibold">Depositar fundos</h2>
+
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Valor</p>
+                    <div className="relative mb-3">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-gray-400 font-medium">{currency.symbol}</span>
+                      <input
+                        type="number"
+                        value={depositAmount}
+                        onChange={e => setDepositAmount(Number(e.target.value))}
+                        className="w-full bg-background border border-card-border rounded-2xl pl-10 pr-4 py-4 text-2xl font-bold text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors"
+                      />
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {presetAmounts.map(amount => (
+                        <motion.button
+                          key={amount}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleDepositPreset(amount)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                            depositAmount === amount
+                              ? "bg-primary/20 text-primary border border-primary/30"
+                              : "bg-background border border-card-border text-gray-400 hover:text-foreground"
+                          }`}
+                        >
+                          {formatCurrencyValue(amount, selectedCurrency)}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Método de pagamento</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { id: "pix" as const, label: "PIX", icon: Smartphone, color: "text-green-400 bg-green-400/15" },
+                        { id: "card" as const, label: "Cartão", icon: CreditCard, color: "text-blue-400 bg-blue-400/15" },
+                        { id: "boleto" as const, label: "Boleto", icon: Ticket, color: "text-yellow-400 bg-yellow-400/15" },
+                        { id: "crypto" as const, label: "Crypto", icon: Coins, color: "text-purple-400 bg-purple-400/15" },
+                      ].map(method => (
+                        <motion.button
+                          key={method.id}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => setDepositMethod(method.id)}
+                          className={`p-4 rounded-2xl flex flex-col items-center gap-2 text-sm font-medium transition-all ${
+                            depositMethod === method.id
+                              ? "bg-white/10 border border-primary/40"
+                              : "bg-background border border-card-border hover:border-white/20"
+                          }`}
+                        >
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${method.color}`}>
+                            <method.icon className="w-5 h-5" />
+                          </div>
+                          {method.label}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {depositMethod === "pix" && (
+                    <div className="bg-background border border-card-border rounded-2xl p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Smartphone className="w-5 h-5 text-green-400" />
+                        <div>
+                          <p className="text-sm font-medium">PIX via QR Code</p>
+                          <p className="text-xs text-gray-500">Escaneie o código ou copie a chave</p>
+                        </div>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleCopyPixKey}
+                        className="flex items-center gap-1 text-xs text-primary font-medium"
+                      >
+                        <Copy className="w-3 h-3" />
+                        {copiedPix ? "Copiado!" : "Copiar"}
+                      </motion.button>
+                    </div>
+                  )}
+
+                  {depositMethod === "card" && (
+                    <div className="bg-background border border-card-border rounded-2xl p-4 space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Número do cartão"
+                        className="w-full bg-transparent border-none outline-none text-sm text-white placeholder:text-gray-500"
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="text" placeholder="Validade (MM/AA)" className="bg-transparent border-none outline-none text-sm text-white placeholder:text-gray-500" />
+                        <input type="text" placeholder="CVV" className="bg-transparent border-none outline-none text-sm text-white placeholder:text-gray-500" />
+                      </div>
+                      <input type="text" placeholder="Nome no cartão" className="w-full bg-transparent border-none outline-none text-sm text-white placeholder:text-gray-500" />
+                    </div>
+                  )}
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleDeposit}
+                    disabled={processing || depositAmount <= 0}
+                    className="w-full bg-primary text-background font-bold py-4 rounded-2xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {processing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    {processing ? "Processando..." : `Depositar ${formatCurrencyValue(depositAmount, selectedCurrency)}`}
+                  </motion.button>
+
+                  <p className="text-xs text-gray-500 text-center">
+                    Depósitos via PIX são instantâneos. Cartão e boleto podem levar até 3 dias úteis.
+                  </p>
+                </motion.div>
+              )}
+
+              {activeTab === "withdraw" && (
+                <motion.div
+                  key="withdraw"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="glass-panel p-6 space-y-6"
+                >
+                  <h2 className="text-lg font-semibold">Sacar fundos</h2>
+                  <p className="text-sm text-gray-400">Saldo disponível: {formatCurrencyValue(currentBalance, selectedCurrency)}</p>
+
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Valor do saque</p>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-gray-400 font-medium">{currency.symbol}</span>
+                      <input
+                        type="number"
+                        value={withdrawAmount}
+                        onChange={e => setWithdrawAmount(Number(e.target.value))}
+                        placeholder="0"
+                        className="w-full bg-background border border-card-border rounded-2xl pl-10 pr-4 py-4 text-2xl font-bold text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors"
+                      />
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs text-gray-500">
+                      <span>Mín: {formatCurrencyValue(currency.minWithdrawal, selectedCurrency)}</span>
+                      <span>Máx: {formatCurrencyValue(currency.maxWithdrawal, selectedCurrency)}</span>
+                    </div>
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      {[50, 100, 200, 500].map(amount => (
+                        <motion.button
+                          key={amount}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setWithdrawAmount(amount)}
+                          className="px-3 py-1.5 rounded-full text-xs font-medium bg-background border border-card-border text-gray-400 hover:text-foreground"
+                        >
+                          {formatCurrencyValue(amount, selectedCurrency)}
+                        </motion.button>
+                      ))}
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setWithdrawAmount(currentBalance)}
+                        className="px-3 py-1.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20"
+                      >
+                        Saldo total
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Conta bancária</p>
+                    <div className="space-y-2">
+                      {mockBankAccounts.map(ba => (
+                        <motion.button
+                          key={ba.id}
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setSelectedBank(ba.id)}
+                          className={`w-full p-4 rounded-2xl flex items-center gap-3 text-left transition-all ${
+                            selectedBank === ba.id
+                              ? "bg-white/10 border border-primary/40"
+                              : "bg-background border border-card-border"
+                          }`}
+                        >
+                          <div className="w-10 h-10 rounded-xl bg-blue-400/15 flex items-center justify-center shrink-0">
+                            <Landmark className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{ba.bank}</p>
+                            <p className="text-xs text-gray-500">Ag {ba.agency} • C/C {ba.account}</p>
+                          </div>
+                          {ba.isDefault && <span className="text-[10px] text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full shrink-0">Padrão</span>}
+                        </motion.button>
+                      ))}
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setShowAddBank(!showAddBank)}
+                      className="mt-2 text-xs text-primary flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Adicionar conta bancária
+                    </motion.button>
+
+                    <AnimatePresence>
+                      {showAddBank && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden mt-3"
+                        >
+                          <div className="bg-background border border-card-border rounded-2xl p-4 space-y-3">
+                            <input
+                              type="text"
+                              placeholder="Banco"
+                              value={bankForm.bank}
+                              onChange={e => setBankForm({ ...bankForm, bank: e.target.value })}
+                              className="w-full bg-transparent border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                placeholder="Agência"
+                                value={bankForm.agency}
+                                onChange={e => setBankForm({ ...bankForm, agency: e.target.value })}
+                                className="bg-transparent border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Conta"
+                                value={bankForm.account}
+                                onChange={e => setBankForm({ ...bankForm, account: e.target.value })}
+                                className="bg-transparent border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                              />
+                            </div>
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
+                              className="w-full bg-primary text-background font-semibold py-3 rounded-xl text-sm"
+                            >
+                              Salvar conta
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Tipo de saque</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <motion.button
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setWithdrawMethod("instant")}
+                        className={`p-4 rounded-2xl flex flex-col items-center gap-2 text-sm font-medium transition-all ${
+                          withdrawMethod === "instant"
+                            ? "bg-white/10 border border-primary/40"
+                            : "bg-background border border-card-border"
+                        }`}
+                      >
+                        <ZapIcon className="w-6 h-6 text-primary" />
+                        Instantâneo
+                        <span className="text-[10px] text-gray-500">Taxa: {formatCurrencyValue(currency.withdrawalFee, selectedCurrency)}</span>
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setWithdrawMethod("scheduled")}
+                        className={`p-4 rounded-2xl flex flex-col items-center gap-2 text-sm font-medium transition-all ${
+                          withdrawMethod === "scheduled"
+                            ? "bg-white/10 border border-primary/40"
+                            : "bg-background border border-card-border"
+                        }`}
+                      >
+                        <CalendarIcon className="w-6 h-6 text-primary" />
+                        Agendado
+                        <span className="text-[10px] text-gray-500">Sem taxa • 2-3 dias</span>
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleWithdraw}
+                    disabled={processing || withdrawAmount <= 0 || withdrawAmount > currentBalance || withdrawAmount < currency.minWithdrawal}
+                    className="w-full bg-primary text-background font-bold py-4 rounded-2xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {processing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowUpRight className="w-4 h-4" />}
+                    {processing ? "Processando..." : `Sacar ${formatCurrencyValue(withdrawAmount, selectedCurrency)}`}
+                  </motion.button>
+
+                  {withdrawAmount > 0 && withdrawAmount > currentBalance && (
+                    <p className="text-xs text-red-400 text-center">Saldo insuficiente para realizar este saque.</p>
+                  )}
+                </motion.div>
+              )}
+
+              {activeTab === "history" && (
+                <motion.div
+                  key="history"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="glass-panel p-6 space-y-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">Extrato de transações</h2>
+                    <div className="flex gap-1">
+                      {(["all", "deposit", "payment", "cashback", "bonus"] as const).map(filter => (
+                        <motion.button
+                          key={filter}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setTxFilter(filter)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                            txFilter === filter
+                              ? "bg-primary/20 text-primary"
+                              : "text-gray-500 hover:text-foreground"
+                          }`}
+                        >
+                          {filter === "all" ? "Todas" : filter === "deposit" ? "Depósitos" : filter === "payment" ? "Pagamentos" : filter === "cashback" ? "Cashback" : "Bônus"}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                    {filteredTxs.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 text-sm">Nenhuma transação encontrada.</div>
+                    ) : (
+                      filteredTxs.map(tx => {
+                        const Icon = getTxIcon(tx.type);
+                        const [colorClass, bgClass] = getTxColor(tx.type).split(" ");
+                        return (
+                          <motion.div
+                            key={tx.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex items-center gap-3 p-4 rounded-2xl bg-background border border-card-border hover:border-white/10 transition-colors"
+                          >
+                            <div className={`w-10 h-10 rounded-xl ${bgClass} flex items-center justify-center shrink-0`}>
+                              <Icon className={`w-5 h-5 ${colorClass}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{tx.description}</p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(tx.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className={`text-sm font-semibold ${tx.type === "deposit" || tx.type === "cashback" || tx.type === "bonus" ? "text-primary" : "text-red-400"}`}>
+                                {tx.type === "deposit" || tx.type === "cashback" || tx.type === "bonus" ? "+" : "-"}{formatCurrencyValue(tx.amount, tx.currency)}
+                              </p>
+                              <span className={`text-[10px] font-medium ${
+                                tx.status === "completed" ? "text-primary" : tx.status === "pending" ? "text-yellow-400" : "text-red-400"
+                              }`}>
+                                {tx.status === "completed" ? "Concluída" : tx.status === "pending" ? "Pendente" : tx.status}
+                              </span>
+                            </div>
+                          </motion.div>
+                        );
+                      })
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "methods" && (
+                <motion.div
+                  key="methods"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-4"
+                >
+                  <div className="glass-panel p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-semibold">Cartões</h2>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowAddCard(!showAddCard)}
+                        className="text-xs text-primary flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> Adicionar
+                      </motion.button>
+                    </div>
+                    <div className="space-y-2">
+                      {mockPaymentMethods.filter(pm => pm.type !== "pix").map(pm => (
+                        <div key={pm.id} className={`p-4 rounded-2xl flex items-center gap-3 bg-background border ${pm.isDefault ? "border-primary/30" : "border-card-border"}`}>
+                          <div className="w-10 h-10 rounded-xl bg-blue-400/15 flex items-center justify-center shrink-0">
+                            <CreditCard className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{pm.name}</p>
+                            <p className="text-xs text-gray-500">{pm.isDefault ? "Padrão" : "Crédito"}</p>
+                          </div>
+                          <Trash2 className="w-4 h-4 text-gray-500 hover:text-red-400 cursor-pointer shrink-0" />
+                        </div>
+                      ))}
+                    </div>
+
+                    <AnimatePresence>
+                      {showAddCard && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="bg-background border border-card-border rounded-2xl p-4 space-y-3">
+                            <input
+                              type="text"
+                              placeholder="Número do cartão"
+                              value={cardForm.number}
+                              onChange={e => setCardForm({ ...cardForm, number: e.target.value })}
+                              className="w-full bg-transparent border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                            />
+                            <div className="grid grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                placeholder="Validade (MM/AA)"
+                                value={cardForm.expiry}
+                                onChange={e => setCardForm({ ...cardForm, expiry: e.target.value })}
+                                className="bg-transparent border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                              />
+                              <input
+                                type="text"
+                                placeholder="CVV"
+                                value={cardForm.cvv}
+                                onChange={e => setCardForm({ ...cardForm, cvv: e.target.value })}
+                                className="bg-transparent border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Nome no cartão"
+                              value={cardForm.name}
+                              onChange={e => setCardForm({ ...cardForm, name: e.target.value })}
+                              className="w-full bg-transparent border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                            />
+                            <motion.button
+                              whileTap={{ scale: 0.98 }}
+                              className="w-full bg-primary text-background font-semibold py-3 rounded-xl text-sm"
+                            >
+                              Salvar cartão
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  <div className="glass-panel p-6 space-y-4">
+                    <h2 className="text-lg font-semibold">Chave PIX</h2>
+                    <div
+                      className="bg-background border border-card-border rounded-2xl p-4 flex items-center justify-between cursor-pointer"
+                      onClick={handleCopyPixKey}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Smartphone className="w-5 h-5 text-green-400" />
+                        <span className="text-sm font-mono">{userEmail}</span>
+                      </div>
+                      <span className="text-xs text-primary">{copiedPix ? "Copiado!" : "Copiar"}</span>
+                    </div>
+                    <p className="text-xs text-gray-500">Use esta chave para receber transferências PIX</p>
+                  </div>
+
+                  <div className="glass-panel p-6 space-y-4">
+                    <h2 className="text-lg font-semibold">Contas bancárias</h2>
+                    <div className="space-y-2">
+                      {mockBankAccounts.map(ba => (
+                        <div key={ba.id} className="p-4 rounded-2xl flex items-center gap-3 bg-background border border-card-border">
+                          <div className="w-10 h-10 rounded-xl bg-blue-400/15 flex items-center justify-center shrink-0">
+                            <Landmark className="w-5 h-5 text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{ba.bank}</p>
+                            <p className="text-xs text-gray-500">Ag {ba.agency} • C/C {ba.account}</p>
+                          </div>
+                          {ba.isDefault && <span className="text-[10px] text-primary font-medium bg-primary/10 px-2 py-0.5 rounded-full">Padrão</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="glass-panel p-6 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Ticket className="w-4 h-4 text-primary" />
+                      <h2 className="text-lg font-semibold">Cupom de desconto</h2>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Insira o código"
+                        value={couponCode}
+                        onChange={e => setCouponCode(e.target.value)}
+                        className="flex-1 bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                      />
+                      <motion.button
+                        whileTap={{ scale: 0.98 }}
+                        className="bg-primary text-background font-semibold px-5 py-3 rounded-xl text-sm"
+                      >
+                        Aplicar
+                      </motion.button>
+                    </div>
+                  </div>
+
+                  <div className="glass-panel p-6 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-yellow-400/15 flex items-center justify-center">
+                        <Star className="w-5 h-5 text-yellow-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Pontos TXD</h3>
+                        <p className="text-xs text-gray-500">Programa de fidelidade</p>
+                      </div>
+                    </div>
+                    <div className="flex items-end justify-between">
+                      <p className="text-3xl font-bold text-yellow-400">1.280</p>
+                      <span className="text-xs text-gray-500">= R$ 12,80 em créditos</span>
+                    </div>
+                    <div className="bg-background border border-card-border rounded-full h-2 overflow-hidden">
+                      <div className="bg-yellow-400 h-full rounded-full" style={{ width: "42%" }} />
+                    </div>
+                    <p className="text-xs text-gray-500">Faltam 1.720 pts para o próximo nível</p>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === "split" && (
+                <motion.div
+                  key="split"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="glass-panel p-6 space-y-6"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center">
+                      <Split className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold">Dividir corrida</h2>
+                      <p className="text-xs text-gray-500">Divida o valor da corrida entre passageiros</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Valor total da corrida</p>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg text-gray-400 font-medium">{currency.symbol}</span>
+                      <input
+                        type="number"
+                        value={splitAmount}
+                        onChange={e => setSplitAmount(Number(e.target.value))}
+                        className="w-full bg-background border border-card-border rounded-2xl pl-10 pr-4 py-4 text-2xl font-bold text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-400 mb-3">Passageiros</p>
+                    <div className="space-y-2">
+                      {splitPassengers.map((passenger, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                            {index + 1}
+                          </div>
+                          <input
+                            type="text"
+                            placeholder={`ID do passageiro ${index + 1}`}
+                            value={passenger}
+                            onChange={e => {
+                              const newPassengers = [...splitPassengers];
+                              newPassengers[index] = e.target.value;
+                              setSplitPassengers(newPassengers);
+                            }}
+                            className="flex-1 bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                          />
+                          {index > 1 && (
+                            <button
+                              onClick={() => setSplitPassengers(splitPassengers.filter((_, i) => i !== index))}
+                              className="text-gray-500 hover:text-red-400 transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSplitPassengers([...splitPassengers, ""])}
+                      className="mt-2 text-xs text-primary flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Adicionar passageiro
+                    </motion.button>
+                  </div>
+
+                  {splitPassengers.filter(p => p.trim()).length > 0 && (
+                    <div className="bg-background border border-card-border rounded-2xl p-4 space-y-2">
+                      <p className="text-xs text-gray-500 mb-2">Divisão proposta</p>
+                      {(() => {
+                        const validPassengers = splitPassengers.filter(p => p.trim());
+                        const eachAmount = splitAmount / validPassengers.length;
+                        return validPassengers.map((p, i) => (
+                          <div key={i} className="flex justify-between text-sm">
+                            <span className="text-gray-400">Passageiro {i + 1}</span>
+                            <span className="font-medium">{formatCurrencyValue(eachAmount, selectedCurrency)}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSplitPayment}
+                    disabled={processing || splitPassengers.filter(p => p.trim()).length < 2}
+                    className="w-full bg-primary text-background font-bold py-4 rounded-2xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {processing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                    {processing ? "Processando..." : "Dividir pagamento"}
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="glass-panel p-5 space-y-4"
+            >
+              <h3 className="font-semibold flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-primary" />
+                Resumo da conta
+              </h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Saldo atual</span>
+                  <span className="font-semibold">{formatCurrencyValue(currentBalance, selectedCurrency)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Depósitos este mês</span>
+                  <span className="font-semibold text-primary">+{formatCurrencyValue(300, selectedCurrency)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Gastos este mês</span>
+                  <span className="font-semibold text-red-400">-{formatCurrencyValue(114.40, selectedCurrency)}</span>
+                </div>
+                <div className="pt-2 border-t border-card-border">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Cashback acumulado</span>
+                    <span className="font-semibold text-green-400">+{formatCurrencyValue(5, selectedCurrency)}</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="glass-panel p-5 space-y-4"
+            >
+              <h3 className="font-semibold flex items-center gap-2">
+                <Banknote className="w-4 h-4 text-primary" />
+                Limites e taxas
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Depósito mínimo</span>
+                  <span className="font-medium">{formatCurrencyValue(currency.minWithdrawal, selectedCurrency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Saque máximo</span>
+                  <span className="font-medium">{formatCurrencyValue(currency.maxWithdrawal, selectedCurrency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Taxa de saque</span>
+                  <span className="font-medium text-red-400">{formatCurrencyValue(currency.withdrawalFee, selectedCurrency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Moeda atual</span>
+                  <span className="font-medium">{currency.code} ({currency.symbol})</span>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="glass-panel p-5 space-y-4"
+            >
+              <h3 className="font-semibold flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-primary" />
+                Sua chave PIX
+              </h3>
+              <div
+                className="bg-background border border-card-border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer"
+                onClick={handleCopyPixKey}
+              >
+                <span className="text-sm font-mono truncate">{userEmail}</span>
+                <span className="text-xs text-primary shrink-0 ml-2">{copiedPix ? "Copiado!" : "Copiar"}</span>
+              </div>
+              <p className="text-xs text-gray-500">Compartilhe para receber transferências</p>
+            </motion.div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CurrencySelector({ value, onChange, currencies }: { value: string; onChange: (v: string) => void; currencies: Currency[] }) {
+  const [open, setOpen] = useState(false);
+  const selected = currencies.find(c => c.code === value) || currencies[0];
+  return (
+    <div className="relative">
+      <motion.button
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setOpen(!open)}
+        className="glass-panel px-4 py-2.5 rounded-full text-sm font-medium flex items-center gap-2"
+      >
+        <span>{selected.symbol}</span>
+        <span>{selected.code}</span>
+        <ChevronRight className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} />
+      </motion.button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            className="absolute right-0 mt-2 glass-panel p-2 min-w-[180px] z-50"
+          >
+            {currencies.map(c => (
+              <button
+                key={c.code}
+                onClick={() => { onChange(c.code); setOpen(false); }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-colors ${
+                  value === c.code ? "bg-primary/15 text-primary font-semibold" : "text-gray-400 hover:text-foreground hover:bg-white/5"
+                }`}
+              >
+                <span className="w-6 text-center">{c.symbol}</span>
+                <span>{c.code}</span>
+                <span className="text-xs text-gray-500 ml-auto">{c.name}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ZapIcon(props: any) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  );
+}
+
+function CalendarIcon(props: any) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
