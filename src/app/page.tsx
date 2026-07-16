@@ -27,10 +27,10 @@ const easing = [0.16, 1, 0.3, 1] as const;
 
 function SectionHeader({ badge, title, desc }: { badge: string; title: string; desc?: string }) {
   return (
-    <div className="text-center mb-16">
-      <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium border border-primary/20 mb-4">{badge}</span>
-      <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">{title}</h2>
-      {desc && <p className="text-gray-400 max-w-2xl mx-auto text-lg">{desc}</p>}
+    <div className="text-center mb-10 md:mb-16">
+      <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs md:text-sm font-medium border border-primary/20 mb-3 md:mb-4">{badge}</span>
+      <h2 className="text-2xl md:text-5xl font-bold tracking-tight mb-3 md:mb-4">{title}</h2>
+      {desc && <p className="text-gray-400 max-w-2xl mx-auto text-sm md:text-lg px-4">{desc}</p>}
     </div>
   );
 }
@@ -188,56 +188,56 @@ export default function Home() {
               <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 transition={{ type: "spring", damping: 28, stiffness: 320 }}
                 onClick={e => e.stopPropagation()}
-                className="w-full max-w-md txd-glass-strong rounded-3xl p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto">
-                <button onClick={() => setAuthOpen(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition"><X className="w-4 h-4" /></button>
-                <div className="text-center mb-6">
+                className="w-full max-w-md txd-glass-strong rounded-3xl p-5 md:p-8 relative max-h-[90vh] overflow-y-auto">
+                <button onClick={() => setAuthOpen(false)} className="absolute top-4 right-4 min-tap-target flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition"><X className="w-4 h-4" /></button>
+                <div className="text-center mb-5">
                 <span className="txd-gradient-text font-bold text-lg">TXDAPP</span>
-                <p className="text-gray-400 text-sm mt-1">{authMode === "login" ? "Entre na sua conta" : "Crie sua conta grátis"}</p>
+                <p className="text-gray-400 text-xs md:text-sm mt-1">{authMode === "login" ? "Entre na sua conta" : "Crie sua conta grátis"}</p>
               </div>
-              <div className="flex bg-black/40 rounded-xl p-1 mb-6">
-                <button onClick={() => setAuthMode("login")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${authMode === "login" ? "bg-primary text-black" : "text-gray-400"}`}>Entrar</button>
-                <button onClick={() => setAuthMode("register")} className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${authMode === "register" ? "bg-primary text-black" : "text-gray-400"}`}>Criar conta</button>
+              <div className="flex bg-black/40 rounded-xl p-1 mb-5">
+                <button onClick={() => setAuthMode("login")} className={`flex-1 py-3 rounded-lg text-sm font-medium transition ${authMode === "login" ? "bg-primary text-black" : "text-gray-400"}`}>Entrar</button>
+                <button onClick={() => setAuthMode("register")} className={`flex-1 py-3 rounded-lg text-sm font-medium transition ${authMode === "register" ? "bg-primary text-black" : "text-gray-400"}`}>Criar conta</button>
               </div>
               {authMode === "register" && (
-                <div className="grid grid-cols-3 gap-3 mb-6">
+                <div className="grid grid-cols-3 gap-2 mb-5">
                   {[ { id: "passenger", label: "Passageiro", icon: Car }, { id: "driver", label: "Motorista", icon: Bike }, { id: "company", label: "Empresa", icon: Building2 } ].map(p => (
                     <button key={p.id} onClick={() => setAuthProfile(p.id)}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition ${authProfile === p.id ? "border-primary bg-primary/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}>
+                      className={`flex flex-col items-center gap-1.5 p-3 md:p-4 rounded-xl border transition ${authProfile === p.id ? "border-primary bg-primary/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}>
                       <p.icon className={`w-5 h-5 ${authProfile === p.id ? "text-primary" : "text-gray-400"}`} />
                       <span className={`text-xs font-medium ${authProfile === p.id ? "text-primary" : "text-gray-400"}`}>{p.label}</span>
                     </button>
                   ))}
                 </div>
               )}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {authMode === "register" && (
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Car className="w-4 h-4" /></div>
                     <input type="text" placeholder="Seu nome completo"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition touch-manipulation" />
                   </div>
                 )}
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
                   <input type="email" placeholder="seu@email.com" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
                 </div>
                 {authMode === "register" && (
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
                     <input type="tel" placeholder="(33) 99999-9999"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
                   </div>
                 )}
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Lock className="w-4 h-4" /></div>
                   <input type={showPassword ? "text" : "password"} placeholder="Sua senha" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-12 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
-                  <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
+                  <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 min-tap-target flex items-center justify-center text-gray-500 hover:text-gray-300">
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {authMode === "login" && <button className="text-sm text-primary hover:underline">Esqueci minha senha</button>}
+                {authMode === "login" && <button className="text-sm text-primary hover:underline min-tap-target flex items-center">Esqueci minha senha</button>}
               </div>
               <button onClick={async () => {
                 setAuthLoading(true);
@@ -255,7 +255,7 @@ export default function Home() {
                   router.push(getDashboardRoute(authProfile as Role) + "?new=true");
                 }
               }}
-                className="w-full mt-6 bg-primary hover:bg-primary-hover text-black font-bold py-3.5 rounded-xl transition-all hover:scale-[0.98] txd-green-glow-sm flex items-center justify-center gap-2">
+                className="w-full mt-5 bg-primary hover:bg-primary-hover text-black font-bold py-4 rounded-xl transition-all hover:scale-[0.98] txd-green-glow-sm flex items-center justify-center gap-2">
                 {authLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
                 {authLoading ? "Carregando..." : authMode === "login" ? "Entrar" : "Criar conta gratuita"}
               </button>
@@ -336,33 +336,30 @@ export default function Home() {
                   </button>
                 )}
               </div>
-              <h1 className="text-[1.6rem] sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1] mb-6">
+              <h1 className="text-[1.5rem] sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.15] mb-5">
                 Mobilidade inteligente para{" "}
-                <span className="txd-gradient-text txd-text-glow">passageiros</span>,{" "}
-                <span className="txd-gradient-text txd-text-glow">entregadores</span>,{" "}
-                <span className="txd-gradient-text txd-text-glow">empresas</span> e{" "}
-                <span className="txd-gradient-text txd-text-glow">transportadores</span>.
+                <span className="txd-gradient-text txd-text-glow">todos</span>.
               </h1>
-              <p className="text-sm sm:text-lg md:text-xl text-gray-400 mb-8 max-w-lg leading-relaxed">Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.</p>
+              <p className="text-sm sm:text-lg md:text-xl text-gray-400 mb-7 max-w-lg leading-relaxed">Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.</p>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.15, ease: easing }}
-              className="flex flex-wrap gap-4 mb-8">
+              className="flex flex-wrap gap-3 mb-7">
               <button onClick={() => openAuth("register", "passenger")}
-                className="bg-primary hover:bg-primary-hover text-black font-bold px-6 py-3 rounded-full transition-all hover:scale-95 txd-green-glow-sm flex items-center gap-2">
+                className="bg-primary hover:bg-primary-hover text-black font-bold px-6 py-4 rounded-full transition-all hover:scale-95 txd-green-glow-sm flex items-center gap-2 text-sm md:text-base">
                 <Car className="w-5 h-5" /> Solicitar corrida
               </button>
               <button onClick={() => openAuth("register", "driver")}
-                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-6 py-3 rounded-full transition-all hover:scale-95 flex items-center gap-2">
+                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-6 py-4 rounded-full transition-all hover:scale-95 flex items-center gap-2 text-sm md:text-base">
                 <Bike className="w-5 h-5" /> Seja motorista
               </button>
             </motion.div>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              className="flex flex-wrap gap-6 text-sm">
-              {[ { icon: Shield, text: "Motoristas verificados" }, { icon: Navigation, text: "Rastreamento em tempo real" }, { icon: CreditCard, text: "Pagamento flexível" } ].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 text-gray-400"><item.icon className="w-4 h-4 text-primary" />{item.text}</div>
+              className="flex flex-wrap gap-3 md:gap-6 text-xs md:text-sm">
+              {[ { icon: Shield, text: "Motoristas verificados" }, { icon: Navigation, text: "Rastreamento" }, { icon: CreditCard, text: "Pagamento flexível" } ].map((item, i) => (
+                <div key={i} className="flex items-center gap-1.5 md:gap-2 text-gray-400"><item.icon className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary" />{item.text}</div>
               ))}
               {userLocation && (
-                <div className="flex items-center gap-2 text-gray-400"><Crosshair className="w-4 h-4 text-primary" />{userLocation.city}</div>
+                <div className="flex items-center gap-1.5 text-gray-400"><Crosshair className="w-3.5 h-3.5 text-primary" />{userLocation.city}</div>
               )}
             </motion.div>
           </div>
@@ -396,28 +393,28 @@ export default function Home() {
             </motion.div>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-6 mt-16 w-full relative z-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 mt-12 md:mt-16 w-full relative z-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
             {[ { icon: Car, label: "Passageiro", href: "#" }, { icon: Package, label: "Entregas", href: "#" }, { icon: Truck, label: "Fretes", href: "/freight/post" }, { icon: Building2, label: "Empresas", href: "#" } ].map((a, i) => (
               <button key={i} onClick={() => a.href && a.href !== "#" ? router.push(a.href) : openAuth("register", a.label.toLowerCase())}
-                className="txd-card flex items-center gap-3 p-4 hover:border-primary/30 group">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:scale-110 transition"><a.icon className="w-5 h-5 text-primary" /></div>
-                <span className="text-sm font-medium text-gray-300">{a.label}</span>
-                <ChevronRight className="w-4 h-4 text-gray-600 ml-auto" />
+                className="txd-card flex items-center gap-2 md:gap-3 p-3 md:p-4 hover:border-primary/30 group">
+                <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:scale-110 transition"><a.icon className="w-4 h-4 md:w-5 md:h-5 text-primary" /></div>
+                <span className="text-xs md:text-sm font-medium text-gray-300">{a.label}</span>
+                <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-gray-600 ml-auto" />
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[ { num: 2500, suffix: "+", label: "Motoristas" }, { num: 180000, suffix: "+", label: "Corridas realizadas" }, { num: 49, suffix: "", label: "Avaliação média", decimals: 1, prefix: "" }, { num: 3, suffix: "s", label: "Tempo de aceite" } ].map((s, i) => (
-              <div key={i} className="text-center p-4 txd-card border-white/5">
-                <div className="txd-gradient-text text-3xl font-bold">
-                  {s.label === "Avaliação média" ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+            {[ { num: 2500, suffix: "+", label: "Motoristas" }, { num: 180000, suffix: "+", label: "Corridas" }, { num: 49, suffix: "", label: "Avaliação", decimals: 1, prefix: "" }, { num: 3, suffix: "s", label: "Aceite" } ].map((s, i) => (
+              <div key={i} className="text-center p-3 md:p-4 txd-card border-white/5">
+                <div className="txd-gradient-text text-xl md:text-3xl font-bold">
+                  {s.label === "Avaliação" ? (
                     <><CountUp end={s.num} decimals={1} duration={2.5} />★</>
                   ) : (
                     <><CountUp end={s.num} duration={2.5} />{s.suffix}</>
                   )}
                 </div>
-                <div className="text-gray-500 text-sm mt-1">{s.label}</div>
+                <div className="text-gray-500 text-xs md:text-sm mt-0.5 md:mt-1">{s.label}</div>
               </div>
             ))}
           </div>
@@ -425,21 +422,21 @@ export default function Home() {
       </section>
 
       {/* COMO FUNCIONA */}
-      <section id="como-funciona" className="py-24 px-6 relative">
+      <section id="como-funciona" className="py-16 md:py-24 px-4 md:px-6 relative">
         <AnimatedSection><SectionHeader badge="Como funciona" title="Tudo em 5 passos simples" desc="Do pedido à avaliação, tudo pensado para ser rápido e intuitivo." /></AnimatedSection>
         <div className="max-w-5xl mx-auto relative">
           <div className="hidden md:block absolute top-12 left-[10%] right-[10%] h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-          <StaggerSection className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <StaggerSection className="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-6">
             {[ { step: "01", title: "Solicitar", desc: "Origem, destino, categoria. Veja o preço na hora.", color: "#3ECB8E" },
                { step: "02", title: "Motorista aceita", desc: "Em média 3 segundos para encontrar um motorista.", color: "#60a5fa" },
                { step: "03", title: "Acompanhar", desc: "Mapa ao vivo com ETA e compartilhamento.", color: "#f59e0b" },
                { step: "04", title: "Pagamento", desc: "PIX, cartão ou dinheiro. Comissão automática.", color: "#a78bfa" },
                { step: "05", title: "Avaliação", desc: "Critérios específicos para cada tipo de serviço.", color: "#f472b6" } ].map((s, i) => (
               <StaggerItem key={i}>
-                <div className="txd-card p-6 text-center relative z-10 txd-card-hover transition-all">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-bold mx-auto mb-4" style={{ background: `${s.color}20`, color: s.color }}>{s.step}</div>
-                  <h3 className="font-semibold text-lg mb-2">{s.title}</h3>
-                  <p className="text-gray-400 text-sm">{s.desc}</p>
+                <div className="txd-card p-4 md:p-6 text-center relative z-10 txd-card-hover transition-all">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center text-base md:text-lg font-bold mx-auto mb-3 md:mb-4" style={{ background: `${s.color}20`, color: s.color }}>{s.step}</div>
+                  <h3 className="font-semibold text-sm md:text-lg mb-1 md:mb-2">{s.title}</h3>
+                  <p className="text-gray-400 text-xs md:text-sm">{s.desc}</p>
                 </div>
               </StaggerItem>
             ))}
@@ -448,19 +445,19 @@ export default function Home() {
       </section>
 
       {/* CATEGORIAS */}
-      <section id="categorias" className="py-24 px-6 relative txd-radial-glow">
+      <section id="categorias" className="py-16 md:py-24 px-4 md:px-6 relative txd-radial-glow">
         <div className="absolute inset-0 txd-grid-bg opacity-20" />
         <AnimatedSection><SectionHeader badge="Categorias" title="15 categorias de serviço" desc="Do transporte de passageiros ao frete pesado, tudo num só lugar." /></AnimatedSection>
-        <StaggerSection className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4" staggerDelay={0.03}>
+        <StaggerSection className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4" staggerDelay={0.03}>
           {CATEGORIES.map((cat, i) => (
             <StaggerItem key={i}>
-              <div className="txd-card p-5 group cursor-pointer txd-card-hover transition-all">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-110" style={{ background: `${cat.color}15` }}>
-                  <cat.icon className="w-5 h-5" style={{ color: cat.color }} />
+              <div className="txd-card p-3 md:p-5 group cursor-pointer txd-card-hover transition-all">
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center mb-2 md:mb-3 transition-transform group-hover:scale-110" style={{ background: `${cat.color}15` }}>
+                  <cat.icon className="w-4 h-4 md:w-5 md:h-5" style={{ color: cat.color }} />
                 </div>
-                <div className="font-semibold text-sm">{cat.name}</div>
-                <div className="text-xs text-gray-500 mt-0.5">{cat.desc}</div>
-                <div className="text-primary text-xs font-bold mt-2">{cat.price}</div>
+                <div className="font-semibold text-xs md:text-sm">{cat.name}</div>
+                <div className="text-[10px] md:text-xs text-gray-500 mt-0.5">{cat.desc}</div>
+                <div className="text-primary text-[10px] md:text-xs font-bold mt-1 md:mt-2">{cat.price}</div>
               </div>
             </StaggerItem>
           ))}
@@ -469,7 +466,7 @@ export default function Home() {
       </section>
 
       {/* BENEFICIOS */}
-      <section id="beneficios" className="py-24 px-6">
+      <section id="beneficios" className="py-16 md:py-24 px-4 md:px-6">
         <AnimatedSection><SectionHeader badge="Benefícios" title="Vantagens para cada perfil" desc="Seja passageiro, motorista ou empresa — o TXDAPP foi feito para você." /></AnimatedSection>
         <div className="max-w-4xl mx-auto">
           <LayoutGroup>
@@ -484,11 +481,11 @@ export default function Home() {
           </LayoutGroup>
           <AnimatePresence mode="wait">
             <motion.div key={benefitTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
               {benefits[benefitTab].map((b, i) => (
-                <div key={i} className="txd-card p-5 txd-card-hover transition-all">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-4"><b.icon className="w-5 h-5 text-primary" /></div>
-                  <h3 className="font-semibold mb-1.5 text-sm">{b.title}</h3>
+                <div key={i} className="txd-card p-4 md:p-5 txd-card-hover transition-all">
+                  <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-3 md:mb-4"><b.icon className="w-4 h-4 md:w-5 md:h-5 text-primary" /></div>
+                  <h3 className="font-semibold mb-1 text-sm">{b.title}</h3>
                   <p className="text-gray-400 text-xs leading-relaxed">{b.desc}</p>
                 </div>
               ))}
@@ -498,7 +495,7 @@ export default function Home() {
       </section>
 
       {/* APP PREVIEW */}
-      <section id="app" className="py-24 px-6 relative txd-radial-glow">
+      <section id="app" className="py-16 md:py-24 px-4 md:px-6 relative txd-radial-glow">
         <div className="absolute inset-0 txd-grid-bg opacity-20" />
         <FadeIn><SectionHeader badge="App Preview" title="Conheça a plataforma" desc="Quatro dashboards completos dentro de um só aplicativo." /></FadeIn>
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -556,9 +553,9 @@ export default function Home() {
       </section>
 
       {/* SEGURANÇA */}
-      <section id="seguranca" className="py-24 px-6">
+      <section id="seguranca" className="py-16 md:py-24 px-4 md:px-6">
         <FadeIn><SectionHeader badge="Segurança" title="Trust & Safety Engine" desc="Sua segurança é nossa prioridade número um." /></FadeIn>
-        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {[ { icon: Shield, title: "Verificação de documentos", desc: "KYC completo com reconhecimento facial" },
              { icon: CheckCircle, title: "Motoristas aprovados", desc: "Fluxo de aprovação rigoroso" },
              { icon: Navigation, title: "Compartilhamento de viagem", desc: "Familiares acompanham sua rota" },
@@ -570,9 +567,9 @@ export default function Home() {
              { icon: Clock, title: "Backups automáticos", desc: "Dados protegidos e replicados" },
              { icon: Lock, title: "JWT com expiração curta", desc: "Tokens de 15 minutos de validade" },
              { icon: Shield, title: "2FA para administradores", desc: "Autenticação de dois fatores" } ].map((s, i) => (
-            <FadeIn key={i} delay={i * 0.03} className="txd-card p-5 flex items-start gap-4">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5"><s.icon className="w-5 h-5 text-primary" /></div>
-              <div><h3 className="font-semibold text-sm mb-1">{s.title}</h3><p className="text-gray-400 text-xs">{s.desc}</p></div>
+            <FadeIn key={i} delay={i * 0.03} className="txd-card p-4 md:p-5 flex items-start gap-3 md:gap-4">
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 mt-0.5"><s.icon className="w-4 h-4 md:w-5 md:h-5 text-primary" /></div>
+              <div><h3 className="font-semibold text-xs md:text-sm mb-0.5 md:mb-1">{s.title}</h3><p className="text-gray-400 text-[10px] md:text-xs">{s.desc}</p></div>
             </FadeIn>
           ))}
         </div>
@@ -586,7 +583,7 @@ export default function Home() {
       </section>
 
       {/* TXD LIVE */}
-      <section className="py-24 px-6 relative txd-radial-glow">
+      <section className="py-16 md:py-24 px-4 md:px-6 relative txd-radial-glow">
         <div className="absolute inset-0 txd-grid-bg opacity-20" />
         <AnimatedSection><SectionHeader badge="TXD Live" title="Motoristas ao vivo" desc="Veja quem está disponível agora na sua região." /></AnimatedSection>
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -624,11 +621,11 @@ export default function Home() {
       </section>
 
       {/* PLANOS */}
-      <section id="planos" className="py-24 px-6">
+      <section id="planos" className="py-16 md:py-24 px-4 md:px-6">
         <FadeIn><SectionHeader badge="Preços" title="Planos para todos" desc="Do passageiro à grande empresa, temos o plano certo." /></FadeIn>
-        <div className="max-w-5xl mx-auto mb-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="max-w-5xl mx-auto mb-6 md:mb-8 grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
           {[ { label: "Carro", price: "R$ 25" }, { label: "Moto", price: "R$ 15" }, { label: "Entrega", price: "R$ 10" }, { label: "Frete", price: "R$ 45" } ].map((p, i) => (
-            <div key={i} className="txd-card p-4 text-center"><div className="text-xs text-gray-500">{p.label}</div><div className="txd-gradient-text font-bold text-lg">{p.price}</div><div className="text-xs text-gray-500">preço médio</div></div>
+            <div key={i} className="txd-card p-3 md:p-4 text-center"><div className="text-[10px] md:text-xs text-gray-500">{p.label}</div><div className="txd-gradient-text font-bold text-sm md:text-lg">{p.price}</div><div className="text-[10px] md:text-xs text-gray-500">preço médio</div></div>
           ))}
         </div>
         <StaggerSection className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -636,12 +633,12 @@ export default function Home() {
              { name: "Motorista", price: "R$ 25 crédito", emoji: "🛵", features: ["Ganhos diários", "Saque PIX 24h", "KYC gratuito", "Carteira digital", "Negociação de valor", "Histórico de ganhos", "Suporte prioritário"], popular: true },
              { name: "Empresa", price: "Sob consulta", emoji: "🏢", features: ["Painel administrativo", "Funcionários ilimitados", "Centros de custo", "Relatórios", "NF automática", "Contratos recorrentes", "Suporte dedicado"], popular: false } ].map((plan, i) => (
             <StaggerItem key={i}>
-              <div className={`txd-card p-8 text-center relative ${plan.popular ? "border-primary/40 txd-card-hover" : "txd-card-hover"} transition-all`}>
+              <div className={`txd-card p-6 md:p-8 text-center relative ${plan.popular ? "border-primary/40 txd-card-hover" : "txd-card-hover"} transition-all`}>
                 {plan.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-black text-xs font-bold px-4 py-1 rounded-full">Mais procurado</div>}
-                <div className="text-4xl mb-4">{plan.emoji}</div>
-                <div className="text-lg font-bold">{plan.name}</div>
-                <div className="txd-gradient-text text-2xl font-bold my-3">{plan.price}</div>
-                <ul className="space-y-2.5 mb-6 text-left">
+                <div className="text-3xl md:text-4xl mb-3 md:mb-4">{plan.emoji}</div>
+                <div className="text-base md:text-lg font-bold">{plan.name}</div>
+                <div className="txd-gradient-text text-xl md:text-2xl font-bold my-2 md:my-3">{plan.price}</div>
+                <ul className="space-y-2 mb-5 md:mb-6 text-left">
                   {plan.features.map((f, j) => <li key={j} className="flex items-center gap-2 text-sm text-gray-300"><CheckCircle className="w-4 h-4 text-primary shrink-0" />{f}</li>)}
                 </ul>
                 <RippleButton onClick={() => openAuth("register", plan.name.toLowerCase())}
@@ -659,7 +656,7 @@ export default function Home() {
       </section>
 
       {/* DOWNLOAD */}
-      <section className="py-24 px-6 relative txd-radial-glow">
+      <section className="py-16 md:py-24 px-4 md:px-6 relative txd-radial-glow">
         <div className="absolute inset-0 txd-grid-bg opacity-20" />
         <AnimatedSection>
           <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
@@ -731,9 +728,9 @@ export default function Home() {
       </section>
 
       {/* CTA FINAL */}
-      <section className="py-24 px-6">
+      <section className="py-16 md:py-24 px-4 md:px-6">
         <AnimatedSection>
-          <div className="max-w-4xl mx-auto txd-card p-12 md:p-16 text-center relative overflow-hidden border-primary/20"
+          <div className="max-w-4xl mx-auto txd-card p-8 md:p-16 text-center relative overflow-hidden border-primary/20"
             style={{ background: "linear-gradient(135deg, rgba(62,203,142,0.08), transparent)" }}>
             <div className="absolute inset-0 txd-grid-bg opacity-20" />
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />

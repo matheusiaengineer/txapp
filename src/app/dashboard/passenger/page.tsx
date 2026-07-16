@@ -223,10 +223,10 @@ export default function PassengerDashboard() {
             {quickActions.map((action) => {
               const Icon = action.icon;
               return (
-                <button key={action.label} className="glass-panel p-3 sm:p-4 flex flex-col items-center gap-1.5 hover:border-primary/30 transition-colors">
+                <button key={action.label} className="glass-panel p-3 sm:p-4 flex flex-col items-center gap-1 hover:border-primary/30 transition-colors">
                   <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-                  <span className="text-[10px] sm:text-xs font-medium">{action.label}</span>
-                  <span className="text-[8px] sm:text-[10px] text-gray-500 text-center leading-tight hidden sm:block">{action.address}</span>
+                  <span className="text-[11px] sm:text-xs font-medium">{action.label}</span>
+                  <span className="text-[9px] sm:text-[10px] text-gray-500 text-center leading-tight truncate w-full">{action.address}</span>
                 </button>
               );
             })}

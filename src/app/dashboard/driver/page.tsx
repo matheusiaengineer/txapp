@@ -183,7 +183,7 @@ function DriverDashboardContent() {
                   }`}
                 >
                   <Icon className={`w-5 h-5 mx-auto mb-1 ${isActive ? "text-primary" : ""}`} />
-                  <span className="text-[10px] font-medium">{mod.label}</span>
+                  <span className="text-[11px] sm:text-xs font-medium">{mod.label}</span>
                 </button>
               );
             })}

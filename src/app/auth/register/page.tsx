@@ -258,18 +258,18 @@ function RegisterForm() {
 
       <div className="w-full max-w-2xl z-10">
         {/* Progress bar */}
-        <div className="flex items-center mb-8 gap-2">
-          <Link href="/" className="p-2 mr-2 bg-card-bg border border-card-border rounded-full hover:bg-[#2a2a2a] transition-colors">
+        <div className="flex items-center mb-6 md:mb-8 gap-1.5 md:gap-2 overflow-x-auto pb-1">
+          <Link href="/" className="p-2 md:p-2 mr-1 md:mr-2 bg-card-bg border border-card-border rounded-full hover:bg-[#2a2a2a] transition-colors shrink-0">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           {stepLabels.map((label, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+            <div key={i} className="flex items-center gap-1.5 md:gap-2">
+              <div className={`w-8 h-8 md:w-7 md:h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0 ${
                 i + 1 === step ? "bg-primary text-background scale-110" :
                 i + 1 < step ? "bg-primary/30 text-primary" :
                 "bg-card-bg text-gray-500"
               }`}>{i + 1 < step ? <Check className="w-3.5 h-3.5" /> : i + 1}</div>
-              {i < stepLabels.length - 1 && <div className={`w-6 h-0.5 ${i + 1 < step ? "bg-primary" : "bg-card-border"}`} />}
+              {i < stepLabels.length - 1 && <div className={`w-4 md:w-6 h-0.5 ${i + 1 < step ? "bg-primary" : "bg-card-border"}`} />}
             </div>
           ))}
         </div>
@@ -278,22 +278,22 @@ function RegisterForm() {
           <AnimatePresence mode="wait">
             {/* STEP 1: SELECIONAR PERFIL */}
             {step === 1 && (
-              <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-                <h2 className="text-2xl font-bold text-center">Escolha seu Perfil</h2>
-                <p className="text-gray-400 text-center text-sm">Selecione como você usará a plataforma</p>
-                <div className="grid grid-cols-2 gap-4">
+              <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-5 md:space-y-6">
+                <h2 className="text-xl md:text-2xl font-bold text-center">Escolha seu Perfil</h2>
+                <p className="text-gray-400 text-center text-xs md:text-sm">Selecione como você usará a plataforma</p>
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
                   {[
-                    { type: "passenger" as ProfileType, icon: <User className="w-8 h-8" />, title: "Passageiro", desc: "Solicitar viagens e corridas" },
-                    { type: "driver" as ProfileType, icon: <Car className="w-8 h-8" />, title: "Motorista", desc: "Realizar corridas e entregas" },
-                    { type: "company" as ProfileType, icon: <Building className="w-8 h-8" />, title: "Empresa", desc: "Enviar produtos e fretes" },
-                    { type: "transporter" as ProfileType, icon: <Truck className="w-8 h-8" />, title: "Transportador", desc: "Cargas pesadas e fretes" },
+                    { type: "passenger" as ProfileType, icon: <User className="w-6 h-6 md:w-8 md:h-8" />, title: "Passageiro", desc: "Solicitar viagens" },
+                    { type: "driver" as ProfileType, icon: <Car className="w-6 h-6 md:w-8 md:h-8" />, title: "Motorista", desc: "Corridas e entregas" },
+                    { type: "company" as ProfileType, icon: <Building className="w-6 h-6 md:w-8 md:h-8" />, title: "Empresa", desc: "Enviar fretes" },
+                    { type: "transporter" as ProfileType, icon: <Truck className="w-6 h-6 md:w-8 md:h-8" />, title: "Transportador", desc: "Cargas pesadas" },
                   ].map(p => (
                     <button key={p.type} onClick={() => handleProfileSelect(p.type)}
-                      className="flex flex-col items-center p-6 bg-background border border-card-border rounded-2xl hover:border-primary/50 transition-all group hover:scale-[1.02]"
+                      className="flex flex-col items-center p-5 md:p-6 bg-background border border-card-border rounded-2xl hover:border-primary/50 transition-all group hover:scale-[1.02]"
                     >
-                      <div className="p-4 bg-card-bg rounded-full mb-4 group-hover:scale-110 transition-transform text-primary">{p.icon}</div>
-                      <span className="font-semibold text-lg">{p.title}</span>
-                      <span className="text-sm text-gray-400 mt-1">{p.desc}</span>
+                      <div className="p-3 md:p-4 bg-card-bg rounded-full mb-3 md:mb-4 group-hover:scale-110 transition-transform text-primary">{p.icon}</div>
+                      <span className="font-semibold text-sm md:text-lg">{p.title}</span>
+                      <span className="text-[11px] md:text-sm text-gray-400 mt-0.5 md:mt-1">{p.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -475,18 +475,18 @@ function RegisterForm() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                   <InputField label="Nome Completo" value={formData.name} onChange={v => setFormData(p => ({ ...p, name: v }))} error={errors.name} />
                   <InputField label="Email" type="email" value={formData.email} onChange={v => setFormData(p => ({ ...p, email: v }))} error={errors.email} />
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm text-gray-400">Telefone</label>
+                  <div className="flex flex-col gap-1.5 md:gap-2">
+                    <label className="text-xs md:text-sm text-gray-400">Telefone</label>
                     <div className="flex gap-2">
                       <div className="bg-background border border-card-border rounded-lg px-3 flex items-center text-gray-400 text-sm">{country.phoneCode}</div>
                       <input type="tel" value={formData.phone} onChange={e => setFormData(p => ({ ...p, phone: e.target.value }))}
-                        className="flex-1 bg-background border border-card-border rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors" />
+                        className="flex-1 bg-background border border-card-border rounded-lg p-3.5 md:p-3 text-white focus:border-primary focus:outline-none transition-colors" />
                     </div>
-                    {errors.phone && <p className="text-red-400 text-xs">{errors.phone}</p>}
+                    {errors.phone && <p className="text-red-400 text-[10px] md:text-xs">{errors.phone}</p>}
                   </div>
 
                   <InputField label="Senha" type="password" value={formData.password} onChange={v => setFormData(p => ({ ...p, password: v }))} error={errors.password} />
@@ -507,16 +507,16 @@ function RegisterForm() {
                       <Car className="w-5 h-5 text-primary" />
                       <h3 className="font-semibold text-white">Dados do Veículo</h3>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                       <InputField label="Modelo" value={formData.vehicleModel} onChange={v => setFormData(p => ({ ...p, vehicleModel: v }))} error={errors.vehicleModel} placeholder="Ex: Honda Civic" />
                       <InputField label="Placa" value={formData.vehiclePlate} onChange={v => setFormData(p => ({ ...p, vehiclePlate: v }))} error={errors.vehiclePlate} placeholder="ABC-1D23" />
                       <InputField label="Marca" value={formData.vehicleBrand} onChange={v => setFormData(p => ({ ...p, vehicleBrand: v }))} placeholder="Ex: Honda" />
                       <InputField label="Cor" value={formData.vehicleColor} onChange={v => setFormData(p => ({ ...p, vehicleColor: v }))} placeholder="Ex: Preto" />
                       <InputField label="Ano" value={formData.vehicleYear} onChange={v => setFormData(p => ({ ...p, vehicleYear: v }))} placeholder="2024" />
-                      <div className="flex flex-col gap-2">
-                        <label className="text-sm text-gray-400">Categoria</label>
+                      <div className="flex flex-col gap-1.5 md:gap-2">
+                        <label className="text-xs md:text-sm text-gray-400">Categoria</label>
                         <select value={formData.vehicleCategory} onChange={e => setFormData(p => ({ ...p, vehicleCategory: e.target.value }))}
-                          className="bg-background border border-card-border rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors">
+                          className="bg-background border border-card-border rounded-lg p-3.5 md:p-3 text-white focus:border-primary focus:outline-none transition-colors">
                           {VEHICLE_CATEGORIES.map(c => <option key={c.id} value={c.id} className="bg-[#1c1c1c]">{c.label}</option>)}
                         </select>
                       </div>
@@ -531,7 +531,7 @@ function RegisterForm() {
                       <Building className="w-5 h-5 text-primary" />
                       <h3 className="font-semibold text-white">Dados da Empresa</h3>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                       <InputField label="Razão Social" value={formData.corporateName} onChange={v => setFormData(p => ({ ...p, corporateName: v }))} error={errors.corporateName} />
                       <InputField label="Nome Fantasia" value={formData.tradeName} onChange={v => setFormData(p => ({ ...p, tradeName: v }))} />
                       <InputField label="Nome do Responsável" value={formData.responsibleName} onChange={v => setFormData(p => ({ ...p, responsibleName: v }))} error={errors.responsibleName} />
@@ -540,32 +540,32 @@ function RegisterForm() {
                       )}
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm text-gray-400">Endereço da Empresa</label>
+                    <div className="flex flex-col gap-1.5 md:gap-2">
+                      <label className="text-xs md:text-sm text-gray-400">Endereço da Empresa</label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                         <input type="text" value={formData.companyAddress} onChange={e => setFormData(p => ({ ...p, companyAddress: e.target.value }))}
                           placeholder="Rua, número, bairro, cidade"
-                          className="w-full bg-background border border-card-border rounded-lg p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
+                          className="w-full bg-background border border-card-border rounded-lg p-3.5 md:p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
                       </div>
-                      {errors.companyAddress && <p className="text-red-400 text-xs">{errors.companyAddress}</p>}
+                      {errors.companyAddress && <p className="text-red-400 text-[10px] md:text-xs">{errors.companyAddress}</p>}
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm text-gray-400">Horário de Funcionamento</label>
+                    <div className="flex flex-col gap-1.5 md:gap-2">
+                      <label className="text-xs md:text-sm text-gray-400">Horário de Funcionamento</label>
                       <div className="relative">
                         <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                         <input type="text" value={formData.openingHours} onChange={e => setFormData(p => ({ ...p, openingHours: e.target.value }))}
                           placeholder="Ex: Seg-Sex 08:00-18:00, Sáb 08:00-12:00"
-                          className="w-full bg-background border border-card-border rounded-lg p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
+                          className="w-full bg-background border border-card-border rounded-lg p-3.5 md:p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm text-gray-400">Descrição dos Serviços</label>
+                    <div className="flex flex-col gap-1.5 md:gap-2">
+                      <label className="text-xs md:text-sm text-gray-400">Descrição dos Serviços</label>
                       <textarea value={formData.serviceDescription} onChange={e => setFormData(p => ({ ...p, serviceDescription: e.target.value }))}
                         placeholder="Descreva os serviços que sua empresa oferece (entregas, fretes, etc.)"
-                        className="w-full bg-background border border-card-border rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors min-h-[80px] resize-none" />
+                        className="w-full bg-background border border-card-border rounded-lg p-3.5 md:p-3 text-white focus:border-primary focus:outline-none transition-colors min-h-[80px] resize-none" />
                     </div>
                   </div>
                 )}
@@ -615,12 +615,12 @@ function InputField({ label, type = "text", value, onChange, error, mask, placeh
   label: string; type?: string; value: string; onChange: (v: string) => void; error?: string; mask?: string; placeholder?: string;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm text-gray-400">{label}</label>
+    <div className="flex flex-col gap-1.5 md:gap-2">
+      <label className="text-xs md:text-sm text-gray-400">{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)}
-        className="bg-background border border-card-border rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors"
+        className="bg-background border border-card-border rounded-lg p-3.5 md:p-3 text-white focus:border-primary focus:outline-none transition-colors"
         placeholder={placeholder || mask || `Seu ${label.toLowerCase()}`} />
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && <p className="text-red-400 text-[10px] md:text-xs">{error}</p>}
     </div>
   );
 }

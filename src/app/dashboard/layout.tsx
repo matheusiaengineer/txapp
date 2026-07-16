@@ -178,21 +178,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel rounded-none border-t border-card-border px-2 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel rounded-none border-t border-card-border px-1 py-1 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
         <div className="flex items-center justify-around">
           {navItems.slice(0, 4).map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
             return (
-              <Link key={item.label} href={item.href}>
+              <Link key={item.label} href={item.href} className="flex-1">
                 <motion.div
                   whileTap={{ scale: 0.9 }}
-                  className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-colors ${
+                  className={`flex flex-col items-center gap-0.5 py-3 rounded-xl transition-colors relative ${
                     active ? "text-primary" : "text-gray-400"
                   }`}
                 >
+                  {active && <motion.div layoutId="nav-active" className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-1 rounded-full bg-primary" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
                   <Icon className="w-5 h-5" />
-                  <span className="text-[10px] font-medium">{item.label}</span>
+                  <span className="text-[11px] font-medium">{item.label}</span>
                 </motion.div>
               </Link>
             );
