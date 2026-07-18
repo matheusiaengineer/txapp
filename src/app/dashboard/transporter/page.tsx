@@ -3,9 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Truck, Package, DollarSign, Map, Clock, Star, Loader2, Search, MapPin, Navigation } from "lucide-react";
+import { Truck, Package, DollarSign, Map, Clock, Star, Loader2, Search, MapPin, Navigation, Heart } from "lucide-react";
 import { useUser } from "@/lib/hooks/use-user";
 import { useTransporterData } from "@/lib/hooks/use-transporter-data";
+import SosButton from "@/components/safety/SosButton";
+import FreightStackCard from "@/components/freight/FreightStackCard";
+import { PageLayout, PageHeader } from "@/components/ui/page-layout";
+import { StatCard } from "@/components/ui/stat-card";
 
 interface BidItem {
   id: string;
@@ -59,37 +63,74 @@ export default function TransporterDashboard() {
   const wonBids = myBids.filter(b => b.status === "accepted");
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Transportador</h1>
-        <p className="text-gray-400 text-sm">Gerencie seus fretes e cargas</p>
-      </div>
+    <PageLayout>
+      <SosButton />
+      <PageHeader
+        title="Transportador"
+        subtitle="Gerencie seus fretes e cargas"
+      />
 
-      <button onClick={() => router.push("/freight/loads")}
-        className="w-full txd-card p-4 flex items-center gap-3 hover:border-primary/30 transition-all border border-card-border">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Search className="w-5 h-5 text-primary" />
-        </div>
-        <div className="flex-1 text-left">
-          <div className="font-semibold text-sm">Ver cargas disponíveis</div>
-          <div className="text-xs text-gray-500">Encontre cargas para transportar e dê lances</div>
-        </div>
-        <Truck className="w-5 h-5 text-gray-500" />
-      </button>
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => router.push("/freight/loads")}
+          className="txd-card p-4 flex items-center gap-3 hover:border-primary/30 transition-all border border-card-border">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Search className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="font-semibold text-sm">Ver cargas</div>
+            <div className="text-xs text-gray-500">Encontre cargas e dê lances</div>
+          </div>
+          <Truck className="w-5 h-5 text-gray-500" />
+        </button>
+        <button onClick={() => router.push("/dashboard/transporter/addresses")}
+          className="txd-card p-4 flex items-center gap-3 hover:border-primary/30 transition-all border border-card-border">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <MapPin className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="font-semibold text-sm">Endereços</div>
+            <div className="text-xs text-gray-500">Pontos de carga e descarga</div>
+          </div>
+          <Navigation className="w-5 h-5 text-gray-500" />
+        </button>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((s, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-            className="txd-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${s.color}20` }}>
-                <s.icon className="w-4 h-4" style={{ color: s.color }} />
-              </div>
-            </div>
-            <div className="text-2xl font-bold">{s.value}</div>
-            <div className="text-xs text-gray-500">{s.label}</div>
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+            <StatCard icon={s.icon} label={s.label} value={s.value} color={s.color} />
           </motion.div>
         ))}
+      </div>
+
+      {/* Mapa de rotas + Ofertas de frete empilhadas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="txd-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-sm flex items-center gap-2">
+              <Map className="w-4 h-4 text-primary" /> Rotas disponíveis
+            </h2>
+            <button onClick={() => router.push("/freight/loads")} className="text-xs text-primary">Ver todas</button>
+          </div>
+          <div className="relative h-48 rounded-xl overflow-hidden bg-[#0a0d12]">
+            <div className="absolute inset-0 opacity-30"
+              style={{ backgroundImage: "radial-gradient(circle at 30% 40%, #3ECB8E 0%, transparent 50%), radial-gradient(circle at 70% 60%, #f59e0b 0%, transparent 50%)" }} />
+            <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(#2a2a2a 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
+            {/* Rota A → B */}
+            <svg className="absolute inset-0 w-full h-full">
+              <line x1="25%" y1="35%" x2="70%" y2="55%" stroke="#3ECB8E" strokeWidth="3" strokeDasharray="8,4" opacity="0.8" />
+              <circle cx="25%" cy="35%" r="6" fill="#3ECB8E" />
+              <circle cx="70%" cy="55%" r="6" fill="#ef4444" />
+              <text x="22%" y="30%" fill="#3ECB8E" fontSize="10" fontWeight="bold">SP</text>
+              <text x="72%" y="50%" fill="#ef4444" fontSize="10" fontWeight="bold">RJ</text>
+            </svg>
+            <div className="absolute bottom-2 left-2 right-2 flex justify-between text-[10px] text-gray-500 bg-black/60 px-2 py-1 rounded-lg">
+              <span>🚚 3 cargas disponíveis</span>
+              <span>💰 R$ 2.500 - R$ 5.000</span>
+            </div>
+          </div>
+        </div>
+        <FreightStackCard />
       </div>
 
       {activeBids.length > 0 && (
@@ -167,6 +208,6 @@ export default function TransporterDashboard() {
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

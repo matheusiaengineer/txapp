@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart,
@@ -48,10 +49,14 @@ const recentDestinations: RecentDest[] = [
 ];
 
 export default function FavoritesPage() {
+  const [loading, setLoading] = useState(true);
   const [places, setPlaces] = useState<SavedPlace[]>(savedPlaces);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newPlace, setNewPlace] = useState({ name: "", address: "" });
+
+  useEffect(() => { setTimeout(() => setLoading(false), 800); }, []);
+  if (loading) return <div className="min-h-[100dvh] bg-background text-foreground p-4 sm:p-6 lg:p-8" style={{paddingBottom:"calc(1.5rem + env(safe-area-inset-bottom,0px))"}}><SkeletonList count={5} /></div>;
 
   const handleDelete = (id: string) => {
     setPlaces(places.filter((p) => p.id !== id));
@@ -73,8 +78,8 @@ export default function FavoritesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -214,7 +219,7 @@ export default function FavoritesPage() {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold">Adicionar lugar</h3>
-                    <button onClick={() => setShowAddForm(false)}>
+                    <button onClick={() => setShowAddForm(false)} className="bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all">
                       <X className="w-4 h-4 text-gray-400" />
                     </button>
                   </div>

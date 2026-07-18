@@ -233,7 +233,7 @@ export default function RidePage() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="truncate max-w-[200px]">{pickup}</span>
+                <span className="truncate max-w-[40vw]">{pickup}</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 <div className="w-2 h-2 rounded-full bg-red-400" />

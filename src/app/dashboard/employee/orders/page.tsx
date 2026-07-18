@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { ArrowLeft, Plus, Package, User, MapPin, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -10,12 +11,13 @@ export default function EmployeeOrdersPage() {
   const [newOrder, setNewOrder] = useState({
     client: "", address: "", items: "", notes: "",
   });
+  const [loading] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
-          <Link href="/dashboard/employee" className="p-2 bg-card-bg border border-card-border rounded-full hover:bg-[#2a2a2a] transition-colors">
+          <Link href="/dashboard/employee" className="p-2 bg-background border border-card-border rounded-full hover:bg-white/5 transition-colors">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <h1 className="text-2xl font-bold">Pedidos</h1>
@@ -41,7 +43,7 @@ export default function EmployeeOrdersPage() {
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input type="text" value={newOrder.client} onChange={e => setNewOrder(p => ({ ...p, client: e.target.value }))}
                     placeholder="Nome do cliente"
-                    className="w-full bg-background border border-card-border rounded-lg p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
+                    className="w-full bg-background border border-card-border rounded-xl p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -50,7 +52,7 @@ export default function EmployeeOrdersPage() {
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input type="text" value={newOrder.address} onChange={e => setNewOrder(p => ({ ...p, address: e.target.value }))}
                     placeholder="Rua, número, bairro"
-                    className="w-full bg-background border border-card-border rounded-lg p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
+                    className="w-full bg-background border border-card-border rounded-xl p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -59,19 +61,19 @@ export default function EmployeeOrdersPage() {
                   <Package className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
                   <textarea value={newOrder.items} onChange={e => setNewOrder(p => ({ ...p, items: e.target.value }))}
                     placeholder="Descreva os itens"
-                    className="w-full bg-background border border-card-border rounded-lg p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors min-h-[80px] resize-none" />
+                    className="w-full bg-background border border-card-border rounded-xl p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors min-h-[80px] resize-none" />
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-gray-400">Observações</label>
                 <textarea value={newOrder.notes} onChange={e => setNewOrder(p => ({ ...p, notes: e.target.value }))}
                   placeholder="Ex: tocar interfone, deixar com porteiro"
-                  className="w-full bg-background border border-card-border rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors min-h-[60px] resize-none" />
+                  className="w-full bg-background border border-card-border rounded-xl p-3 text-white focus:border-primary focus:outline-none transition-colors min-h-[60px] resize-none" />
               </div>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowNewOrder(false)}
-                className="flex-1 py-3 bg-card-bg border border-card-border rounded-xl text-sm hover:bg-[#2a2a2a] transition-colors">
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-sm">
                 Cancelar
               </button>
               <button onClick={() => { setShowNewOrder(false); setNewOrder({ client: "", address: "", items: "", notes: "" }); }}
@@ -84,13 +86,13 @@ export default function EmployeeOrdersPage() {
 
         <div className="space-y-2">
           <h2 className="font-semibold">Meus pedidos recentes</h2>
-          {[1, 2, 3].map(i => (
+          {loading ? <SkeletonList count={3} /> : [1, 2, 3].map(i => (
             <div key={i} className="glass-panel p-4 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold">Cliente #{i}</p>
                 <p className="text-xs text-gray-500">Rua Exemplo, 123 · 2 itens</p>
               </div>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary">Entregue</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/15 text-primary">Entregue</span>
             </div>
           ))}
         </div>

@@ -34,8 +34,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      <div className="flex h-screen overflow-hidden">
+    <div className="min-h-[100dvh] bg-[#0a0a0f] text-white">
+      <div className="flex h-dvh overflow-hidden">
 
         <AnimatePresence>
           {mobileOpen && (
@@ -52,7 +52,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <motion.aside
           animate={{ width: collapsed ? 72 : 256 }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="hidden lg:flex flex-col h-screen bg-[#0d0d14] border-r border-white/[0.06] relative z-50 overflow-hidden"
+          className="hidden lg:flex flex-col h-dvh bg-[#0d0d14] border-r border-white/[0.06] relative z-50 overflow-hidden"
         >
           <div className="flex items-center justify-between p-4 border-b border-white/[0.06]">
             {!collapsed && (
@@ -126,7 +126,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </motion.aside>
 
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="flex-1 flex flex-col h-dvh overflow-hidden">
           <header className="h-16 shrink-0 border-b border-white/[0.06] bg-[#0a0a0f]/80 backdrop-blur-xl flex items-center justify-between px-4 lg:px-6">
             <div className="flex items-center gap-3">
               <button

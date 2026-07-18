@@ -16,6 +16,7 @@ import { COUNTRIES, type Country, type DocumentType } from "@/lib/auth/countries
 import { validateCPF, validateCNPJ } from "@/lib/auth/cpf-validator";
 import { validatePassport } from "@/lib/auth/passport-validator";
 import { signUp, getDashboardRoute, type Role } from "@/lib/auth/auth-service";
+import { createClient } from "@/lib/supabase/browser";
 
 type ProfileType = "passenger" | "driver" | "company" | "transporter";
 
@@ -65,12 +66,6 @@ function RegisterForm() {
 
   const stepLabels = getStepLabels(profileType);
   const totalSteps = getStepCount(profileType);
-
-  useEffect(() => {
-    if (step === totalSteps) {
-      router.replace(getDashboardRoute(profileType as Role));
-    }
-  }, [step, totalSteps, profileType, router]);
 
   const nextStep = useCallback(() => setStep(s => Math.min(s + 1, totalSteps)), [totalSteps]);
 
@@ -206,6 +201,11 @@ function RegisterForm() {
       return;
     }
 
+    if (res.session) {
+      const supabase = createClient();
+      await supabase.auth.setSession(res.session);
+    }
+
     const userId = res.user?.id;
     if (userId) {
       const uploads: Promise<void>[] = [];
@@ -243,7 +243,7 @@ function RegisterForm() {
     }
 
     setLoading(false);
-    setStep(totalSteps);
+    router.replace(getDashboardRoute(profileType as Role) + "?new=true");
   }
 
   const availableDocs = country.documentTypes;
@@ -457,7 +457,7 @@ function RegisterForm() {
                 <button onClick={handleNext} disabled={!selfieBlob}
                   className="w-full bg-primary hover:bg-primary-hover disabled:opacity-50 text-background font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-all hover:scale-[0.98]"
                 >Continuar <ChevronRight className="w-5 h-5" /></button>
-              </motion.div>
+                </div>
             )}
 
             {/* STEP 5 (ou 4 para passageiro): DADOS PESSOAIS + ESPECÍFICOS */}

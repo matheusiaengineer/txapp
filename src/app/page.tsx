@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowRight, Car, MapPin, Package, Shield, Truck, Search, Star,
+  ArrowRight, Car,   MapPin, Package, Shield, Truck, Search, Star, Mail,
   Globe, Smartphone, CheckCircle, Lock, Menu, X, Bike, Building2,
   Clock, CreditCard, Heart, Users, Zap, Briefcase, TrendingUp,
   DollarSign, Navigation, Phone, MessageCircle, QrCode, Rocket,
@@ -13,9 +13,11 @@ import {
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { signIn, signUp, getDashboardRoute, type Role } from "@/lib/auth/auth-service";
+import { createClient } from "@/lib/supabase/browser";
 import { CountUp } from "@/components/ui/count-up";
 import { AnimatedSection, StaggerSection, StaggerItem } from "@/components/ui/animated-section";
 import { RippleButton } from "@/components/ui/ripple-button";
+import { Button } from "@/components/ui/button";
 import { LiveIndicator } from "@/components/ui/live-indicator";
 
 const ParticlesBackground = dynamic(() => import("@/components/ui/particles-background").then(m => m.ParticlesBackground), { ssr: false });
@@ -163,7 +165,7 @@ export default function Home() {
   ];
 
   return (
-    <main className="flex-1 flex flex-col min-h-screen relative overflow-x-hidden bg-[#0a0d12]">
+    <main className="flex-1 flex flex-col min-h-[100dvh] relative bg-[#0a0d12]">
       <ParticlesBackground />
       {/* Toast */}
       <AnimatePresence>
@@ -183,7 +185,7 @@ export default function Home() {
               <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 transition={{ type: "spring", damping: 28, stiffness: 320 }}
                 onClick={e => e.stopPropagation()}
-                className="w-full max-w-md txd-glass-strong rounded-3xl p-5 md:p-8 relative max-h-[90vh] overflow-y-auto">
+                className="w-full max-w-md txd-glass-strong rounded-3xl p-4 md:p-8 relative max-h-[90vh] overflow-y-auto">
                 <button onClick={() => setAuthOpen(false)} className="absolute top-4 right-4 min-tap-target flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition"><X className="w-4 h-4" /></button>
                 <div className="text-center mb-5">
                 <span className="txd-gradient-text font-bold text-lg">TXDAPP</span>
@@ -197,9 +199,9 @@ export default function Home() {
                 <div className="grid grid-cols-3 gap-2 mb-5">
                   {[ { id: "passenger", label: "Passageiro", icon: Car }, { id: "driver", label: "Motorista", icon: Bike }, { id: "company", label: "Empresa", icon: Building2 } ].map(p => (
                     <button key={p.id} onClick={() => setAuthProfile(p.id)}
-                      className={`flex flex-col items-center gap-1.5 p-3 md:p-4 rounded-xl border transition ${authProfile === p.id ? "border-primary bg-primary/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}>
-                      <p.icon className={`w-5 h-5 ${authProfile === p.id ? "text-primary" : "text-gray-400"}`} />
-                      <span className={`text-xs font-medium ${authProfile === p.id ? "text-primary" : "text-gray-400"}`}>{p.label}</span>
+                      className={`flex flex-col items-center gap-1.5 p-2 md:p-4 rounded-xl border transition ${authProfile === p.id ? "border-primary bg-primary/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}>
+                      <p.icon className={`w-4 h-4 md:w-5 h-5 ${authProfile === p.id ? "text-primary" : "text-gray-400"}`} />
+                      <span className={`text-[10px] md:text-xs font-medium ${authProfile === p.id ? "text-primary" : "text-gray-400"}`}>{p.label}</span>
                     </button>
                   ))}
                 </div>
@@ -209,51 +211,51 @@ export default function Home() {
                   <div className="relative">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Car className="w-4 h-4" /></div>
                     <input type="text" placeholder="Seu nome completo"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition touch-manipulation" />
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 md:py-4 pl-10 md:pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition touch-manipulation" />
                   </div>
                 )}
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Mail className="w-4 h-4" /></div>
                   <input type="email" placeholder="seu@email.com" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 md:py-4 pl-10 md:pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
                 </div>
                 {authMode === "register" && (
                   <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Phone className="w-4 h-4" /></div>
                     <input type="tel" placeholder="(33) 99999-9999"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 md:py-4 pl-10 md:pl-12 pr-4 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
                   </div>
                 )}
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Lock className="w-4 h-4" /></div>
                   <input type={showPassword ? "text" : "password"} placeholder="Sua senha" value={authPassword} onChange={e => setAuthPassword(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 md:py-4 pl-10 md:pl-12 pr-10 text-white text-sm placeholder:text-gray-600 focus:outline-none focus:border-primary/50 transition" />
                   <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 min-tap-target flex items-center justify-center text-gray-500 hover:text-gray-300">
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 {authMode === "login" && <button className="text-sm text-primary hover:underline min-tap-target flex items-center">Esqueci minha senha</button>}
               </div>
-              <button onClick={async () => {
-                setAuthLoading(true);
+              <Button onClick={async () => {
                 if (authMode === "login") {
+                  setAuthLoading(true);
                   const res = await signIn(authEmail, authPassword);
+                  if (res.error) { setAuthLoading(false); showToast(res.error); return; }
+                  if (res.session) {
+                    const supabase = createClient();
+                    await supabase.auth.setSession(res.session);
+                  }
                   setAuthLoading(false);
-                  if (res.error) { showToast(res.error); return; }
                   setAuthOpen(false);
                   router.push(getDashboardRoute((res.role as Role) || "passenger"));
                 } else {
-                  const res = await signUp(authEmail, authPassword, authProfile as Role);
-                  setAuthLoading(false);
-                  if (res.error) { showToast(res.error); return; }
                   setAuthOpen(false);
-                  router.push(getDashboardRoute(authProfile as Role) + "?new=true");
+                  router.push(`/auth/register?type=${authProfile}`);
                 }
               }}
-                className="w-full mt-5 bg-primary hover:bg-primary-hover text-black font-bold py-4 rounded-xl transition-all hover:scale-[0.98] txd-green-glow-sm flex items-center justify-center gap-2">
-                {authLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
-                {authLoading ? "Carregando..." : authMode === "login" ? "Entrar" : "Criar conta gratuita"}
-              </button>
+                className="w-full mt-5 shadow-lg shadow-primary/20 txd-green-glow-sm">
+                {authMode === "login" ? "Entrar" : "Criar conta gratuita"}
+              </Button>
               {authProfile === "driver" && authMode === "register" && (
                 <p className="text-xs text-gray-500 text-center mt-4">Após o cadastro, envie CNH, documento do veículo e selfie para aprovação.</p>
               )}
@@ -265,7 +267,7 @@ export default function Home() {
 
       {/* NAVBAR */}
       <nav className="fixed top-0 w-full z-50 bg-transparent transition-all duration-300" id="navbar">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#3ECB8E] to-[#2da874] flex items-center justify-center shadow-lg shadow-primary/20"><Car className="w-5 h-5 text-black" /></div>
             <span className="font-bold text-xl"><span className="text-white">TX</span><span className="txd-gradient-text">DAPP</span></span>
@@ -294,7 +296,7 @@ export default function Home() {
       </nav>
 
       {/* HERO */}
-      <section className="relative min-h-screen flex items-center pt-28 pb-16 px-6 txd-radial-glow">
+      <section className="relative min-h-[100dvh] flex flex-col items-center pt-24 md:pt-28 pb-12 md:pb-16 px-4 md:px-6 txd-radial-glow">
         <div className="absolute inset-0 txd-grid-bg opacity-40" />
         <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
           <div>
@@ -328,19 +330,19 @@ export default function Home() {
                   </button>
                 )}
               </div>
-              <h1 className="text-[1.5rem] sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.15] mb-5">
+              <h1 className="text-2xl sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.15] mb-5 max-w-full break-words">
                 Mobilidade inteligente para{" "}
                 <span className="txd-gradient-text txd-text-glow">todos</span>.
               </h1>
-              <p className="text-sm sm:text-lg md:text-xl text-gray-400 mb-7 max-w-lg leading-relaxed">Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.</p>
+              <p className="text-sm sm:text-lg md:text-xl text-gray-400 mb-7 max-w-lg leading-relaxed">Solicite corridas, entregas e fretes em uma única plataforma.</p>
             </div>
             <div className="flex flex-wrap gap-3 mb-7">
               <button onClick={() => openAuth("register", "passenger")}
-                className="bg-primary hover:bg-primary-hover text-black font-bold px-6 py-4 rounded-full transition-all hover:scale-95 txd-green-glow-sm flex items-center gap-2 text-sm md:text-base">
+                className="bg-primary hover:bg-primary-hover text-black font-bold px-4 md:px-6 py-3 md:py-4 rounded-full transition-all hover:scale-95 txd-green-glow-sm flex items-center gap-2 text-sm md:text-base">
                 <Car className="w-5 h-5" /> Solicitar corrida
               </button>
               <button onClick={() => openAuth("register", "driver")}
-                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-6 py-4 rounded-full transition-all hover:scale-95 flex items-center gap-2 text-sm md:text-base">
+                className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium px-4 md:px-6 py-3 md:py-4 rounded-full transition-all hover:scale-95 flex items-center gap-2 text-sm md:text-base">
                 <Bike className="w-5 h-5" /> Seja motorista
               </button>
             </div>
@@ -353,7 +355,7 @@ export default function Home() {
               )}
             </div>
           </div>
-          <div className="relative flex items-center justify-center">
+          <div className="relative hidden lg:flex items-center justify-center">
             <div className="relative">
               <div className="absolute -inset-10 bg-gradient-radial from-primary/30 via-primary/10 to-transparent blur-3xl opacity-40 animate-txd-float" />
               <div className="relative">
@@ -378,8 +380,8 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto px-4 md:px-6 mt-12 md:mt-16 w-full relative z-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
+        <div className="max-w-7xl mx-auto mt-12 md:mt-16 w-full relative z-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-6 md:mb-8">
             {[ { icon: Car, label: "Passageiro", href: "#" }, { icon: Package, label: "Entregas", href: "#" }, { icon: Truck, label: "Fretes", href: "/freight/post" }, { icon: Building2, label: "Empresas", href: "#" } ].map((a, i) => (
               <button key={i} onClick={() => a.href && a.href !== "#" ? router.push(a.href) : openAuth("register", a.label.toLowerCase())}
                 className="txd-card flex items-center gap-2 md:gap-3 p-3 md:p-4 hover:border-primary/30 group">
@@ -494,7 +496,7 @@ export default function Home() {
             ))}
           </div>
           <div className="lg:col-span-2 flex justify-center">
-            <div className="relative w-[300px]">
+            <div className="relative max-w-full mx-auto" style={{ width: "clamp(240px, 75vw, 300px)" }}>
               <div className="absolute -inset-4 bg-gradient-radial from-primary/30 to-transparent blur-2xl opacity-30" />
               <div className="relative txd-glass-strong rounded-[2.5rem] p-[2.5px] shadow-2xl">
                 <div className="relative w-full aspect-[9/19] rounded-[2.3rem] overflow-hidden bg-gradient-to-b from-[#0a0d12] to-[#0e1218]">
@@ -566,7 +568,7 @@ export default function Home() {
         <div className="absolute inset-0 txd-grid-bg opacity-20" />
         <AnimatedSection><SectionHeader badge="TXD Live" title="Motoristas ao vivo" desc="Veja quem está disponível agora na sua região." /></AnimatedSection>
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-          <AnimatedSection delay={0.1} className="relative h-[400px] txd-card overflow-hidden rounded-2xl">
+          <AnimatedSection delay={0.1} className="relative h-[250px] md:h-[400px] txd-card overflow-hidden rounded-2xl">
             <TxdMap center={[-23.5505, -46.6333]} zoom={13}
               markers={[
                 { id: "u", lat: -23.5505, lng: -46.6333, type: "user", pulse: true },

@@ -6,6 +6,8 @@ import {
   Camera, Shield, CheckCircle, ChevronRight, ArrowLeft, ScanLine, Video,
 } from "lucide-react";
 import Link from "next/link";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { SelfieCapture } from "@/lib/components/selfie-capture";
 import { VideoIntro } from "@/lib/components/video-intro";
 
 type Step = "intro" | "selfie" | "video" | "done";
@@ -14,10 +16,12 @@ export default function VerificationPage() {
   const [step, setStep] = useState<Step>("intro");
   const [selfie, setSelfie] = useState<string | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {step !== "intro" && (
           <motion.button
             initial={{ opacity: 0 }}
@@ -29,6 +33,9 @@ export default function VerificationPage() {
           </motion.button>
         )}
 
+        {loading ? (
+          <SkeletonList count={5} />
+        ) : (
         <motion.div
           key={step}
           initial={{ opacity: 0, y: 20 }}
@@ -109,7 +116,7 @@ export default function VerificationPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelfie(null)}
-                      className="flex-1 bg-white/5 border border-card-border text-gray-400 hover:text-white font-medium py-3 rounded-xl transition-all text-sm"
+                      className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-sm"
                     >
                       Refazer
                     </button>
@@ -122,30 +129,14 @@ export default function VerificationPage() {
                   </div>
                 </div>
               ) : (
-                <button
-                  onClick={async () => {
-                    try {
-                      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                      const video = document.createElement("video");
-                      video.srcObject = stream;
-                      video.play();
-                      await new Promise(r => setTimeout(r, 300));
-                      const canvas = document.createElement("canvas");
-                      canvas.width = video.videoWidth || 640;
-                      canvas.height = video.videoHeight || 480;
-                      const ctx = canvas.getContext("2d")!;
-                      ctx.drawImage(video, 0, 0);
-                      setSelfie(canvas.toDataURL("image/jpeg"));
-                      stream.getTracks().forEach(t => t.stop());
-                    } catch {
-                      alert("Permita acesso à câmera para continuar.");
-                    }
-                  }}
-                  className="w-full aspect-[4/3] rounded-2xl border-2 border-dashed border-card-border bg-background flex flex-col items-center justify-center gap-3 hover:border-primary/50 transition-colors"
-                >
-                  <Camera className="w-10 h-10 text-gray-500" />
-                  <span className="text-sm text-gray-400">Clique para abrir a câmera</span>
-                </button>
+                <SelfieCapture
+                  onCapture={(blob) => setSelfie(URL.createObjectURL(blob))}
+                  livenessRequired={false}
+                  onSkip={() => setStep("video")}
+                />
+              )}
+              {error && (
+                <p className="text-sm text-red-400 mt-2">{error}</p>
               )}
             </div>
           )}
@@ -158,7 +149,7 @@ export default function VerificationPage() {
               <div className="flex gap-2 mt-4">
                 <button
                   onClick={() => setStep("selfie")}
-                  className="flex-1 bg-white/5 border border-card-border text-gray-400 hover:text-white font-medium py-3 rounded-xl transition-all text-sm"
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-sm"
                 >
                   Voltar
                 </button>
@@ -190,6 +181,7 @@ export default function VerificationPage() {
             </div>
           )}
         </motion.div>
+        )}
       </div>
     </div>
   );

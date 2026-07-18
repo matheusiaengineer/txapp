@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wallet,
@@ -81,9 +82,13 @@ function getTypeBg(type: string) {
 }
 
 export default function WalletPage() {
+  const [loading, setLoading] = useState(true);
   const [showAddCard, setShowAddCard] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => { setTimeout(() => setLoading(false), 800); }, []);
+  if (loading) return <div className="min-h-[100dvh] bg-background text-foreground p-4 sm:p-6 lg:p-8" style={{paddingBottom:"calc(1.5rem + env(safe-area-inset-bottom,0px))"}}><SkeletonList count={5} /></div>;
 
   const handleCopyPix = () => {
     setCopied(true);
@@ -91,8 +96,8 @@ export default function WalletPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -247,12 +252,12 @@ export default function WalletPage() {
                       <input
                         type="text"
                         placeholder="Validade (MM/AA)"
-                        className="bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors"
+                        className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors"
                       />
                       <input
                         type="text"
                         placeholder="CVV"
-                        className="bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors"
+                        className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors"
                       />
                     </div>
                     <input

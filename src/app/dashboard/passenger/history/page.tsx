@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock,
@@ -153,9 +154,13 @@ function getStatusBadge(status: string) {
 }
 
 export default function TripHistory() {
+  const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [ratedTrips, setRatedTrips] = useState<Set<string>>(new Set());
+
+  useEffect(() => { setTimeout(() => setLoading(false), 800); }, []);
+  if (loading) return <div className="min-h-[100dvh] bg-background text-foreground p-4 sm:p-6 lg:p-8" style={{paddingBottom:"calc(1.5rem + env(safe-area-inset-bottom,0px))"}}><SkeletonList count={5} /></div>;
 
   const filteredTrips =
     activeFilter === "all"
@@ -163,8 +168,8 @@ export default function TripHistory() {
       : trips.filter((t) => t.status === activeFilter);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -304,12 +309,12 @@ export default function TripHistory() {
                                 <div className="flex items-center gap-8">
                                   <div className="flex flex-col items-center">
                                     <div className="w-3 h-3 rounded-full bg-primary" />
-                                    <span className="text-[10px] text-primary mt-1">Origem</span>
+                                    <span className="text-xs text-primary mt-1">Origem</span>
                                   </div>
                                   <div className="w-12 h-0.5 bg-dashed border-t border-dashed border-gray-600" />
                                   <div className="flex flex-col items-center">
                                     <div className="w-3 h-3 rounded-full bg-red-400" />
-                                    <span className="text-[10px] text-red-400 mt-1">Destino</span>
+                                    <span className="text-xs text-red-400 mt-1">Destino</span>
                                   </div>
                                 </div>
                               </div>
@@ -345,17 +350,17 @@ export default function TripHistory() {
                               <div className="bg-background border border-card-border rounded-xl p-3 text-center">
                                 <Navigation className="w-4 h-4 text-primary mx-auto mb-1" />
                                 <p className="text-xs font-semibold">{trip.distance}</p>
-                                <p className="text-[10px] text-gray-500">Distância</p>
+                                <p className="text-xs text-gray-500">Distância</p>
                               </div>
                               <div className="bg-background border border-card-border rounded-xl p-3 text-center">
                                 <Clock className="w-4 h-4 text-primary mx-auto mb-1" />
                                 <p className="text-xs font-semibold">{trip.estimatedTime}</p>
-                                <p className="text-[10px] text-gray-500">Tempo</p>
+                                <p className="text-xs text-gray-500">Tempo</p>
                               </div>
                               <div className="bg-background border border-card-border rounded-xl p-3 text-center">
                                 <DollarSign className="w-4 h-4 text-primary mx-auto mb-1" />
                                 <p className="text-xs font-semibold">{trip.price}</p>
-                                <p className="text-[10px] text-gray-500">Valor</p>
+                                <p className="text-xs text-gray-500">Valor</p>
                               </div>
                             </div>
 

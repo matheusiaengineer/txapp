@@ -4,11 +4,13 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Mail, ArrowLeft, Send, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pageLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,9 +21,12 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-[100dvh] bg-background text-foreground flex items-center justify-center px-4 sm:px-6 lg:px-8 py-6 relative overflow-hidden" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="absolute top-[-20%] left-[-10%] w-96 h-96 bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
 
+      {pageLoading ? (
+        <SkeletonList count={4} />
+      ) : (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -41,7 +46,7 @@ export default function ForgotPasswordPage() {
               <p className="text-gray-400 text-sm mb-6">
                 Enviamos um link de redefinição de senha para <strong className="text-white">{email}</strong>
               </p>
-              <p className="text-xs text-gray-500">Não recebeu? Verifique sua caixa de spam ou <button onClick={() => setSent(false)} className="text-primary hover:underline">tente novamente</button></p>
+              <p className="text-xs text-gray-500">Não recebeu? Verifique sua caixa de spam ou <button onClick={() => setSent(false)} className="bg-white/5 hover:bg-white/10 text-white font-medium py-1.5 px-3 rounded-xl transition-all text-xs">tente novamente</button></p>
             </motion.div>
           ) : (
             <>
@@ -58,7 +63,7 @@ export default function ForgotPasswordPage() {
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="bg-background border border-card-border rounded-lg p-3 text-white focus:border-primary focus:outline-none transition-colors"
+                    className="w-full bg-background border border-card-border rounded-xl p-3 text-white focus:border-primary focus:outline-none transition-colors"
                     placeholder="seu@email.com"
                     required
                   />
@@ -80,6 +85,7 @@ export default function ForgotPasswordPage() {
           )}
         </div>
       </motion.div>
+      )}
     </div>
   );
 }

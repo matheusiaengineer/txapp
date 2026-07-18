@@ -1,30 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-function generateId(): string {
+function generateCode(): string {
   return Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const code = generateId();
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    }
 
-    const store = (globalThis as any).__txd_tracking || {};
-    store[code] = {
-      id: code,
-      loadId: body.load_id,
+    const code = generateCode();
+
+    const { error } = await supabase.from("freight_tracking").insert({
+      load_id: body.load_id,
+      code,
       status: body.status || "pending",
-      origin: body.origin,
-      destination: body.destination,
-      driverName: body.driver_name || "Motorista",
-      vehicleType: body.vehicle_type || "Veículo",
-      vehiclePlate: body.vehicle_plate || "",
-      estimatedDelivery: body.estimated_delivery || "",
-      currentLocation: body.current_location || "",
-      events: [{ status: "Carga registrada", location: body.origin, time: new Date().toLocaleString("pt-BR") }],
-      createdAt: new Date().toISOString(),
-    };
-    (globalThis as any).__txd_tracking = store;
+      description: `Carga registrada em ${body.origin || "origem"}`,
+      updated_by: user.id,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ code, url: `/rastreio/${code}` });
   } catch {
@@ -33,13 +35,44 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const code = request.nextUrl.searchParams.get("code");
-  if (!code) return NextResponse.json({ error: "Código obrigatório" }, { status: 400 });
+  try {
+    const code = request.nextUrl.searchParams.get("code");
+    if (!code) return NextResponse.json({ error: "Código obrigatório" }, { status: 400 });
 
-  const store = (globalThis as any).__txd_tracking || {};
-  const data = store[code];
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("freight_tracking")
+      .select("id, load_id, code, lat, lng, status, description, updated_by, created_at, updated_at")
+      .eq("code", code)
+      .single();
 
-  if (!data) return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+    if (error || !data) {
+      return NextResponse.json({ error: "Não encontrado" }, { status: 404 });
+    }
 
-  return NextResponse.json(data);
+    const { data: load } = await supabase
+      .from("loads")
+      .select("origin_address, dest_address")
+      .eq("id", data.load_id)
+      .single();
+
+    return NextResponse.json({
+      id: data.id,
+      code: data.code,
+      loadId: data.load_id,
+      status: data.status,
+      origin: load?.origin_address || "",
+      destination: load?.dest_address || "",
+      currentLocation: data.lat && data.lng ? `${data.lat},${data.lng}` : "",
+      events: [{
+        status: data.description || "Registrado",
+        location: load?.origin_address || "",
+        time: new Date(data.created_at).toLocaleString("pt-BR"),
+      }],
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    });
+  } catch {
+    return NextResponse.json({ error: "Erro ao buscar rastreamento" }, { status: 500 });
+  }
 }

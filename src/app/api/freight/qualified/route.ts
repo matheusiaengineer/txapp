@@ -1,59 +1,71 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-const STORAGE_KEY = "txd_qualified_clients";
+const REQUIRED: Record<string, number> = { moto: 15, carro: 25, freight: 30 };
 
-function getQualified(): string[] {
-  if (typeof globalThis !== "undefined") {
-    return (globalThis as any).__txd_qualified || [];
-  }
-  return [];
+async function getWallet(userId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("wallets")
+    .select("balance, deposit_required, is_qualified")
+    .eq("profile_id", userId)
+    .single();
+  return data || { balance: 0, deposit_required: 0, is_qualified: false };
 }
 
-function addQualified(userId: string) {
-  const q = getQualified();
-  if (!q.includes(userId)) {
-    q.push(userId);
-    (globalThis as any).__txd_qualified = q;
-  }
-}
-
-function getBalance(userId: string): number {
-  const store = (globalThis as any).__txd_wallets || {};
-  return store[userId] || 0;
-}
-
-function setBalance(userId: string, amount: number): number {
-  const store = (globalThis as any).__txd_wallets || {};
-  store[userId] = amount;
-  (globalThis as any).__txd_wallets = store;
-  return amount;
+async function upsertWallet(userId: string, balance: number) {
+  const supabase = await createClient();
+  const required = REQUIRED["carro"] || 25;
+  const isQualified = balance >= required;
+  const { error } = await supabase.from("wallets").upsert({
+    profile_id: userId,
+    balance,
+    deposit_required: required,
+    is_qualified: isQualified,
+  }, { onConflict: "profile_id" });
+  return { error, isQualified, required };
 }
 
 export async function GET(request: NextRequest) {
-  const userId = request.headers.get("x-user-id") || request.nextUrl.searchParams.get("user_id") || "anon";
-  const serviceType = request.nextUrl.searchParams.get("service") || "carro";
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || request.headers.get("x-user-id") || request.nextUrl.searchParams.get("user_id") || "anon";
+    const serviceType = request.nextUrl.searchParams.get("service") || "carro";
 
-  const required: Record<string, number> = { moto: 15, carro: 25, freight: 30 };
-  const requiredDeposit = required[serviceType] || 25;
-  const balance = getBalance(userId);
-  const qualified = balance >= requiredDeposit;
-  const qualifiedUsers = getQualified();
+    const requiredDeposit = REQUIRED[serviceType] || 25;
+    const wallet = await getWallet(userId);
+    const balance = wallet.balance || 0;
+    const qualified = balance >= requiredDeposit;
 
-  return NextResponse.json({
-    qualified,
-    balance,
-    requiredDeposit,
-    serviceType,
-    canRequest: qualified,
-    missingAmount: qualified ? 0 : requiredDeposit - balance,
-    qualifiedCount: qualifiedUsers.length,
-  });
+    const { count } = await supabase
+      .from("wallets")
+      .select("*", { count: "exact", head: true })
+      .gte("balance", requiredDeposit);
+
+    return NextResponse.json({
+      qualified,
+      balance,
+      requiredDeposit,
+      serviceType,
+      canRequest: qualified,
+      missingAmount: qualified ? 0 : requiredDeposit - balance,
+      qualifiedCount: count || 0,
+    });
+  } catch {
+    return NextResponse.json({
+      qualified: false, balance: 0, requiredDeposit: 25,
+      serviceType: "carro", canRequest: false, missingAmount: 25, qualifiedCount: 0,
+    });
+  }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const userId = body.user_id || "anon";
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id || body.user_id || "anon";
     const amount = body.amount || 0;
     const serviceType = body.service_type || "carro";
 
@@ -61,28 +73,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Valor inválido" }, { status: 400 });
     }
 
-    const required: Record<string, number> = { moto: 15, carro: 25, freight: 30 };
-    const requiredDeposit = required[serviceType] || 25;
-    const currentBalance = getBalance(userId);
+    const requiredDeposit = REQUIRED[serviceType] || 25;
+    const wallet = await getWallet(userId);
+    const currentBalance = wallet.balance || 0;
     const newBalance = currentBalance + amount;
 
-    setBalance(userId, newBalance);
-
-    if (newBalance >= requiredDeposit) {
-      addQualified(userId);
-    }
-
-    const qualified = newBalance >= requiredDeposit;
+    const { isQualified, required } = await upsertWallet(userId, newBalance);
 
     return NextResponse.json({
       success: true,
       balance: newBalance,
       deposited: amount,
-      qualified,
-      requiredDeposit,
+      qualified: isQualified,
+      requiredDeposit: required,
       serviceType,
-      canRequest: qualified,
-      missingAmount: qualified ? 0 : requiredDeposit - newBalance,
+      canRequest: isQualified,
+      missingAmount: isQualified ? 0 : required - newBalance,
     });
   } catch {
     return NextResponse.json({ error: "Erro ao processar depósito" }, { status: 500 });

@@ -14,6 +14,11 @@ import { useUser } from "@/lib/hooks/use-user";
 import { useDriverData } from "@/lib/hooks/use-driver-data";
 import { triggerHaptic } from "@/lib/haptics";
 import { RadarLoader } from "@/components/ui/radar-loader";
+import SosButton from "@/components/safety/SosButton";
+import GamificationBar from "@/components/driver/GamificationBar";
+import BatterySaverMode from "@/components/map/BatterySaverMode";
+import SwipeToAccept from "@/components/ride/SwipeToAccept";
+import { PageLayout, PageHeader } from "@/components/ui/page-layout";
 
 function DriverDashboardContent() {
   const { user, loading: userLoading } = useUser();
@@ -99,23 +104,25 @@ function DriverDashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24">
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+    <PageLayout>
+      <SosButton driverId={user?.id} />
         {/* Header */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{greeting}, <span className="text-primary">{user?.full_name?.split(" ")[0] || "Motorista"}</span></h1>
-            <p className="text-sm text-gray-400">{vehicle ? `${vehicle.brand} ${vehicle.model} · ${vehicle.license_plate}` : "Cadastre seu veículo"}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="relative glass-panel p-3 rounded-full">
-              <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">2</span>
-            </button>
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-              <User className="w-5 h-5 text-primary" />
-            </div>
-          </div>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <PageHeader
+            title={`${greeting}, ${user?.full_name?.split(" ")[0] || "Motorista"}`}
+            subtitle={vehicle ? `${vehicle.brand} ${vehicle.model} · ${vehicle.license_plate}` : "Cadastre seu veículo"}
+            action={
+              <div className="flex items-center gap-3">
+                <button className="relative glass-panel p-3 rounded-full">
+                  <Bell className="w-5 h-5" />
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">2</span>
+                </button>
+                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-primary" />
+                </div>
+              </div>
+            }
+          />
         </motion.div>
 
         {/* Verification Banner */}
@@ -159,6 +166,9 @@ function DriverDashboardContent() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Barra de Gamificação */}
+        <GamificationBar tripsToday={trips.length} earningsToday={earnings.today} />
 
         {/* Online Toggle + Status */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-5">
@@ -335,48 +345,20 @@ function DriverDashboardContent() {
           </motion.div>
         )}
 
-        {/* Current Request */}
+        {/* Current Request - Swipe to Accept */}
         {currentRequest && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel p-5 border-primary/40">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-primary" />
-                <span className="text-sm font-semibold text-primary">{requestTimer}s</span>
-              </div>
-              <span className="text-sm font-bold text-primary">R$ {currentRequest.estimatedFare.toFixed(2)}</span>
-            </div>
-            <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                <span>{currentRequest.pickup}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
-                <span>{currentRequest.destination}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary">
-                {currentRequest.passengerName.charAt(0)}
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{currentRequest.passengerName}</p>
-                <div className="flex items-center gap-1 text-xs text-yellow-400">
-                  <Star className="w-3 h-3 fill-yellow-400" /> {currentRequest.passengerRating}
-                </div>
-              </div>
-              <div className="ml-auto text-xs text-gray-500">
-                <p>{currentRequest.distance}</p>
-                <p>{currentRequest.estimatedTime}</p>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setCurrentRequest(null)}
-                className="flex-1 py-3 rounded-xl bg-red-500/20 text-red-400 font-semibold text-sm hover:bg-red-500/30 transition">Recusar</button>
-              <button onClick={() => { setCurrentRequest(null); }}
-                className="flex-1 py-3 rounded-xl bg-primary text-background font-semibold text-sm hover:bg-primary-hover transition">Aceitar</button>
-            </div>
-          </motion.div>
+          <SwipeToAccept
+            pickup={currentRequest.pickup}
+            destination={currentRequest.destination}
+            estimatedFare={currentRequest.estimatedFare}
+            distance={currentRequest.distance}
+            estimatedTime={currentRequest.estimatedTime}
+            passengerName={currentRequest.passengerName}
+            passengerRating={currentRequest.passengerRating}
+            timer={requestTimer}
+            onAccept={() => setCurrentRequest(null)}
+            onReject={() => setCurrentRequest(null)}
+          />
         )}
 
         {/* Earnings cards */}
@@ -431,10 +413,21 @@ function DriverDashboardContent() {
               <div><p className="text-sm font-semibold">Ganhos</p><p className="text-xs text-gray-500">Histórico completo</p></div>
             </div>
           </Link>
-          <Link href="/dashboard/driver/map">
+          <div className="relative">
+            <Link href="/dashboard/driver/map">
+              <div className="glass-panel p-4 flex items-center gap-3 hover:border-primary/30 transition-all">
+                <MapPin className="w-5 h-5 text-primary" />
+                <div><p className="text-sm font-semibold">Mapa</p><p className="text-xs text-gray-500">Calor ao vivo</p></div>
+              </div>
+            </Link>
+            <div className="absolute -top-2 -right-2">
+              <BatterySaverMode />
+            </div>
+          </div>
+          <Link href="/dashboard/driver/addresses">
             <div className="glass-panel p-4 flex items-center gap-3 hover:border-primary/30 transition-all">
-              <MapPin className="w-5 h-5 text-primary" />
-              <div><p className="text-sm font-semibold">Mapa</p><p className="text-xs text-gray-500">Calor ao vivo</p></div>
+              <Navigation className="w-5 h-5 text-primary" />
+              <div><p className="text-sm font-semibold">Endereços</p><p className="text-xs text-gray-500">Locais salvos</p></div>
             </div>
           </Link>
           <Link href="/dashboard/driver/kyc">
@@ -470,8 +463,7 @@ function DriverDashboardContent() {
             <DollarSign className="w-4 h-4 text-primary" />
           </button>
         </motion.div>
-      </div>
-    </div>
+    </PageLayout>
   );
 }
 

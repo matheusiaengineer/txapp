@@ -42,11 +42,17 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     const res = await signIn(email, password);
-    setLoading(false);
     if (res.error) {
+      setLoading(false);
       setError(res.error);
       return;
     }
+    if (res.session) {
+      const { createClient } = await import("@/lib/supabase/browser");
+      const supabase = createClient();
+      await supabase.auth.setSession(res.session);
+    }
+    setLoading(false);
     const role = (res.role || "passenger") as "passenger" | "driver" | "company" | "transporter" | "employee";
     router.push(getDashboardRoute(role));
   }

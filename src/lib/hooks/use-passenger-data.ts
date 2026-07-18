@@ -29,7 +29,7 @@ export function usePassengerData(userId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) { setLoading(false); return; }
 
     Promise.all([
       supabase.from("trips")
@@ -41,11 +41,13 @@ export function usePassengerData(userId: string | undefined) {
       supabase.from("addresses")
         .select("*")
         .eq("profile_id", userId)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .limit(20),
 
       supabase.from("ratings")
         .select("score")
-        .eq("ratee_id", userId),
+        .eq("ratee_id", userId)
+        .limit(100),
     ]).then(([tripsRes, addrRes, ratingsRes]) => {
       if (tripsRes.data) setTrips(tripsRes.data);
       if (addrRes.data) setAddresses(addrRes.data);

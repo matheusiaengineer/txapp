@@ -3,9 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Building2, Package, TrendingUp, Users, Star, DollarSign, Clock, Calendar, Loader2, Truck, MapPin, Navigation, PlusCircle, Eye } from "lucide-react";
+import { Building2, Package, TrendingUp, Users, Star, DollarSign, Clock, Calendar, Loader2, Truck, MapPin, Navigation, PlusCircle, Eye, Shield } from "lucide-react";
 import { useUser } from "@/lib/hooks/use-user";
 import { useCompanyData } from "@/lib/hooks/use-company-data";
+import GeofenceB2B from "@/components/map/GeofenceB2B";
+import { PageLayout, PageHeader } from "@/components/ui/page-layout";
+import { StatCard } from "@/components/ui/stat-card";
 
 interface LoadItem {
   id: string;
@@ -68,23 +71,16 @@ export default function CompanyDashboard() {
   ];
 
   return (
-    <div className="p-4 md:p-6 space-y-5 md:space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Painel Empresarial</h1>
-        <p className="text-gray-400 text-sm">{company?.corporate_name || "Bem-vindo"}</p>
-      </div>
+    <PageLayout>
+      <PageHeader
+        title="Painel Empresarial"
+        subtitle={company?.corporate_name || "Bem-vindo"}
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((s, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-            className="txd-card p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${s.color}20` }}>
-                <s.icon className="w-4 h-4" style={{ color: s.color }} />
-              </div>
-            </div>
-            <div className="text-2xl font-bold">{s.value}</div>
-            <div className="text-xs text-gray-500">{s.label}</div>
+          <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+            <StatCard icon={s.icon} label={s.label} value={s.value} color={s.color} />
           </motion.div>
         ))}
       </div>
@@ -178,6 +174,23 @@ export default function CompanyDashboard() {
           <div className="text-xs text-gray-500">Média de {Math.round(monthlyCount / 30) || 0}/dia</div>
         </div>
       </div>
-    </div>
+
+      {/* Geofence B2B - Controle de zona para corridas corporativas */}
+      <div className="relative">
+        <div className="txd-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" />
+              <h2 className="font-semibold">Segurança Corporativa</h2>
+            </div>
+            <GeofenceB2B />
+          </div>
+          <p className="text-xs text-gray-400">
+            Configure zonas geográficas para restringir corridas corporativas.
+            Funcionários só podem solicitar viagens dentro das áreas definidas.
+          </p>
+        </div>
+      </div>
+    </PageLayout>
   );
 }

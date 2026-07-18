@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Navigation,
@@ -17,16 +18,33 @@ import {
   X,
   Clock,
   Star,
+  Bell,
 } from "lucide-react";
 
 export default function DriverMapView() {
+  const [loading, setLoading] = useState(true);
   const [showHeatMap, setShowHeatMap] = useState(true);
   const [showRideCard, setShowRideCard] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [minimized, setMinimized] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <div className="relative w-full h-screen bg-[#111111] text-foreground overflow-hidden">
+    <>
+      {loading ? (
+        <div className="w-full h-dvh bg-background flex items-center justify-center">
+          <div className="space-y-4 text-center">
+            <Skeleton className="w-16 h-16 rounded-full mx-auto" />
+            <Skeleton className="h-5 w-48 mx-auto" />
+            <Skeleton className="h-4 w-32 mx-auto" />
+          </div>
+        </div>
+      ) : (
+        <div className="relative w-full h-dvh bg-background text-foreground overflow-hidden">
       {/* Full-screen Map Placeholder */}
       <div className="absolute inset-0 z-0">
         <div
@@ -93,7 +111,7 @@ export default function DriverMapView() {
 
       {/* Floating UI */}
       <div className="absolute inset-0 z-20 pointer-events-none">
-        <div className="h-full flex flex-col justify-between p-4 sm:p-6">
+        <div className="h-full flex flex-col justify-between p-4 sm:p-6" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
           {/* Top Controls */}
           <div className="flex items-start justify-between pointer-events-auto">
             <div className="flex gap-2">
@@ -244,7 +262,7 @@ export default function DriverMapView() {
                               className="glass-panel p-3 flex flex-col items-center gap-1"
                             >
                               <Navigation className="w-5 h-5 text-primary" />
-                              <span className="text-[10px]">Navegar</span>
+                              <span className="text-xs">Navegar</span>
                             </motion.button>
                             <motion.button
                               whileHover={{ scale: 1.03 }}
@@ -253,7 +271,7 @@ export default function DriverMapView() {
                               className="glass-panel p-3 flex flex-col items-center gap-1"
                             >
                               <MessageCircle className="w-5 h-5 text-blue-400" />
-                              <span className="text-[10px]">Chat</span>
+                              <span className="text-xs">Chat</span>
                             </motion.button>
                             <motion.button
                               whileHover={{ scale: 1.03 }}
@@ -261,7 +279,7 @@ export default function DriverMapView() {
                               className="glass-panel p-3 flex flex-col items-center gap-1"
                             >
                               <Phone className="w-5 h-5 text-green-400" />
-                              <span className="text-[10px]">Ligar</span>
+                              <span className="text-xs">Ligar</span>
                             </motion.button>
                             <motion.button
                               whileHover={{ scale: 1.03 }}
@@ -269,7 +287,7 @@ export default function DriverMapView() {
                               className="glass-panel p-3 flex flex-col items-center gap-1 border-red-500/30"
                             >
                               <AlertTriangle className="w-5 h-5 text-red-400" />
-                              <span className="text-[10px]">Emergência</span>
+                              <span className="text-xs">Emergência</span>
                             </motion.button>
                           </div>
                         </motion.div>
@@ -302,7 +320,7 @@ export default function DriverMapView() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="absolute inset-y-0 right-0 w-full sm:w-80 z-30 glass-panel rounded-none border-l border-card-border flex flex-col"
+            className="absolute inset-y-0 right-0 w-full sm:w-80 z-30 glass-panel border-l border-card-border flex flex-col"
           >
             {/* Chat Header */}
             <div className="flex items-center justify-between p-4 border-b border-card-border">
@@ -315,7 +333,7 @@ export default function DriverMapView() {
                   <p className="text-xs text-primary">Online</p>
                 </div>
               </div>
-              <button onClick={() => setShowChat(false)}>
+              <button onClick={() => setShowChat(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
@@ -325,19 +343,19 @@ export default function DriverMapView() {
               <div className="flex justify-start">
                 <div className="bg-background border border-card-border rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[80%]">
                   <p className="text-sm">Oi, estou na portaria de blazer azul</p>
-                  <p className="text-[10px] text-gray-500 mt-1">14:32</p>
+                  <p className="text-xs text-gray-500 mt-1">14:32</p>
                 </div>
               </div>
               <div className="flex justify-end">
                 <div className="bg-primary text-background rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[80%]">
                   <p className="text-sm">Já estou chegando!</p>
-                  <p className="text-[10px] text-white/60 mt-1">14:32</p>
+                  <p className="text-xs text-white/60 mt-1">14:32</p>
                 </div>
               </div>
               <div className="flex justify-start">
                 <div className="bg-background border border-card-border rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[80%]">
                   <p className="text-sm">Perfeito, estou te aguardando</p>
-                  <p className="text-[10px] text-gray-500 mt-1">14:33</p>
+                  <p className="text-xs text-gray-500 mt-1">14:33</p>
                 </div>
               </div>
             </div>
@@ -352,7 +370,7 @@ export default function DriverMapView() {
                 />
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  className="bg-primary text-background w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                  className="bg-primary hover:bg-primary-hover text-background font-bold w-10 h-10 rounded-xl transition-all hover:scale-[0.98] flex items-center justify-center shrink-0"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
@@ -373,13 +391,9 @@ export default function DriverMapView() {
         <Shield className="w-6 h-6 text-red-400" />
       </motion.button>
     </div>
+    )}
+  </>
   );
 }
 
-function Bell(props: any) {
-  return (
-    <svg {...props} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-    </svg>
-  );
-}
+

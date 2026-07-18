@@ -1,28 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-
-function getBids(): any[] {
-  return (globalThis as any).__txd_freight_bids || [];
-}
-
-function setBids(data: any[]) {
-  (globalThis as any).__txd_freight_bids = data;
-}
+import { createClient } from "@/lib/supabase/server";
 
 export async function PATCH(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const supabase = await createClient();
 
-  const bids = getBids();
-  const bid = bids.find((b: any) => b.id === id);
+  const { error } = await supabase
+    .from("bids")
+    .update({ status: "rejected" })
+    .eq("id", id);
 
-  if (!bid) {
-    return NextResponse.json({ error: "Lance não encontrado" }, { status: 404 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  bid.status = "rejected";
-  setBids(bids);
 
   return NextResponse.json({ success: true });
 }

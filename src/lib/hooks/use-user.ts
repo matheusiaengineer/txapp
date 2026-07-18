@@ -21,13 +21,8 @@ export function useUser() {
     const supabase = createClient();
     let cancelled = false;
 
-    const timeout = setTimeout(() => {
-      if (!cancelled) setLoading(false);
-    }, 5000);
-
     supabase.auth.getUser().then(async ({ data: { user: authUser } }) => {
       if (cancelled) return;
-      clearTimeout(timeout);
       if (!authUser) { setLoading(false); return; }
 
       const { data: profile } = await supabase
@@ -49,9 +44,9 @@ export function useUser() {
         }
         setLoading(false);
       }
-    }).catch(() => { if (!cancelled) { clearTimeout(timeout); setLoading(false); } });
+    }).catch(() => { if (!cancelled) setLoading(false); });
 
-    return () => { cancelled = true; clearTimeout(timeout); };
+    return () => { cancelled = true; };
   }, []);
 
   return { user, loading };

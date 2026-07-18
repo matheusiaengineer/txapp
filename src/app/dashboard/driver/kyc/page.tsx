@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { SkeletonList } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -79,25 +80,36 @@ function getStatusLabel(status: string) {
 }
 
 export default function DriverKYC() {
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"documents" | "vehicle" | "background">("documents");
   const [showSelfieCapture, setShowSelfieCapture] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const approvedCount = documents.filter((d) => d.status === "approved").length;
   const totalRequired = documents.filter((d) => d.required).length;
   const progress = Math.round((approvedCount / totalRequired) * 100);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
-        >
-          <h1 className="text-2xl sm:text-3xl font-bold">Verificação de motorista</h1>
-          <p className="text-sm text-gray-400 mt-1">Complete seu cadastro para começar a dirigir</p>
-        </motion.div>
+    <div className="min-h-[100dvh] bg-background text-foreground">
+      {loading ? (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <SkeletonList count={6} />
+        </div>
+      ) : (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6"
+          >
+            <h1 className="text-2xl sm:text-3xl font-bold">Verificação de motorista</h1>
+            <p className="text-sm text-gray-400 mt-1">Complete seu cadastro para começar a dirigir</p>
+          </motion.div>
 
         {/* Progress */}
         <motion.div
@@ -127,7 +139,7 @@ export default function DriverKYC() {
         </motion.div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-none">
           {[
             { key: "documents" as const, label: "Documentos", icon: FileText },
             { key: "vehicle" as const, label: "Veículo", icon: Car },
@@ -182,7 +194,7 @@ export default function DriverKYC() {
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold">{doc.name}</p>
                         {doc.required && (
-                          <span className="text-[10px] text-red-400 font-medium">Obrigatório</span>
+                          <span className="text-xs text-red-400 font-medium">Obrigatório</span>
                         )}
                       </div>
                       <p className="text-xs text-gray-500">{doc.description}</p>
@@ -321,7 +333,7 @@ export default function DriverKYC() {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full bg-primary text-background font-semibold py-3 rounded-xl text-sm mt-2"
+                    className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3.5 rounded-xl transition-all hover:scale-[0.98] mt-2"
                   >
                     Salvar informações
                   </motion.button>
@@ -340,7 +352,7 @@ export default function DriverKYC() {
                       className="aspect-square rounded-2xl border-2 border-dashed border-card-border bg-background flex flex-col items-center justify-center gap-2 hover:border-primary/50 transition-colors cursor-pointer"
                     >
                       <Camera className="w-6 h-6 text-gray-500" />
-                      <span className="text-[10px] text-gray-500">{angle}</span>
+                      <span className="text-xs text-gray-500">{angle}</span>
                     </motion.button>
                   ))}
                 </div>
@@ -434,7 +446,7 @@ export default function DriverKYC() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => setShowSelfieCapture(false)}
-                        className="bg-primary text-background font-semibold px-6 py-3 rounded-full text-sm"
+                        className="bg-primary hover:bg-primary-hover text-background font-bold px-6 py-3.5 rounded-full transition-all hover:scale-[0.98] text-sm"
                       >
                         Capturar foto
                       </motion.button>
@@ -462,6 +474,8 @@ export default function DriverKYC() {
           )}
         </AnimatePresence>
       </div>
+    )}
     </div>
   );
 }
+

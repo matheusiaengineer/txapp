@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Star, TrendingUp, Tag, Phone, Mail, MapPin, Filter, ChevronDown, MessageSquare, Plus, X } from "lucide-react";
+import { SkeletonList } from "@/components/ui/skeleton";
 import Link from "next/link";
 
 const MOCK_CLIENTS = Array.from({ length: 12 }, (_, i) => ({
@@ -20,6 +21,7 @@ const MOCK_CLIENTS = Array.from({ length: 12 }, (_, i) => ({
 
 export default function CompanyClientsPage() {
   const [search, setSearch] = useState("");
+  const [loading] = useState(false);
   const [filter, setFilter] = useState<string>("all");
   const [selectedClient, setSelectedClient] = useState<any>(null);
 
@@ -31,8 +33,8 @@ export default function CompanyClientsPage() {
   }).filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-2xl font-bold mb-1">Clientes</h1>
           <p className="text-sm text-gray-400">CRM completo com {MOCK_CLIENTS.length} clientes</p>
@@ -56,57 +58,61 @@ export default function CompanyClientsPage() {
           ].map(f => (
             <button key={f.key} onClick={() => setFilter(f.key)}
               className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
-                filter === f.key ? "bg-primary text-background" : "bg-card-bg text-gray-400 hover:text-white"
+                filter === f.key ? "bg-primary text-background" : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10"
               }`}>
               {f.label} {f.count !== undefined && `(${f.count})`}
             </button>
           ))}
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(client => (
-            <motion.div key={client.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="glass-panel p-4 cursor-pointer hover:border-primary/30 transition-all"
-              onClick={() => setSelectedClient(client)}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary text-sm">
-                    {client.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm">{client.name}</p>
-                    <div className="flex items-center gap-1 text-xs">
-                      <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                      <span className="text-gray-400">{client.rating}</span>
+        {loading ? (
+          <SkeletonList count={6} />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filtered.map(client => (
+              <motion.div key={client.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="glass-panel p-4 cursor-pointer hover:border-primary/30 transition-all"
+                onClick={() => setSelectedClient(client)}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary text-sm">
+                      {client.name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">{client.name}</p>
+                      <div className="flex items-center gap-1 text-xs">
+                        <Star className="w-3 h-3 text-yellow-400 fill-yellow-400" />
+                        <span className="text-gray-400">{client.rating}</span>
+                      </div>
                     </div>
                   </div>
+                  <div className="flex gap-1">
+                    {client.tags.map(tag => (
+                      <span key={tag} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        tag === "VIP" ? "bg-yellow-400/20 text-yellow-400" : "bg-blue-400/20 text-blue-400"
+                      }`}>{tag}</span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex gap-1">
-                  {client.tags.map(tag => (
-                    <span key={tag} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                      tag === "VIP" ? "bg-yellow-400/20 text-yellow-400" : "bg-blue-400/20 text-blue-400"
-                    }`}>{tag}</span>
-                  ))}
-                </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-2 text-center text-xs bg-background rounded-xl p-2">
-                <div>
-                  <p className="font-bold text-primary">{client.orders}</p>
-                  <p className="text-gray-500">Pedidos</p>
+                <div className="grid grid-cols-3 gap-2 text-center text-xs bg-background rounded-xl p-2">
+                  <div>
+                    <p className="font-bold text-primary">{client.orders}</p>
+                    <p className="text-gray-500">Pedidos</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-primary">R$ {client.totalSpent.toFixed(0)}</p>
+                    <p className="text-gray-500">Gasto</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-300 text-xs">{client.lastOrder}</p>
+                    <p className="text-gray-500">Último</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-bold text-primary">R$ {client.totalSpent.toFixed(0)}</p>
-                  <p className="text-gray-500">Gasto</p>
-                </div>
-                <div>
-                  <p className="text-gray-300 text-[10px]">{client.lastOrder}</p>
-                  <p className="text-gray-500">Último</p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
 
         <AnimatePresence>
           {selectedClient && (
@@ -137,15 +143,15 @@ export default function CompanyClientsPage() {
                 <div className="grid grid-cols-3 gap-3 mb-4">
                   <div className="bg-background border border-card-border rounded-xl p-3 text-center">
                     <p className="text-xl font-bold text-primary">{selectedClient.orders}</p>
-                    <p className="text-[10px] text-gray-500">Pedidos</p>
+                    <p className="text-xs text-gray-500">Pedidos</p>
                   </div>
                   <div className="bg-background border border-card-border rounded-xl p-3 text-center">
                     <p className="text-xl font-bold text-primary">R$ {selectedClient.totalSpent.toFixed(0)}</p>
-                    <p className="text-[10px] text-gray-500">Gasto total</p>
+                    <p className="text-xs text-gray-500">Gasto total</p>
                   </div>
                   <div className="bg-background border border-card-border rounded-xl p-3 text-center">
                     <p className="text-xl font-bold text-primary">R$ {(selectedClient.totalSpent / selectedClient.orders).toFixed(0)}</p>
-                    <p className="text-[10px] text-gray-500">Ticket médio</p>
+                    <p className="text-xs text-gray-500">Ticket médio</p>
                   </div>
                 </div>
 
@@ -163,16 +169,16 @@ export default function CompanyClientsPage() {
                       <Tag className="w-3 h-3" /> {tag}
                     </span>
                   ))}
-                  <button className="flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full bg-card-bg text-gray-400 hover:text-white transition-colors">
+                  <button className="flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
                     <Plus className="w-3 h-3" /> Adicionar tag
                   </button>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <button className="w-full py-3 bg-primary text-background font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-primary-hover transition-all">
+                  <button className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3.5 rounded-xl transition-all hover:scale-[0.98] flex items-center justify-center gap-2">
                     <MessageSquare className="w-4 h-4" /> Disparar campanha
                   </button>
-                  <Link href="/dashboard/company/campaigns" className="w-full py-3 bg-card-bg border border-card-border rounded-xl text-sm text-center hover:bg-[#2a2a2a] transition-colors">
+                  <Link href="/dashboard/company/campaigns" className="w-full bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-center">
                     Ver histórico de pedidos
                   </Link>
                 </div>

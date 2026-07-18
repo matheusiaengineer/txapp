@@ -178,7 +178,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
+    <div className="flex h-dvh bg-background text-foreground overflow-hidden">
       {/* SIDEBAR */}
       <AnimatePresence mode="wait">
         {(showMobileList || !activeConversationId) && (

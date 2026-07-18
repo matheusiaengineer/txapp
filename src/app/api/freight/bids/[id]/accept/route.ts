@@ -1,38 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-
-function getBids(): any[] {
-  return (globalThis as any).__txd_freight_bids || [];
-}
-
-function setBids(data: any[]) {
-  (globalThis as any).__txd_freight_bids = data;
-}
-
-function getLoads(): any[] {
-  return (globalThis as any).__txd_freight_loads || [];
-}
-
-function setLoads(data: any[]) {
-  (globalThis as any).__txd_freight_loads = data;
-}
+import { createClient } from "@/lib/supabase/server";
 
 export async function PATCH(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const supabase = await createClient();
 
-  const bids = getBids();
-  const bid = bids.find((b: any) => b.id === id);
+  const { data: bid, error: bidError } = await supabase
+    .from("bids")
+    .select("load_id")
+    .eq("id", id)
+    .single();
 
-  if (!bid) {
+  if (bidError || !bid) {
     return NextResponse.json({ error: "Lance não encontrado" }, { status: 404 });
   }
 
-  const loads = getLoads();
-  const load = loads.find((l: any) => l.id === bid.load_id);
+  const { data: load, error: loadError } = await supabase
+    .from("loads")
+    .select("status")
+    .eq("id", bid.load_id)
+    .single();
 
-  if (!load) {
+  if (loadError || !load) {
     return NextResponse.json({ error: "Carga não encontrada" }, { status: 404 });
   }
 
@@ -40,17 +32,30 @@ export async function PATCH(
     return NextResponse.json({ error: "Carga não está mais aberta" }, { status: 400 });
   }
 
-  bid.status = "accepted";
-  load.status = "in_progress";
-  load.accepted_bid_id = bid.id;
+  const { error: acceptError } = await supabase
+    .from("bids")
+    .update({ status: "accepted" })
+    .eq("id", id);
 
-  const otherBids = bids.filter((b: any) => b.load_id === bid.load_id && b.id !== id);
-  for (const ob of otherBids) {
-    if (ob.status === "pending") ob.status = "rejected";
+  if (acceptError) {
+    return NextResponse.json({ error: acceptError.message }, { status: 500 });
   }
 
-  setBids(bids);
-  setLoads(loads);
+  const { error: loadUpdateError } = await supabase
+    .from("loads")
+    .update({ status: "in_progress", accepted_bid_id: id })
+    .eq("id", bid.load_id);
+
+  if (loadUpdateError) {
+    return NextResponse.json({ error: loadUpdateError.message }, { status: 500 });
+  }
+
+  await supabase
+    .from("bids")
+    .update({ status: "rejected" })
+    .eq("load_id", bid.load_id)
+    .neq("id", id)
+    .eq("status", "pending");
 
   return NextResponse.json({ success: true });
 }

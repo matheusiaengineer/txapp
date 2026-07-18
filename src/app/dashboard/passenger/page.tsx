@@ -13,6 +13,9 @@ import Link from "next/link";
 import { useUser } from "@/lib/hooks/use-user";
 import { usePassengerData } from "@/lib/hooks/use-passenger-data";
 import { triggerHaptic } from "@/lib/haptics";
+import SosButton from "@/components/safety/SosButton";
+import { createClient } from "@/lib/supabase/browser";
+import { PageLayout } from "@/components/ui/page-layout";
 
 interface Service {
   id: string; name: string; icon: typeof Car; color: string; priceRange: string; eta: string;
@@ -50,11 +53,8 @@ function formatDate(d: string) {
 }
 
 function VerificationBanner({ onClose }: { onClose: () => void }) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    setVisible(useSearchParams().get("new") === "true");
-  }, []);
+  const searchParams = useSearchParams();
+  const [visible, setVisible] = useState(searchParams.get("new") === "true");
 
   if (!visible) return null;
 
@@ -136,7 +136,7 @@ export default function PassengerDashboard() {
   useEffect(() => {
     async function fetchNearby() {
       try {
-        const res = await fetch("/api/location/nearby?radius=20");
+        const res = await fetch("/api/location/nearby?radius=20&limit=20");
         const data = await res.json();
         if (data.drivers) {
           setNearbyDrivers(data.drivers);
@@ -145,8 +145,23 @@ export default function PassengerDashboard() {
       } catch {}
     }
     fetchNearby();
-    const interval = setInterval(fetchNearby, 8000);
-    return () => clearInterval(interval);
+    // Realtime subscription para atualizações de heartbeat
+    let channel: any;
+    try {
+      const supabase = createClient();
+      channel = supabase
+        .channel("nearby-drivers")
+        .on("postgres_changes",
+          { event: "*", schema: "public", table: "driver_heartbeats", filter: "status=neq.OFFLINE" },
+          () => fetchNearby()
+        )
+        .subscribe();
+    } catch {}
+    const interval = setInterval(fetchNearby, 30000);
+    return () => {
+      clearInterval(interval);
+      if (channel) channel.unsubscribe();
+    };
   }, []);
 
   const nextPromo = useCallback(() => setCurrentPromo(p => (p + 1) % promos.length), []);
@@ -183,8 +198,9 @@ export default function PassengerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+    <PageLayout maxWidth="max-w-7xl">
+      <SosButton />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
           <div>
@@ -448,6 +464,6 @@ export default function PassengerDashboard() {
           </div>
         </div>
       </motion.div>
-    </div>
+    </PageLayout>
   );
 }

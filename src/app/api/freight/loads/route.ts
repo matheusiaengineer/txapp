@@ -1,57 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const STORAGE_KEY = "txd_freight_loads";
-
-function getStorage() {
-  if (typeof globalThis !== "undefined") {
-    return (globalThis as any).__txd_freight_loads || [];
-  }
-  return [];
-}
-
-function setStorage(data: any[]) {
-  if (typeof globalThis !== "undefined") {
-    (globalThis as any).__txd_freight_loads = data;
-  }
-}
-
-function generateId(): string {
-  return "fl_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-}
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const userId = request.headers.get("x-user-id") || "anon";
 
-    const load = {
-      id: generateId(),
-      customer_id: userId,
-      origin_address: body.origin_address,
-      origin_lat: body.origin_lat || null,
-      origin_lng: body.origin_lng || null,
-      dest_address: body.dest_address,
-      dest_lat: body.dest_lat || null,
-      dest_lng: body.dest_lng || null,
-      description: body.description,
-      weight_kg: body.weight_kg || null,
-      volume_m3: body.volume_m3 || null,
-      vehicle_type: body.vehicle_type || "carro",
-      photos: body.photos || [],
-      pickup_date: body.pickup_date || null,
-      delivery_date: body.delivery_date || null,
-      budget_min: body.budget_min || null,
-      budget_max: body.budget_max || null,
-      status: "open",
-      accepted_bid_id: null,
-      created_at: new Date().toISOString(),
-      customer_name: body.customer_name || "Cliente",
-      customer_phone: body.customer_phone || "",
-    };
+    const { data: load, error } = await supabase
+      .from("loads")
+      .insert({
+        customer_id: user.id,
+        origin_address: body.origin_address,
+        origin_lat: body.origin_lat || null,
+        origin_lng: body.origin_lng || null,
+        dest_address: body.dest_address,
+        dest_lat: body.dest_lat || null,
+        dest_lng: body.dest_lng || null,
+        description: body.description,
+        weight_kg: body.weight_kg || null,
+        volume_m3: body.volume_m3 || null,
+        vehicle_type: body.vehicle_type || "carro",
+        photos: body.photos || [],
+        pickup_date: body.pickup_date || null,
+        delivery_date: body.delivery_date || null,
+        budget_min: body.budget_min || null,
+        budget_max: body.budget_max || null,
+        customer_name: body.customer_name || user.email || "Cliente",
+        customer_phone: body.customer_phone || "",
+      })
+      .select("id")
+      .single();
 
-    const loads = getStorage();
-    loads.push(load);
-    setStorage(loads);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ load });
   } catch (err) {
@@ -60,20 +47,34 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const customerId = searchParams.get("customer_id");
+  const limit = parseInt(searchParams.get("limit") || "20");
+  const page = parseInt(searchParams.get("page") || "1");
+  const offset = (page - 1) * limit;
 
-  let loads = getStorage();
+  let query = supabase
+    .from("loads")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
-  if (status) {
-    loads = loads.filter((l: any) => l.status === status);
+  if (status) query = query.eq("status", status);
+  if (customerId) query = query.eq("customer_id", customerId);
+
+  const { data: loads, error, count } = await query;
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  if (customerId) {
-    loads = loads.filter((l: any) => l.customer_id === customerId);
-  }
 
-  loads.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-  return NextResponse.json({ loads });
+  return NextResponse.json({
+    loads: loads || [],
+    total: count || 0,
+    page,
+    limit,
+    totalPages: Math.ceil((count || 0) / limit),
+  });
 }

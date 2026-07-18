@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
+  const rl = await rateLimit(`auth:${ip}`, 5, 60000);
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "Muitas tentativas. Aguarde 1 minuto." }, { status: 429 });
+  }
+
   try {
     const body = await req.json();
     const { action, email, password, role, metadata } = body;
@@ -11,10 +18,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const cookiesToForward: { name: string; value: string; options?: any }[] = [];
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return req.cookies.getAll(); },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              req.cookies.set(name, value);
+              cookiesToForward.push({ name, value, options });
+            });
+          },
+        },
+      }
+    );
 
     if (action === "signup") {
-      // Cria o usuário já confirmado via Admin API (pula email de confirmação)
       const admin = createAdminClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -36,20 +58,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Erro ao criar usuário" }, { status: 500 });
       }
 
-      // Faz login automático para gerar sessão
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
+        await admin.auth.admin.deleteUser(data.user.id);
         return NextResponse.json({ error: signInError.message }, { status: 500 });
       }
 
       const userId = data.user.id;
 
-      // Salvar perfil base
-      await supabase.from("profiles").upsert({
+      const { error: profileError } = await admin.from("profiles").upsert({
         id: userId,
         email: data.user.email,
         role: role || "passenger",
@@ -57,18 +78,21 @@ export async function POST(req: NextRequest) {
         phone: metadata?.phone || "",
         country: metadata?.country || "BR",
       });
+      if (profileError) {
+        console.error("profile upsert error:", profileError);
+      }
 
-      // Salvar dados específicos de motorista/transportador
       if (role === "driver" || role === "transporter") {
-        await supabase.from("driver_profiles").upsert({
+        const { error: driverError } = await admin.from("driver_profiles").upsert({
           id: userId,
           cpf: metadata?.cpf || "",
           birth_date: metadata?.birth_date || null,
           status: "pending",
         });
+        if (driverError) console.error("driver_profiles upsert error:", driverError);
 
         if (metadata?.vehicle_plate) {
-          await supabase.from("vehicles").upsert({
+          const { error: vehicleError } = await admin.from("vehicles").upsert({
             driver_id: userId,
             category: metadata?.vehicle_category || "carro",
             license_plate: metadata?.vehicle_plate,
@@ -77,21 +101,23 @@ export async function POST(req: NextRequest) {
             color: metadata?.vehicle_color || "",
             year: metadata?.vehicle_year ? parseInt(metadata.vehicle_year) : null,
           });
+          if (vehicleError) console.error("vehicle upsert error:", vehicleError);
         }
       }
 
       if (role === "employee" && metadata?.company_id) {
-        await supabase.from("employee_profiles").upsert({
+        const { error: empError } = await admin.from("employee_profiles").upsert({
           id: userId,
           company_id: metadata.company_id,
           role: metadata.employee_role || "operator",
           department: metadata.department || "",
           is_active: true,
         });
+        if (empError) console.error("employee_profiles upsert error:", empError);
       }
 
       if (role === "company") {
-        await supabase.from("companies").upsert({
+        const { error: companyError } = await admin.from("companies").upsert({
           id: userId,
           corporate_name: metadata?.corporate_name || "",
           trade_name: metadata?.trade_name || "",
@@ -100,13 +126,18 @@ export async function POST(req: NextRequest) {
           address: metadata?.company_address || "",
           status: "pending",
         });
+        if (companyError) console.error("companies upsert error:", companyError);
       }
 
-      return NextResponse.json({
+      const jsonRes = NextResponse.json({
         user: signInData.user,
         session: signInData.session,
         role: role || "passenger",
       });
+      cookiesToForward.forEach(({ name, value, options }) =>
+        jsonRes.cookies.set(name, value, options)
+      );
+      return jsonRes;
     }
 
     if (action === "signin") {
@@ -131,11 +162,15 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      return NextResponse.json({
+      const jsonRes = NextResponse.json({
         user: data.user,
         session: data.session,
         role,
       });
+      cookiesToForward.forEach(({ name, value, options }) =>
+        jsonRes.cookies.set(name, value, options)
+      );
+      return jsonRes;
     }
 
     if (action === "signout") {

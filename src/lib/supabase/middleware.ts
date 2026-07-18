@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+  const cookiesToForward: { name: string; value: string; options?: any }[] = [];
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,11 +12,10 @@ export async function updateSession(request: NextRequest) {
       cookies: {
         getAll() { return request.cookies.getAll(); },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value);
+            cookiesToForward.push({ name, value, options });
+          });
         },
       },
     }
@@ -23,6 +23,11 @@ export async function updateSession(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
+
+  // Apply all accumulated cookies to the response once
+  cookiesToForward.forEach(({ name, value, options }) =>
+    supabaseResponse.cookies.set(name, value, options)
+  );
 
   // Rotas protegidas
   const protectedRoutes = ["/dashboard", "/admin", "/payment", "/settings", "/ride"];
@@ -41,6 +46,7 @@ export async function updateSession(request: NextRequest) {
       .from("profiles")
       .select("role")
       .eq("id", user.id)
+      .limit(1)
       .single();
 
     const role = profile?.role || "passenger";

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Wallet, Download, FileText, CreditCard, TrendingUp, Calendar, ArrowDown, ArrowUp, CheckCircle, AlertCircle } from "lucide-react";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 const MOCK_INVOICES = [
   { id: "INV-001", period: "Junho/2026", amount: 1247.50, status: "paid", dueDate: "10/07/2026", nf: "NF-2026-001" },
@@ -20,13 +21,14 @@ const MOCK_TRANSACTIONS = [
 
 export default function CompanyFinancePage() {
   const [selectedTab, setSelectedTab] = useState<"overview" | "invoices" | "costs">("overview");
+  const [loading] = useState(false);
 
   const totalRevenue = MOCK_TRANSACTIONS.filter(t => t.type === "revenue").reduce((a, b) => a + b.amount, 0);
   const totalFees = MOCK_TRANSACTIONS.filter(t => t.type === "fee" || t.type === "plan").reduce((a, b) => a + Math.abs(b.amount), 0);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="text-2xl font-bold">Financeiro</h1>
           <p className="text-sm text-gray-400">Faturas, custos e relatórios</p>
@@ -34,15 +36,15 @@ export default function CompanyFinancePage() {
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-3 gap-3">
           <div className="glass-panel p-4">
-            <p className="text-[10px] text-gray-500 mb-1">Receita total</p>
+            <p className="text-xs text-gray-500 mb-1">Receita total</p>
             <p className="text-xl font-bold text-primary">R$ {totalRevenue.toFixed(2)}</p>
           </div>
           <div className="glass-panel p-4">
-            <p className="text-[10px] text-gray-500 mb-1">Custos</p>
+            <p className="text-xs text-gray-500 mb-1">Custos</p>
             <p className="text-xl font-bold text-red-400">R$ {totalFees.toFixed(2)}</p>
           </div>
           <div className="glass-panel p-4">
-            <p className="text-[10px] text-gray-500 mb-1">Saldo</p>
+            <p className="text-xs text-gray-500 mb-1">Saldo</p>
             <p className="text-xl font-bold text-primary">R$ {(totalRevenue - totalFees).toFixed(2)}</p>
           </div>
         </motion.div>
@@ -57,7 +59,7 @@ export default function CompanyFinancePage() {
             return (
               <button key={tab.key} onClick={() => setSelectedTab(tab.key)}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-medium transition-all ${
-                  selectedTab === tab.key ? "bg-primary text-background" : "bg-card-bg text-gray-400 hover:text-white"
+                  selectedTab === tab.key ? "bg-primary text-background" : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10"
                 }`}>
                 <Icon className="w-4 h-4" /> {tab.label}
               </button>
@@ -65,87 +67,93 @@ export default function CompanyFinancePage() {
           })}
         </motion.div>
 
-        {selectedTab === "overview" && (
-          <div className="space-y-3">
-            <h2 className="font-semibold">Últimas transações</h2>
-            {MOCK_TRANSACTIONS.map(t => (
-              <div key={t.id} className="glass-panel p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                    t.amount > 0 ? "bg-primary/10" : "bg-red-500/10"
-                  }`}>
-                    {t.amount > 0 ? <ArrowUp className="w-4 h-4 text-primary" /> : <ArrowDown className="w-4 h-4 text-red-400" />}
+        {loading ? (
+          <SkeletonList count={4} />
+        ) : (
+          <>
+            {selectedTab === "overview" && (
+              <div className="space-y-3">
+                <h2 className="font-semibold">Últimas transações</h2>
+                {MOCK_TRANSACTIONS.map(t => (
+                  <div key={t.id} className="glass-panel p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                        t.amount > 0 ? "bg-primary/10" : "bg-red-500/10"
+                      }`}>
+                        {t.amount > 0 ? <ArrowUp className="w-4 h-4 text-primary" /> : <ArrowDown className="w-4 h-4 text-red-400" />}
+                      </div>
+                      <div>
+                        <p className="text-sm">{t.desc}</p>
+                        <p className="text-xs text-gray-500">{t.date}</p>
+                      </div>
+                    </div>
+                    <span className={`font-bold text-sm ${t.amount > 0 ? "text-primary" : "text-red-400"}`}>
+                      {t.amount > 0 ? "+" : ""}R$ {t.amount.toFixed(2)}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-sm">{t.desc}</p>
-                    <p className="text-[10px] text-gray-500">{t.date}</p>
-                  </div>
-                </div>
-                <span className={`font-bold text-sm ${t.amount > 0 ? "text-primary" : "text-red-400"}`}>
-                  {t.amount > 0 ? "+" : ""}R$ {t.amount.toFixed(2)}
-                </span>
+                ))}
+                <button className="w-full text-gray-400 hover:text-white hover:bg-white/5 py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                  <Download className="w-4 h-4" /> Exportar CSV
+                </button>
               </div>
-            ))}
-            <button className="w-full py-3 bg-card-bg border border-card-border rounded-xl text-sm text-gray-400 hover:text-white flex items-center justify-center gap-2 transition-all">
-              <Download className="w-4 h-4" /> Exportar CSV
-            </button>
-          </div>
-        )}
+            )}
 
-        {selectedTab === "invoices" && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Faturas</h2>
-              <button className="text-xs text-primary flex items-center gap-1"><Download className="w-3 h-3" /> Exportar tudo</button>
-            </div>
-            {MOCK_INVOICES.map(inv => (
-              <div key={inv.id} className="glass-panel p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-semibold text-sm">{inv.period}</p>
-                    <p className="text-xs text-gray-500">{inv.id}</p>
-                  </div>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    inv.status === "paid" ? "bg-primary/15 text-primary" : "bg-yellow-400/15 text-yellow-400"
-                  }`}>{inv.status === "paid" ? "Paga" : "Pendente"}</span>
+            {selectedTab === "invoices" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold">Faturas</h2>
+                  <button className="text-xs text-primary flex items-center gap-1"><Download className="w-3 h-3" /> Exportar tudo</button>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-bold text-primary">R$ {inv.amount.toFixed(2)}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Vencimento: {inv.dueDate}</span>
-                    {inv.nf && <button className="text-xs text-primary flex items-center gap-1"><FileText className="w-3 h-3" /> NF</button>}
-                    {!inv.nf && <button className="text-xs text-gray-400 hover:text-primary"><CreditCard className="w-3 h-3" /> Pagar</button>}
+                {MOCK_INVOICES.map(inv => (
+                  <div key={inv.id} className="glass-panel p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-sm">{inv.period}</p>
+                        <p className="text-xs text-gray-500">{inv.id}</p>
+                      </div>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        inv.status === "paid" ? "bg-primary/15 text-primary" : "bg-yellow-400/15 text-yellow-400"
+                      }`}>{inv.status === "paid" ? "Paga" : "Pendente"}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-bold text-primary">R$ {inv.amount.toFixed(2)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Vencimento: {inv.dueDate}</span>
+                        {inv.nf && <button className="text-xs text-primary flex items-center gap-1"><FileText className="w-3 h-3" /> NF</button>}
+                        {!inv.nf && <button className="text-xs text-gray-400 hover:text-primary"><CreditCard className="w-3 h-3" /> Pagar</button>}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {selectedTab === "costs" && (
-          <div className="glass-panel p-5 space-y-4">
-            <h2 className="font-semibold">Centro de Custos</h2>
-            <div className="space-y-3">
-              {[
-                { dept: "Entregas", cost: 1247.50, percent: 65 },
-                { dept: "Administrativo", cost: 199.00, percent: 10 },
-                { dept: "Marketing", cost: 480.00, percent: 25 },
-              ].map(d => (
-                <div key={d.dept}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>{d.dept}</span>
-                    <span className="text-primary font-semibold">R$ {d.cost.toFixed(2)}</span>
-                  </div>
-                  <div className="w-full bg-background rounded-full h-2 overflow-hidden">
-                    <div className="bg-primary h-full rounded-full" style={{ width: `${d.percent}%` }} />
-                  </div>
+            {selectedTab === "costs" && (
+              <div className="glass-panel p-5 space-y-4">
+                <h2 className="font-semibold">Centro de Custos</h2>
+                <div className="space-y-3">
+                  {[
+                    { dept: "Entregas", cost: 1247.50, percent: 65 },
+                    { dept: "Administrativo", cost: 199.00, percent: 10 },
+                    { dept: "Marketing", cost: 480.00, percent: 25 },
+                  ].map(d => (
+                    <div key={d.dept}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>{d.dept}</span>
+                        <span className="text-primary font-semibold">R$ {d.cost.toFixed(2)}</span>
+                      </div>
+                      <div className="w-full bg-background rounded-full h-2 overflow-hidden">
+                        <div className="bg-primary h-full rounded-full" style={{ width: `${d.percent}%` }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <button className="w-full py-2 bg-card-bg border border-card-border rounded-xl text-xs text-gray-400 hover:text-white flex items-center justify-center gap-2 transition-all">
-              <Download className="w-3 h-3" /> Exportar relatório PDF
-            </button>
-          </div>
+                <button className="w-full text-gray-400 hover:text-white hover:bg-white/5 py-2 rounded-xl transition-all flex items-center justify-center gap-2">
+                  <Download className="w-3 h-3" /> Exportar relatório PDF
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

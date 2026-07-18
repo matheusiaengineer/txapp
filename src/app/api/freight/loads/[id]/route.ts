@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-
-function getStorage(): any[] {
-  return (globalThis as any).__txd_freight_loads || [];
-}
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const loads = getStorage();
-  const load = loads.find((l: any) => l.id === id);
+  const supabase = await createClient();
+  const { data: load, error } = await supabase
+    .from("loads")
+    .select("*")
+    .eq("id", id)
+    .single();
 
-  if (!load) {
+  if (error || !load) {
     return NextResponse.json({ error: "Carga não encontrada" }, { status: 404 });
   }
 

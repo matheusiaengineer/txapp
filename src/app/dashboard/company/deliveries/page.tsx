@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Package, Plus, Clock, Check, AlertCircle, Search, Filter, MapPin, User, Phone } from "lucide-react";
+import { SkeletonList } from "@/components/ui/skeleton";
 
 const MOCK_DELIVERIES = [
   { id: "ENT-001", client: "João Silva", address: "Rua Augusta, 500", items: "2 pizzas", status: "pending", driver: null, createdAt: "10 min" },
@@ -13,6 +14,7 @@ const MOCK_DELIVERIES = [
 
 export default function CompanyDeliveriesPage() {
   const [tab, setTab] = useState<string>("active");
+  const [loading] = useState(false);
 
   const filtered = MOCK_DELIVERIES.filter(d => {
     if (tab === "active") return d.status === "pending" || d.status === "in_transit";
@@ -29,11 +31,11 @@ export default function CompanyDeliveriesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+    <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Entregas</h1>
-          <button className="bg-primary hover:bg-primary-hover text-background text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition-all">
+          <button className="bg-primary hover:bg-primary-hover text-background text-xs font-bold py-3.5 px-4 rounded-xl transition-all hover:scale-[0.98] flex items-center gap-1.5 shrink-0">
             <Plus className="w-4 h-4" /> Novo Pedido
           </button>
         </motion.div>
@@ -42,7 +44,7 @@ export default function CompanyDeliveriesPage() {
           {["active", "completed", "cancelled", "all"].map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${
-                tab === t ? "bg-primary text-background" : "bg-card-bg text-gray-400 hover:text-white"
+                tab === t ? "bg-primary text-background" : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10"
               }`}>
               {t === "active" ? "Ativos" : t === "completed" ? "Concluídos" : t === "cancelled" ? "Cancelados" : "Todos"}
             </button>
@@ -55,38 +57,42 @@ export default function CompanyDeliveriesPage() {
             className="w-full bg-background border border-card-border rounded-xl p-3 pl-10 text-white focus:border-primary focus:outline-none transition-colors" />
         </div>
 
-        <div className="space-y-2">
-          {filtered.map(delivery => {
-            const status = statusConfig[delivery.status] || { label: delivery.status, color: "text-gray-400" };
-            return (
-              <motion.div key={delivery.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="glass-panel p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm">{delivery.client}</p>
-                      <span className="text-[10px] text-gray-500">#{delivery.id}</span>
+        {loading ? (
+          <SkeletonList count={4} />
+        ) : (
+          <div className="space-y-2">
+            {filtered.map(delivery => {
+              const status = statusConfig[delivery.status] || { label: delivery.status, color: "text-gray-400" };
+              return (
+                <motion.div key={delivery.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="glass-panel p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm">{delivery.client}</p>
+                        <span className="text-xs text-gray-500">#{delivery.id}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5">{delivery.items}</p>
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">{delivery.items}</p>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${status.color}`}>{status.label}</span>
                   </div>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${status.color}`}>{status.label}</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <MapPin className="w-3 h-3" /> {delivery.address}
-                </div>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-card-border">
                   <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Clock className="w-3 h-3" /> {delivery.createdAt}
-                    {delivery.driver && <><span className="text-gray-600">|</span><User className="w-3 h-3" /> {delivery.driver}</>}
+                    <MapPin className="w-3 h-3" /> {delivery.address}
                   </div>
-                  {delivery.status === "pending" && (
-                    <button className="text-xs text-primary hover:underline">Atribuir motorista</button>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-card-border">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Clock className="w-3 h-3" /> {delivery.createdAt}
+                      {delivery.driver && <><span className="text-gray-600">|</span><User className="w-3 h-3" /> {delivery.driver}</>}
+                    </div>
+                    {delivery.status === "pending" && (
+                      <button className="text-xs text-primary hover:underline">Atribuir motorista</button>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

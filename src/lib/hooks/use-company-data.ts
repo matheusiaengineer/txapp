@@ -32,9 +32,9 @@ export function useCompanyData(userId: string | undefined) {
 
     Promise.all([
       supabase.from("companies").select("*").eq("id", userId).single(),
-      supabase.from("driver_profiles").select("id, current_live_status").eq("company_id", userId),
+      supabase.from("driver_profiles").select("id, current_live_status").eq("company_id", userId).limit(100),
       supabase.from("trips").select("*").order("created_at", { ascending: false }).limit(20),
-      supabase.from("profiles").select("id").eq("id", userId),
+      supabase.from("profiles").select("id").eq("id", userId).limit(1),
     ]).then(([compRes, driversRes, tripsRes]) => {
       if (compRes.data) setCompany(compRes.data as CompanyData);
 

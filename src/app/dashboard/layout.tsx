@@ -5,11 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Clock, Wallet, Heart, User, HeadphonesIcon,
   Settings, LogOut, Bell, ChevronDown, Building2, Truck,
-  Package, TrendingUp, Users, Briefcase, Map,
+  Package, TrendingUp, Users, Briefcase, Map, MapPin,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
+import { useUser } from "@/lib/hooks/use-user";
 
 interface NavItem {
   label: string;
@@ -25,19 +26,20 @@ const roleNav: Record<string, NavItem[]> = {
     { label: "Carteira", icon: Wallet, href: "/dashboard/passenger/wallet" },
     { label: "Favoritos", icon: Heart, href: "/dashboard/passenger/favorites" },
     { label: "Comunidade", icon: Users, href: "/social" },
-    { label: "Perfil", icon: User, href: "#" },
-    { label: "Suporte", icon: HeadphonesIcon, href: "#" },
-    { label: "Configurações", icon: Settings, href: "#" },
+    { label: "Perfil", icon: User, href: "/dashboard/verificacao" },
+    { label: "Suporte", icon: HeadphonesIcon, href: "/support" },
+    { label: "Configurações", icon: Settings, href: "/settings" },
   ],
   driver: [
     { label: "Início", icon: Home, href: "/dashboard/driver" },
     { label: "Ganhos", icon: Wallet, href: "/dashboard/driver/earnings" },
     { label: "Viagens", icon: Clock, href: "/dashboard/driver/trips" },
     { label: "Mapa", icon: Map, href: "/dashboard/driver/map" },
+    { label: "Endereços", icon: MapPin, href: "/dashboard/driver/addresses" },
     { label: "Comunidade", icon: Users, href: "/social" },
-    { label: "Perfil", icon: User, href: "#" },
-    { label: "Suporte", icon: HeadphonesIcon, href: "#" },
-    { label: "Configurações", icon: Settings, href: "#" },
+    { label: "Perfil", icon: User, href: "/dashboard/driver/kyc" },
+    { label: "Suporte", icon: HeadphonesIcon, href: "/support" },
+    { label: "Configurações", icon: Settings, href: "/settings" },
   ],
   company: [
     { label: "Dashboard", icon: Home, href: "/dashboard/company" },
@@ -51,13 +53,13 @@ const roleNav: Record<string, NavItem[]> = {
   ],
   transporter: [
     { label: "Início", icon: Home, href: "/dashboard/transporter" },
-    { label: "Fretes", icon: Truck, href: "/dashboard/transporter/freights" },
-    { label: "Entregas", icon: Package, href: "/dashboard/transporter/deliveries" },
-    { label: "Ganhos", icon: Wallet, href: "/dashboard/transporter/earnings" },
-    { label: "Rotas", icon: Map, href: "/dashboard/transporter/routes" },
+    { label: "Cargas", icon: Truck, href: "/freight/loads" },
+    { label: "Fretes", icon: Package, href: "/freight" },
+    { label: "Endereços", icon: MapPin, href: "/dashboard/transporter/addresses" },
     { label: "Comunidade", icon: Users, href: "/social" },
-    { label: "Perfil", icon: User, href: "#" },
-    { label: "Configurações", icon: Settings, href: "#" },
+    { label: "Suporte", icon: HeadphonesIcon, href: "/support" },
+    { label: "Perfil", icon: User, href: "/dashboard/verificacao" },
+    { label: "Configurações", icon: Settings, href: "/settings" },
   ],
   employee: [
     { label: "Início", icon: Home, href: "/dashboard/employee" },
@@ -81,6 +83,7 @@ const roleNames: Record<string, string> = {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentRole, setCurrentRole] = useState<string>("passenger");
 
@@ -116,10 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold truncate">
-              {currentRole === "passenger" ? "Ana Oliveira" :
-               currentRole === "driver" ? "Carlos Silva" :
-               currentRole === "company" ? "Empresa XYZ" :
-               "Transportador ABC"}
+              {user?.full_name || "Usuário"}
             </p>
             <p className="text-xs text-gray-400">
               {roleNames[currentRole] || "Usuário"}
@@ -174,7 +174,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className="flex-1 md:ml-72 pb-20 md:pb-0 min-h-screen">
+      <main className="flex-1 md:ml-72 pb-20 md:pb-0 min-h-[100dvh]">
         {children}
       </main>
 

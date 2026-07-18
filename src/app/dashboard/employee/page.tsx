@@ -30,8 +30,9 @@ export default function EmployeeDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+    <div className="min-h-[100dvh] bg-background text-foreground">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5"
+        style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-center justify-between mb-1">
             <h1 className="text-2xl font-bold">
@@ -49,18 +50,18 @@ export default function EmployeeDashboard() {
             <h2 className="font-semibold">Pedidos do meu turno</h2>
             <Link href="/dashboard/employee/orders" className="text-xs text-primary">Ver todos</Link>
           </div>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
             <div className="bg-background border border-card-border rounded-xl p-3 text-center">
               <p className="text-2xl font-bold text-yellow-400">{orders.filter(o => o.status === "pending").length}</p>
-              <p className="text-[10px] text-gray-500">Pendentes</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Pendentes</p>
             </div>
             <div className="bg-background border border-card-border rounded-xl p-3 text-center">
               <p className="text-2xl font-bold text-blue-400">{orders.filter(o => o.status === "in_transit").length}</p>
-              <p className="text-[10px] text-gray-500">Em trânsito</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Em trânsito</p>
             </div>
             <div className="bg-background border border-card-border rounded-xl p-3 text-center">
               <p className="text-2xl font-bold text-primary">{orders.filter(o => o.status === "delivered").length}</p>
-              <p className="text-[10px] text-gray-500">Entregues</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Entregues</p>
             </div>
           </div>
 
