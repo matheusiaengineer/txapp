@@ -37,6 +37,8 @@ interface MapProps {
   userLocation?: Coord | null;
   onCenterChange?: (center: Coord) => void;
   onMapClick?: (coord: Coord) => void;
+  onPickupDrag?: (coord: Coord) => void;
+  onDestDrag?: (coord: Coord) => void;
   className?: string;
   style?: React.CSSProperties;
   interactive?: boolean;
@@ -129,6 +131,36 @@ function ClickHandler({ onClick }: { onClick?: (coord: Coord) => void }) {
   return null;
 }
 
+function DraggableMarker({ position, icon, onDrag, label }: {
+  position: Coord;
+  icon: L.DivIcon;
+  onDrag?: (coord: Coord) => void;
+  label?: string;
+}) {
+  const markerRef = useRef<L.Marker>(null);
+  const eventHandlers = onDrag ? {
+    dragend: () => {
+      const marker = markerRef.current;
+      if (marker) {
+        const latlng = marker.getLatLng();
+        onDrag({ lat: latlng.lat, lng: latlng.lng });
+      }
+    },
+  } : {};
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={[position.lat, position.lng]}
+      icon={icon}
+      draggable={!!onDrag}
+      eventHandlers={eventHandlers}
+    >
+      {label && <Popup>{label}</Popup>}
+    </Marker>
+  );
+}
+
 export function OpenStreetMap({
   center,
   zoom = 14,
@@ -140,6 +172,8 @@ export function OpenStreetMap({
   userLocation,
   onCenterChange,
   onMapClick,
+  onPickupDrag,
+  onDestDrag,
   className = "",
   style,
   interactive = true,
@@ -174,7 +208,7 @@ export function OpenStreetMap({
         center={defaultCenter}
         zoom={zoom}
         style={{ width: "100%", height: "100%" }}
-        zoomControl={true}
+        zoomControl={false}
         attributionControl={false}
         dragging={interactive}
         scrollWheelZoom={interactive}
@@ -196,15 +230,21 @@ export function OpenStreetMap({
         )}
 
         {pickup && (
-          <Marker position={[pickup.lat, pickup.lng]} icon={createPickupIcon()}>
-            <Popup>Origem</Popup>
-          </Marker>
+          <DraggableMarker
+            position={pickup}
+            icon={createPickupIcon()}
+            onDrag={onPickupDrag}
+            label="Origem"
+          />
         )}
 
         {destination && (
-          <Marker position={[destination.lat, destination.lng]} icon={createDestIcon()}>
-            <Popup>Destino</Popup>
-          </Marker>
+          <DraggableMarker
+            position={destination}
+            icon={createDestIcon()}
+            onDrag={onDestDrag}
+            label="Destino"
+          />
         )}
 
         {route && route.coordinates.length > 1 && (

@@ -7,7 +7,7 @@ import {
   Bell, User, Search, MapPin, Home, Briefcase, Plane, Heart,
   ChevronRight, Star, Clock, ArrowRight, DollarSign, Bike, Car,
   Sparkles, Shield, Package, PawPrint, VenusAndMars, Truck, Navigation, Loader2,
-  Camera, X, Video, Wallet,
+  Camera, X, Video, Wallet, Gift, Users, TrendingUp, Zap, ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/lib/hooks/use-user";
@@ -25,18 +25,18 @@ const OpenStreetMap = dynamic(
 );
 
 interface Service {
-  id: string; name: string; icon: typeof Car; color: string; priceRange: string; eta: string;
+  id: string; name: string; icon: typeof Car; color: string; priceRange: string; eta: string; badge?: string; group: string;
 }
 
 const services: Service[] = [
-  { id: "moto", name: "TXD Moto", icon: Bike, color: "#FF6B35", priceRange: "R$ 5 - R$ 15", eta: "2 min" },
-  { id: "pop", name: "TXD Pop", icon: Car, color: "#3ECB8E", priceRange: "R$ 8 - R$ 25", eta: "3 min" },
-  { id: "comfort", name: "TXD Comfort", icon: Sparkles, color: "#8B5CF6", priceRange: "R$ 15 - R$ 40", eta: "5 min" },
-  { id: "black", name: "TXD Black", icon: Shield, color: "#1a1a2e", priceRange: "R$ 25 - R$ 60", eta: "7 min" },
-  { id: "entrega", name: "TXD Entrega", icon: Package, color: "#F59E0B", priceRange: "R$ 10 - R$ 30", eta: "4 min" },
-  { id: "pet", name: "TXD Pet", icon: PawPrint, color: "#EC4899", priceRange: "R$ 12 - R$ 35", eta: "6 min" },
-  { id: "mulher", name: "TXD Mulher", icon: VenusAndMars, color: "#D946EF", priceRange: "R$ 15 - R$ 38", eta: "5 min" },
-  { id: "carga", name: "TXD Carga", icon: Truck, color: "#06B6D4", priceRange: "R$ 20 - R$ 80", eta: "10 min" },
+  { id: "moto", name: "TXD Moto", icon: Bike, color: "#FF6B35", priceRange: "R$ 7,50", eta: "2 min", badge: "Chega Rápido", group: "passageiro" },
+  { id: "pop", name: "TXD Pop", icon: Car, color: "#3ECB8E", priceRange: "R$ 12,50", eta: "3 min", badge: "Mais Pedido", group: "passageiro" },
+  { id: "comfort", name: "TXD Comfort", icon: Sparkles, color: "#8B5CF6", priceRange: "R$ 25,00", eta: "5 min", group: "passageiro" },
+  { id: "black", name: "TXD Black", icon: Shield, color: "#1a1a2e", priceRange: "R$ 42,00", eta: "7 min", group: "passageiro" },
+  { id: "pet", name: "TXD Pet", icon: PawPrint, color: "#EC4899", priceRange: "R$ 18,00", eta: "6 min", group: "passageiro" },
+  { id: "mulher", name: "TXD Mulher", icon: VenusAndMars, color: "#D946EF", priceRange: "R$ 20,00", eta: "5 min", badge: "🔒 Verificadas", group: "passageiro" },
+  { id: "entrega", name: "TXD Entrega", icon: Package, color: "#F59E0B", priceRange: "R$ 15,00", eta: "4 min", group: "logistica" },
+  { id: "carga", name: "TXD Carga", icon: Truck, color: "#06B6D4", priceRange: "R$ 55,00", eta: "10 min", group: "logistica" },
 ];
 
 const promos = [
@@ -118,6 +118,7 @@ export default function PassengerDashboard() {
   const [dataError, setDataError] = useState<string | null>(null);
   const [nearbyDriversCount, setNearbyDriversCount] = useState<number | null>(null);
   const [placeholderText, setPlaceholderText] = useState("Para onde você vai?");
+  const [notifOpen, setNotifOpen] = useState(false);
   const { latitude: userLat, longitude: userLng, loading: geoLoading, error: geoError, requestPermission } = useGeolocation({ watch: false });
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
   
@@ -186,7 +187,7 @@ export default function PassengerDashboard() {
         )
         .subscribe();
     } catch {}
-    const interval = setInterval(fetchNearby, 30000);
+    const interval = setInterval(fetchNearby, 7000);
     return () => {
       clearInterval(interval);
       if (channel) channel.unsubscribe();
@@ -277,12 +278,41 @@ export default function PassengerDashboard() {
             <p className="text-sm text-gray-400 mt-1">Para onde vamos hoje?</p>
           </div>
           <div className="flex items-center gap-3">
-            <button className="relative glass-panel p-3 rounded-full">
-              <Bell className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">3</span>
-            </button>
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-              <User className="w-5 h-5 text-primary" />
+            <div className="relative">
+              <button onClick={() => setNotifOpen(!notifOpen)} className="relative glass-panel p-3 rounded-full">
+                <Bell className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">3</span>
+              </button>
+              <AnimatePresence>
+                {notifOpen && (
+                  <motion.div initial={{ opacity: 0, y: -8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                    className="absolute right-0 mt-2 w-72 glass-panel rounded-2xl overflow-hidden z-50 shadow-xl border border-card-border">
+                    <div className="p-3 border-b border-card-border">
+                      <p className="text-sm font-semibold text-white">Notificações</p>
+                    </div>
+                    {[{ title: "50% OFF na primeira corrida", desc: "Use o cupom TXDNEW", time: "agora" },
+                      { title: "Motorista a caminho", desc: "Seu TXD Pop está chegando", time: "5 min" },
+                      { title: "Ganhe pontos TXD", desc: "Acumule e troque por descontos", time: "1 h" },
+                    ].map((n, i) => (
+                      <button key={i} onClick={() => setNotifOpen(false)} className="w-full px-4 py-3 text-left hover:bg-white/5 transition flex items-start gap-3">
+                        <Bell className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{n.title}</p>
+                          <p className="text-xs text-gray-500">{n.desc}</p>
+                        </div>
+                        <span className="text-[10px] text-gray-600 shrink-0">{n.time}</span>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-5 h-5 text-primary" />
+              )}
             </div>
           </div>
         </motion.div>
@@ -314,26 +344,37 @@ export default function PassengerDashboard() {
                   </motion.span>
                 </AnimatePresence>
               </div>
-              <span className="bg-primary text-background text-xs font-bold px-5 py-2 rounded-full shrink-0 shadow-lg shadow-primary/20 group-hover:bg-primary-hover">
+              <span className="bg-primary text-background text-xs font-bold px-5 py-2 rounded-full shrink-0 shadow-lg shadow-primary/20 group-hover:bg-primary-hover animate-pulse">
                 Buscar
               </span>
             </div>
           </Link>
         </motion.div>
 
-        {/* Deposit Status */}
+        {/* Social proof — drivers nearby */}
+        {nearbyDriversCount !== null && nearbyDriversCount > 0 && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
+            <div className="flex items-center gap-2 text-xs text-primary/80 bg-primary/5 rounded-full px-4 py-2 border border-primary/10">
+              <Users className="w-3.5 h-3.5" />
+              <span><strong className="text-primary">{nearbyDriversCount} motoristas</strong> próximos de você agora</span>
+              <TrendingUp className="w-3 h-3 ml-auto text-primary/60" />
+            </div>
+          </motion.div>
+        )}
+
+        {/* Deposit Status — Reward framing */}
         {depositStatus && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4">
             <Link href="/deposit">
               <div className={`rounded-2xl p-4 flex items-center gap-3 transition-all border ${
                 depositStatus.qualified
                   ? "bg-primary/5 border-primary/20"
-                  : "bg-yellow-400/5 border-yellow-400/30"
+                  : "bg-gradient-to-r from-yellow-400/10 to-yellow-400/5 border-yellow-400/30"
               }`}>
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
                   depositStatus.qualified ? "bg-primary/10" : "bg-yellow-400/10"
                 }`}>
-                  <DollarSign className={`w-5 h-5 ${depositStatus.qualified ? "text-primary" : "text-yellow-400"}`} />
+                  {depositStatus.qualified ? <DollarSign className="w-5 h-5 text-primary" /> : <Gift className="w-5 h-5 text-yellow-400" />}
                 </div>
                 <div className="flex-1">
                   {depositStatus.qualified ? (
@@ -343,8 +384,8 @@ export default function PassengerDashboard() {
                     </>
                   ) : (
                     <>
-                      <div className="font-semibold text-sm text-yellow-400">Depósito necessário</div>
-                      <div className="text-xs text-gray-400">Deposite R$ {depositStatus.required} para usar o serviço</div>
+                      <div className="font-semibold text-sm text-yellow-400">Libere suas viagens!</div>
+                      <div className="text-xs text-gray-400">Recarregue R$ {depositStatus.required} e ganhe 10% de bônus na 1ª corrida</div>
                     </>
                   )}
                 </div>
@@ -376,22 +417,39 @@ export default function PassengerDashboard() {
             {/* Services */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <h2 className="text-lg font-semibold mb-3">Escolha seu TXD</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {services.map((service) => {
-                  const Icon = service.icon;
-                  return (
-                    <button key={service.id} className="glass-panel p-3 sm:p-4 flex flex-col items-center gap-2 text-center group cursor-pointer hover:border-primary/30 transition-all">
-                      <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 group-hover:-translate-y-1 shadow-lg"
-                        style={{ backgroundColor: `${service.color}20`, boxShadow: `0 4px 20px ${service.color}15` }}>
-                        <Icon className="w-5 h-5 sm:w-7 sm:h-7" style={{ color: service.color }} />
-                      </div>
-                      <span className="text-xs sm:text-sm font-bold mt-1">{service.name}</span>
-                      <span className="text-[10px] text-gray-500">{service.priceRange}</span>
-                      <span className="text-[10px] text-primary font-bold px-2 py-0.5 rounded-full bg-primary/10">{service.eta}</span>
-                    </button>
-                  );
-                })}
-              </div>
+              {(["passageiro", "logistica"] as const).map(group => {
+                const groupServices = services.filter(s => s.group === group);
+                return (
+                  <div key={group} className="mb-4">
+                    {group === "logistica" && (
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-4">Logística</h3>
+                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {groupServices.map((service) => {
+                        const Icon = service.icon;
+                        return (
+                          <button key={service.id} className="glass-panel p-3 sm:p-4 flex flex-col items-center gap-2 text-center group cursor-pointer hover:border-primary/30 transition-all relative overflow-hidden">
+                            {service.badge && (
+                              <span className={`absolute -top-1 -right-1 text-[8px] font-bold px-1.5 py-0.5 rounded-bl-lg rounded-tr-xl ${
+                                service.badge === "Mais Pedido" ? "bg-primary text-black" : service.badge === "Chega Rápido" ? "bg-[#FF6B35] text-white" : "bg-[#D946EF]/80 text-white"
+                              }`}>
+                                {service.badge}
+                              </span>
+                            )}
+                            <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 group-hover:-translate-y-1 shadow-lg"
+                              style={{ backgroundColor: `${service.color}20`, boxShadow: `0 4px 20px ${service.color}15` }}>
+                              <Icon className="w-5 h-5 sm:w-7 sm:h-7" style={{ color: service.color }} />
+                            </div>
+                            <span className="text-xs sm:text-sm font-bold mt-1">{service.name}</span>
+                            <span className="text-[10px] text-gray-500">{service.priceRange}</span>
+                            <span className="text-[10px] text-primary font-bold px-2 py-0.5 rounded-full bg-primary/10">{service.eta}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </motion.div>
 
             {/* Promo */}
@@ -420,7 +478,8 @@ export default function PassengerDashboard() {
                 <h3 className="font-semibold">
                   Motoristas próximos
                   {nearbyDriversCount !== null && (
-                    <span className="ml-2 text-xs text-primary font-mono">({nearbyDriversCount})</span>
+                    <motion.span key={nearbyDriversCount} initial={{ scale: 1.3, opacity: 0.5 }} animate={{ scale: 1, opacity: 1 }}
+                      className="ml-2 text-xs text-primary font-mono">({nearbyDriversCount})</motion.span>
                   )}
                 </h3>
                 <Link href="/ride" className="text-xs text-primary flex items-center gap-1">
@@ -477,11 +536,13 @@ export default function PassengerDashboard() {
                     ))}
                   </div>
                 ) : trips.length === 0 ? (
-                  <div className="glass-panel p-8 text-center">
-                    <Navigation className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                    <p className="text-sm text-gray-400 font-medium">Nenhuma viagem ainda</p>
-                    <p className="text-xs text-gray-600 mt-1">Suas corridas aparecerão aqui</p>
-                    <Link href="/ride" className="inline-block mt-3 text-xs text-primary font-medium hover:underline">Solicitar primeira corrida</Link>
+                  <div className="glass-panel p-8 text-center bg-gradient-to-b from-primary/5 to-transparent border border-primary/10">
+                    <Zap className="w-12 h-12 text-primary mx-auto mb-3" />
+                    <p className="text-sm text-white font-bold">Solicite sua primeira corrida agora com 50% OFF!</p>
+                    <p className="text-xs text-gray-500 mt-1">Use o cupom <strong className="text-primary">TXDNEW</strong> na primeira viagem</p>
+                    <Link href="/ride" className="inline-block mt-4 bg-primary hover:bg-primary-hover text-background font-bold px-6 py-3 rounded-xl text-sm transition-all hover:scale-105">
+                      Pedir TXD agora
+                    </Link>
                   </div>
                 ) : trips.slice(0, 4).map((trip) => {
                   const status = statusLabels[trip.status] || { label: trip.status, color: "text-gray-400 bg-gray-400/15" };
@@ -521,7 +582,7 @@ export default function PassengerDashboard() {
                       <Star key={star} className={`w-4 h-4 ${star <= Math.round(stats.rating) ? "text-yellow-400 fill-yellow-400" : "text-gray-600"}`} />
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">{stats.rating_count} avaliações</p>
+                  <p className="text-xs text-gray-500 mt-1">{stats.rating_count} avaliações ({stats.total_trips} viagens)</p>
                 </div>
               </div>
             </motion.div>

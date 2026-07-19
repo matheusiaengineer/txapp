@@ -28,6 +28,12 @@ function formatCurrency(v: number): string {
   return `R$ ${v.toFixed(2)}`;
 }
 
+function shortenAddress(addr: string): string {
+  const parts = addr.split(",");
+  if (parts.length >= 3) return `${parts[0].trim()}, ${parts[1].trim()} - ${parts[2].trim().split("-")[0]?.trim() || parts[2].trim()}`;
+  return addr.slice(0, 50);
+}
+
 function estimateTravelTimeMinutes(lat1: number, lng1: number, lat2: number, lng2: number, avgSpeedKmh = 35): number {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -105,7 +111,7 @@ export default function RidePage() {
         { headers: { "User-Agent": "TXDAPP/1.0" } }
       );
       const data = await res.json();
-      return data?.display_name || null;
+      return data?.display_name ? shortenAddress(data.display_name) : null;
     } catch { return null; }
   }
 
@@ -125,7 +131,7 @@ export default function RidePage() {
       const res = await fetch(url, { headers: { "User-Agent": "TXDAPP/1.0" } });
       const data = await res.json();
       setDestSuggestions(data.map((r: any) => ({
-        display: r.display_name,
+        display: shortenAddress(r.display_name),
         lat: parseFloat(r.lat),
         lng: parseFloat(r.lon),
       })));
@@ -430,13 +436,68 @@ export default function RidePage() {
           interactive={true}
           height="100%"
           onMapClick={handleMapClick}
+          onPickupDrag={(coord) => {
+            setPickupCoords(coord);
+            reverseGeocode(coord.lat, coord.lng).then(addr => {
+              if (addr) setPickup(addr);
+            });
+          }}
+          onDestDrag={(coord) => {
+            setDestCoords(coord);
+            reverseGeocode(coord.lat, coord.lng).then(async (addr) => {
+              if (addr) {
+                setDestination(addr);
+                setRouteLoading(true);
+                const route = await calculateRoute(
+                  pickupCoords || { lat: latitude || -23.561, lng: longitude || -46.656 },
+                  coord
+                );
+                if (route) {
+                  setRouteInfo(route);
+                  if (pickupCoords) {
+                    fetchNearbyDrivers(pickupCoords.lat, pickupCoords.lng, route.distanceKm);
+                  }
+                }
+                setRouteLoading(false);
+              }
+            });
+          }}
         />
+        {/* Price/time translucent overlay */}
+        {routeInfo && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center gap-4 shadow-lg">
+              <div className="flex items-center gap-1.5">
+                <Route className="w-4 h-4 text-primary" />
+                <span className="text-white text-sm font-semibold">{routeInfo.distanceKm} km</span>
+              </div>
+              <div className="w-px h-4 bg-white/20" />
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-primary" />
+                <span className="text-white text-sm font-semibold">{routeInfo.durationMin} min</span>
+              </div>
+              <div className="w-px h-4 bg-white/20" />
+              <div className="flex items-center gap-1.5">
+                <DollarSign className="w-4 h-4 text-primary" />
+                <span className="text-white text-sm font-bold">{formatCurrency(estimatedFare)}</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Top bar — back + location */}
       <div className="absolute top-0 left-0 right-0 z-20 p-4 pt-safe pointer-events-none">
-        <button onClick={() => router.back()} className="pointer-events-auto w-10 h-10 glass-panel rounded-full flex items-center justify-center hover:bg-white/10 transition">
+        <button onClick={() => router.back()} className="pointer-events-auto w-12 h-12 glass-panel rounded-full flex items-center justify-center hover:bg-white/10 transition active:scale-95">
           <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
+      </div>
+
+      {/* Floating locate button */}
+      <div className="absolute top-20 right-4 z-20 pointer-events-none">
+        <button onClick={() => { requestPermission(); if (latitude && longitude) { setPickupCoords({ lat: latitude, lng: longitude }); } }}
+          className="pointer-events-auto w-12 h-12 glass-panel rounded-full flex items-center justify-center hover:bg-white/10 transition active:scale-95 shadow-lg">
+          <LocateFixed className="w-5 h-5 text-primary" />
         </button>
       </div>
 
@@ -453,8 +514,8 @@ export default function RidePage() {
               value={pickup}
               readOnly
               onClick={useCurrentLocation}
-              placeholder={geoLoading ? "Obtendo localização..." : "Sua localização"}
-              className="w-full bg-transparent text-white text-sm font-medium placeholder-gray-500 outline-none cursor-pointer truncate"
+               placeholder={geoLoading ? "Obtendo localização..." : "Sua localização"}
+              className="w-full bg-transparent text-white text-sm font-medium placeholder-gray-400 outline-none cursor-pointer truncate"
             />
             <input
               ref={destInputRef}
