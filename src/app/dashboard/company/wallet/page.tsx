@@ -2,6 +2,6 @@
 
 import WalletEntry from "@/components/wallet/WalletEntry";
 
-export default function WalletPage() {
+export default function CompanyWalletPage() {
   return <WalletEntry />;
 }

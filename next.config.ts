@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const cspInlineScriptHash = "'sha256-jzhhfa/YKySB2ZPkQ8cO6mDDtSL/1BxCFk49eLZGkS0='";
+const isDev = process.env.NODE_ENV === "development";
+const scriptSrc = isDev
+  ? "'self' 'unsafe-inline' 'unsafe-eval'"
+  : `'self' 'unsafe-eval' ${cspInlineScriptHash} https://va.vercel-scripts.com https://vercel.live https://js.stripe.com https://maps.googleapis.com`;
 
 const nextConfig: NextConfig = {
   experimental: {
@@ -10,6 +14,8 @@ const nextConfig: NextConfig = {
       "leaflet",
       "react-leaflet",
       "@supabase/ssr",
+      "@react-google-maps/api",
+      "react-webcam",
     ],
   },
   images: {
@@ -27,7 +33,7 @@ const nextConfig: NextConfig = {
           key: "Content-Security-Policy",
           value: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://va.vercel-scripts.com https://vercel.live https://js.stripe.com https://maps.googleapis.com",
+            `script-src ${scriptSrc}`,
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
             "img-src 'self' data: blob: https://hqydwwfulatawjpottlf.supabase.co https://*.tile.openstreetmap.org https://*.googleapis.com https://maps.gstatic.com",
             "font-src 'self' https://fonts.gstatic.com",
@@ -37,6 +43,7 @@ const nextConfig: NextConfig = {
             "manifest-src 'self'",
             "base-uri 'self'",
             "form-action 'self'",
+            "upgrade-insecure-requests",
           ].join("; "),
         },
       ],
