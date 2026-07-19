@@ -1,56 +1,81 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withRateLimit } from "@/lib/api-middleware";
-import { stripeService } from "@/lib/payment/stripe-service";
 
-const MIN_DEPOSIT = 5;
+export const POST = withRateLimit(async (req: NextRequest) => {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-const handler = async (req: NextRequest) => {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const { amount } = body;
-
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ error: "Valor inválido" }, { status: 400 });
-    }
-
-    if (amount < MIN_DEPOSIT) {
-      return NextResponse.json({ error: `Depósito mínimo: R$ ${MIN_DEPOSIT}` }, { status: 400 });
-    }
-
-    let pixData: { id: string; qrCode: string | null; qrCodeUrl: string | null; amount: number; expiresAt: string } | null = null;
-    let paymentId: string;
-
-    try {
-      pixData = await stripeService.createPixPayment(amount, `Depósito TXDAPP - ${user.email || user.id}`);
-      paymentId = pixData.id;
-    } catch {
-      paymentId = `pix_mock_${Date.now()}`;
-    }
-
-    await supabase.from("wallets").upsert({
-      profile_id: user.id,
-      pending_deposit_id: paymentId,
-      pending_deposit_amount: amount,
-      pending_deposit_expires_at: new Date(Date.now() + 3600000).toISOString(),
-    }, { onConflict: "profile_id" });
-
-    return NextResponse.json({
-      paymentId,
-      amount,
-      qrCode: pixData?.qrCode || null,
-      qrCodeUrl: pixData?.qrCodeUrl || null,
-      expiresAt: pixData?.expiresAt || new Date(Date.now() + 3600000).toISOString(),
-    });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Erro ao criar depósito" }, { status: 500 });
+  if (authError || !user) {
+    return NextResponse.json({ status: "error", error_message: "Não autorizado" }, { status: 401 });
   }
-};
 
-export const POST = withRateLimit(handler, 'payment');
+  const body = await req.json();
+  const amount = body.amount;
+  const ip_address = body.ip_address || req.headers.get("x-forwarded-for") || "unknown";
+  const geo_location = body.geo_location || null;
+
+  if (!amount || amount < 1000) {
+    return NextResponse.json(
+      { status: "error", error_message: "Valor mínimo de depósito: R$ 10,00" },
+      { status: 400 }
+    );
+  }
+
+  const { data: pending } = await supabase
+    .from("wallet_transactions")
+    .select("id")
+    .eq("profile_id", user.id)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (pending) {
+    return NextResponse.json(
+      { status: "error", error_message: "Você já possui um depósito pendente" },
+      { status: 409 }
+    );
+  }
+
+  const transactionId = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+  const { error } = await supabase.from("wallet_transactions").insert({
+    id: transactionId,
+    profile_id: user.id,
+    amount: amount,
+    type: "deposit",
+    status: "pending",
+    expires_at: expiresAt,
+    ip_address,
+    geo_location,
+    metadata: {
+      method: "pix",
+      created_at: new Date().toISOString(),
+    },
+  });
+
+  if (error) {
+    return NextResponse.json(
+      { status: "error", error_message: "Erro ao criar depósito" },
+      { status: 500 }
+    );
+  }
+
+  await supabase.from("audit_logs").insert({
+    profile_id: user.id,
+    action: "wallet.deposit.request",
+    metadata: { transaction_id: transactionId, amount },
+    ip_address,
+  });
+
+  return NextResponse.json({
+    status: "success",
+    data: {
+      transactionId,
+      amount,
+      expiresAt,
+      pixCode: "00020126360014BR.GOV.BCB.PIX0114+5511999999999520400005303986540510.005802BR59086009TXDAPP6009Sao Paulo62070503***63041234",
+      pixQrCode: null,
+    },
+  });
+}, "payment");

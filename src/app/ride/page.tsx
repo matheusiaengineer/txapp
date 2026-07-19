@@ -18,6 +18,7 @@ import { ActionButton } from "@/components/ui/action-button";
 import { useRideStore } from "@/lib/store/ride-store";
 import { useWalletStore } from "@/lib/store/wallet-store";
 import { socketService } from "@/lib/services/socket-service";
+import { persistence, completeStep, historyStack } from "@/lib/services/persistence";
 import { haversineDistance, hasMovedSignificantly, isDriverNearby } from "@/lib/utils/geo";
 import { formatCurrency } from "@/lib/utils/financial";
 import dynamic from "next/dynamic";
@@ -92,6 +93,24 @@ export default function RidePage() {
   const walletStore = useWalletStore();
   const [isRequesting, setIsRequesting] = useState(false);
 
+  // Restore persisted state on mount (Step-by-Step Persistence)
+  useEffect(() => {
+    const saved = persistence.loadState("ride-flow", {
+      pickup: "", destination: "", pickupCoords: null, destCoords: null,
+      selectedVehicle: "carro" as VehicleType,
+    });
+    if (saved.pickup) setPickup(saved.pickup);
+    if (saved.destination) setDestination(saved.destination);
+    if (saved.pickupCoords) setPickupCoords(saved.pickupCoords);
+    if (saved.destCoords) setDestCoords(saved.destCoords);
+    if (saved.selectedVehicle) setSelectedVehicle(saved.selectedVehicle);
+    if (saved.pickupCoords && saved.destCoords) {
+      setPageState("route");
+    }
+    // Restore history stack
+    historyStack.push("/ride");
+  }, []);
+
   // Sync ride store with local state
   useEffect(() => {
     if (pickupCoords) rideStore.setOrigin(pickupCoords);
@@ -159,6 +178,14 @@ export default function RidePage() {
     setRouteLoading(true);
     setPageState("route");
 
+    // Persist step (Step-by-Step Persistence)
+    persistence.saveState("ride-flow", {
+      pickup, destination: suggestion.display,
+      pickupCoords, destCoords: { lat: suggestion.lat, lng: suggestion.lng },
+      selectedVehicle,
+    });
+    completeStep("ride-flow", "destination");
+
     const route = await calculateRoute(
       pickupCoords || { lat: latitude || -23.561, lng: longitude || -46.656 },
       { lat: suggestion.lat, lng: suggestion.lng }
@@ -204,6 +231,10 @@ export default function RidePage() {
       if (pickupCoords) {
         fetchNearbyDrivers(pickupCoords.lat, pickupCoords.lng, dist);
       }
+
+      // Persist vehicle selection
+      persistence.saveState("ride-flow", { pickup, destination, pickupCoords, destCoords, selectedVehicle });
+      completeStep("ride-flow", "vehicle");
     }
   }, [selectedVehicle, routeInfo, pickupCoords, fetchNearbyDrivers]);
 

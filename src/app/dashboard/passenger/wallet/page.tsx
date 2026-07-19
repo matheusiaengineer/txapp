@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store/wallet-store";
 import { formatCurrency, centavosToReais } from "@/lib/utils/financial";
+import { DepositModal } from "@/components/wallet/deposit-modal";
+import { createClient } from "@/lib/supabase/browser";
 
 interface Transaction {
   id: string;
@@ -85,6 +87,7 @@ export default function WalletPage() {
   const [couponError, setCouponError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [favoriteCard, setFavoriteCard] = useState("1");
+  const [showDeposit, setShowDeposit] = useState(false);
   const { realBalance, promotionalBalance } = useWalletStore();
   const balance = realBalance + promotionalBalance;
 
@@ -159,6 +162,7 @@ export default function WalletPage() {
                 </div>
                 <div className="flex gap-3">
                   <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                    onClick={() => setShowDeposit(true)}
                     className="flex items-center gap-2 bg-primary text-background font-semibold px-5 py-2.5 rounded-full text-sm">
                     <Plus className="w-4 h-4" /> Adicionar fundos
                   </motion.button>
@@ -377,6 +381,18 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
+      {/* Deposit Modal */}
+      <DepositModal
+        open={showDeposit}
+        onClose={() => setShowDeposit(false)}
+        onSuccess={() => {
+          // Refresh wallet after deposit
+          const supabase = createClient();
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) useWalletStore.getState().initializeWallet(user.id);
+          });
+        }}
+      />
     </div>
   );
 }
