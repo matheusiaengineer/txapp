@@ -10,6 +10,7 @@ import { DeviceContext } from "@/lib/performance/device-context";
 import { useInitializeStores } from "@/lib/store/initialize-stores";
 import { OnlineBanner } from "@/components/ui/online-banner";
 import { errorLogger } from "@/lib/services/error-logger";
+import { Toast } from "@/components/ui/toast";
 
 export function ClientLayout({ children }: { children: ReactNode }) {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
@@ -50,6 +51,7 @@ export function ClientLayout({ children }: { children: ReactNode }) {
       <I18nProvider>
         <ErrorBoundary>
           <OnlineBanner />
+          <Toast />
           {children}
         </ErrorBoundary>
       </I18nProvider>

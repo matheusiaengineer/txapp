@@ -140,7 +140,7 @@ export function NegotiationSheet({ driver, distanceKm, originLat, originLng, des
               <label className="text-xs text-gray-500 block mb-1">Sua oferta</label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-                <input type="number" step="0.50" min={minPrice}
+                <input type="number" inputMode="decimal" step="0.50" min={minPrice}
                   value={offerPrice}
                   onChange={e => setOfferPrice(parseFloat(e.target.value) || 0)}
                   className="w-full bg-card-bg border border-card-border rounded-xl py-3.5 pl-10 pr-4 text-white text-lg font-bold focus:outline-none focus:border-primary/50" />

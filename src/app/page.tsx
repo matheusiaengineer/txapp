@@ -862,3 +862,4 @@ function DeliveryDashboard() {
     <div className="flex gap-2"><button className="flex-1 py-1.5 rounded-xl bg-white/5 text-gray-300 text-[10px]">Ligar</button><button className="flex-1 py-1.5 rounded-xl bg-primary text-black font-medium text-[10px]">Mensagem</button></div>
   </div>;
 }
+

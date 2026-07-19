@@ -15,6 +15,7 @@ import { notificationService } from "@/lib/notification/notification-service";
 import { useTripChat } from "@/lib/chat/use-trip-chat";
 import { NegotiationSheet } from "@/components/negotiation/NegotiationSheet";
 import { ActionButton } from "@/components/ui/action-button";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { useRideStore } from "@/lib/store/ride-store";
 import { useWalletStore } from "@/lib/store/wallet-store";
 import { socketService } from "@/lib/services/socket-service";
@@ -25,7 +26,7 @@ import dynamic from "next/dynamic";
 
 const OpenStreetMap = dynamic(
   () => import("@/components/map/OpenStreetMap").then(m => m.OpenStreetMap),
-  { ssr: false, loading: () => <div className="w-full h-full bg-[#1a1a2e]" /> }
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#1a1a2e] flex items-center justify-center text-gray-400 text-sm">Carregando mapa...</div> }
 );
 
 type PageState = "idle" | "route" | "booking" | "searching" | "found" | "tracking" | "no_drivers";
@@ -75,6 +76,7 @@ export default function RidePage() {
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
   const tripChannelRef = useRef<any>(null);
+  const dragTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const dispatchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const heartbeatChannelRef = useRef<any>(null);
   const [driverPosition, setDriverPosition] = useState<{ lat: number; lng: number; heading?: number } | null>(null);
@@ -394,6 +396,7 @@ export default function RidePage() {
     if (tripChannelRef.current) { tripChannelRef.current.unsubscribe(); tripChannelRef.current = null; }
     if (heartbeatChannelRef.current) { heartbeatChannelRef.current.unsubscribe(); heartbeatChannelRef.current = null; }
     if (dispatchTimeoutRef.current) { clearTimeout(dispatchTimeoutRef.current); dispatchTimeoutRef.current = undefined; }
+    if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = undefined; }
     // Cleanup socket service channels (rule 80)
     if (tripId) socketService.unsubscribe(`trip-${tripId}`);
     // Reset ride store (rule 26)
@@ -463,6 +466,7 @@ export default function RidePage() {
       if (tripChannelRef.current) { tripChannelRef.current.unsubscribe(); }
       if (heartbeatChannelRef.current) { heartbeatChannelRef.current.unsubscribe(); }
       if (dispatchTimeoutRef.current) clearTimeout(dispatchTimeoutRef.current);
+      if (dragTimerRef.current) clearTimeout(dragTimerRef.current);
       // Cleanup all socket channels on unmount (rule 80)
       socketService.unsubscribeAll();
     };
@@ -471,7 +475,8 @@ export default function RidePage() {
   return (
     <main className="relative w-full h-dvh bg-background overflow-hidden">
       {/* Full-screen map */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 relative" style={{ minHeight: "100dvh" }}>
+        <ErrorBoundary fallback={<div className="w-full h-full bg-[#1a1a2e] flex items-center justify-center text-gray-400 text-sm">Erro ao carregar mapa. Tente novamente.</div>}>
         <OpenStreetMap
           pickup={pickupCoords}
           destination={destCoords}
@@ -515,6 +520,7 @@ export default function RidePage() {
             });
           }}
         />
+        </ErrorBoundary>
         {/* Price/time translucent overlay */}
         {routeInfo && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
@@ -576,6 +582,7 @@ export default function RidePage() {
               onFocus={() => setDestFocused(true)}
               placeholder="Para onde vamos?"
               className="w-full bg-transparent text-white text-sm placeholder-gray-500 outline-none"
+              enterKeyHint="search"
             />
           </div>
           {geoLoading ? (
@@ -912,3 +919,4 @@ export default function RidePage() {
     </main>
   );
 }
+

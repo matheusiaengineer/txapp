@@ -6,7 +6,7 @@ import {
   Home, Clock, Wallet, Heart, User, HeadphonesIcon,
   Settings, LogOut, Bell, ChevronDown, Building2, Truck,
   Package, TrendingUp, Users, Briefcase, Map, MapPin, Car,
-  Shield, Gift, Award, Camera, X, DollarSign,
+  Shield, Gift, Award, Camera, X, DollarSign, Menu, ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -93,6 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [walletBal, setWalletBal] = useState<number | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showMoreSheet, setShowMoreSheet] = useState(false);
 
   useEffect(() => {
     notificationService.getUnreadCount().then(setNotifCount);
@@ -275,8 +276,55 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             );
           })}
+          {/* More button */}
+          <button type="button" onClick={() => setShowMoreSheet(true)} className="flex-1">
+            <motion.div
+              whileTap={{ scale: 0.9 }}
+              className="flex flex-col items-center gap-0.5 py-3 rounded-xl transition-colors text-gray-400"
+            >
+              <Menu className="w-5 h-5" />
+              <span className="text-[11px] font-medium">Mais</span>
+            </motion.div>
+          </button>
         </div>
       </nav>
+
+      {/* More bottom sheet */}
+      <AnimatePresence>
+        {showMoreSheet && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowMoreSheet(false)}>
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              onClick={e => e.stopPropagation()}
+              className="absolute bottom-0 left-0 right-0 glass-panel rounded-t-3xl rounded-none max-h-[70dvh] overflow-y-auto">
+              <div className="sticky top-0 glass-panel rounded-none flex items-center justify-between px-5 py-4 border-b border-card-border">
+                <span className="font-bold text-sm">Menu</span>
+                <button type="button" onClick={() => setShowMoreSheet(false)} className="text-gray-400 hover:text-white p-1">
+                  <ChevronUp className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 space-y-1 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+                {navItems.slice(4).map((item) => {
+                  if (item.href === "#") return null;
+                  if (item.label === "___divider___") return <hr key="divider" className="border-card-border my-2" />;
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
+                  return (
+                    <Link key={item.label} href={item.href} onClick={() => setShowMoreSheet(false)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${active ? "bg-primary/10 text-primary" : "text-gray-400 hover:text-white hover:bg-white/5"}`}>
+                      <Icon className="w-5 h-5" />
+                      <span className="text-sm font-medium">{item.label}</span>
+                      {item.badge ? <span className="ml-auto text-[10px] bg-primary text-background font-bold px-2 py-0.5 rounded-full">{item.badge}</span> : null}
+                    </Link>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Logout churn barrier */}
       <AnimatePresence>

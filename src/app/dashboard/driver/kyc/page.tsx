@@ -265,7 +265,7 @@ export default function DriverKYC() {
                         <label className="text-xs text-gray-400 mb-1.5 block">Capacidade (passageiros)</label>
                         <div className="flex items-center gap-2 bg-background border border-card-border rounded-xl px-4 py-3">
                           <User className="w-4 h-4 text-gray-500" />
-                          <input type="number" placeholder="4" value={vehicle.passengers}
+                          <input type="number" inputMode="numeric" placeholder="4" value={vehicle.passengers}
                             onChange={e => setVehicle(p => ({...p, passengers: e.target.value}))}
                             className="bg-transparent border-none outline-none w-full text-sm text-white placeholder:text-gray-500" />
                         </div>

@@ -61,9 +61,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="192x192" />
-        <link rel="apple-touch-icon" href="/icon.svg" sizes="192x192" />
         <link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="512x512" />
-        <link rel="apple-touch-icon" href="/icon.svg" sizes="512x512" />
+        <link rel="apple-touch-icon" href="/icon.svg" sizes="180x180" />
+        <link rel="apple-touch-icon" href="/icon.svg" sizes="152x152" />
+        <link rel="apple-touch-icon" href="/icon.svg" sizes="120x120" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="TXDAPP" />
       </head>
       <body className="min-h-full flex flex-col" style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <ClientLayout>

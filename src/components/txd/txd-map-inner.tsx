@@ -69,6 +69,7 @@ export default function TxdMapInner({
       scrollWheelZoom={interactive}
       dragging={interactive}
       doubleClickZoom={interactive}
+      touchZoom={interactive}
       attributionControl={false}
     >
       <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />

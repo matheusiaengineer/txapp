@@ -10,6 +10,8 @@ import {
 import { useWalletStore } from "@/lib/store/wallet-store";
 import { formatCurrency, centavosToReais } from "@/lib/utils/financial";
 import { DepositModal } from "@/components/wallet/deposit-modal";
+import { PageHeader } from "@/components/ui/page-header";
+import { useToast } from "@/components/ui/toast";
 import { createClient } from "@/lib/supabase/browser";
 
 function formatDate(dateStr: string): string {
@@ -59,7 +61,10 @@ export default function WalletPage() {
   const [favoriteCard, setFavoriteCard] = useState("1");
   const [showDeposit, setShowDeposit] = useState(false);
   const [realTransactions, setRealTransactions] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [pixKey, setPixKey] = useState("");
+  const [cardForm, setCardForm] = useState({ number: "", expiry: "", cvv: "", name: "" });
+  const [savingCard, setSavingCard] = useState(false);
 
   const { realBalance, promotionalBalance, initializeWallet } = useWalletStore();
   const balance = realBalance + promotionalBalance;
@@ -70,9 +75,10 @@ export default function WalletPage() {
       if (!user) { setLoading(false); return; }
       await initializeWallet(user.id);
       try {
-        const [txRes, profileRes] = await Promise.all([
+        const [txRes, profileRes, pmRes] = await Promise.all([
           fetch("/api/wallet/transactions?limit=50"),
           supabase.from("profiles").select("email, phone").eq("id", user.id).single(),
+          supabase.from("payment_methods").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         ]);
         if (txRes.ok) {
           const txData = await txRes.json();
@@ -80,6 +86,9 @@ export default function WalletPage() {
         }
         if (profileRes.data) {
           setPixKey(profileRes.data.email || profileRes.data.phone || "chave@txd.app");
+        }
+        if (pmRes.data) {
+          setPaymentMethods(pmRes.data);
         }
       } catch {} finally {
         setLoading(false);
@@ -119,9 +128,84 @@ export default function WalletPage() {
     }
   };
 
+  const { show: toast } = useToast();
+
+  const detectCardBrand = (num: string): string => {
+    const clean = num.replace(/\D/g, "");
+    if (/^4/.test(clean)) return "Visa";
+    if (/^5[1-5]/.test(clean)) return "Mastercard";
+    if (/^3[47]/.test(clean)) return "Amex";
+    if (/^6(?:011|5)/.test(clean)) return "Discover";
+    if (/^3(?:0[0-5]|[68])/.test(clean)) return "Diners";
+    if (/^(?:2131|1800|35)/.test(clean)) return "JCB";
+    return "Desconhecido";
+  };
+
+  const formatCardNumber = (val: string): string => {
+    const clean = val.replace(/\D/g, "").slice(0, 16);
+    return clean.replace(/(\d{4})(?=\d)/g, "$1 ");
+  };
+
+  const formatExpiry = (val: string): string => {
+    const clean = val.replace(/\D/g, "").slice(0, 4);
+    if (clean.length > 2) return clean.slice(0, 2) + "/" + clean.slice(2);
+    return clean;
+  };
+
+  const handleSaveCard = async () => {
+    const { number, expiry, cvv, name } = cardForm;
+    if (number.replace(/\D/g, "").length < 13 || !expiry || cvv.replace(/\D/g, "").length < 3 || !name.trim()) {
+      toast("Preencha todos os dados do cartão corretamente", "error");
+      return;
+    }
+    setSavingCard(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast("Usuário não autenticado", "error"); return; }
+      const brand = detectCardBrand(number);
+      const last4 = number.replace(/\D/g, "").slice(-4);
+      const { error } = await supabase.from("payment_methods").insert({
+        user_id: user.id,
+        type: "card",
+        brand,
+        last4,
+        holder_name: name.trim(),
+        expiry_date: expiry,
+        is_default: paymentMethods.length === 0,
+      });
+      if (error) { toast("Erro ao salvar cartão: " + error.message, "error"); return; }
+      const { data: updated } = await supabase.from("payment_methods").select("*").eq("user_id", user.id).order("created_at", { ascending: false });
+      if (updated) setPaymentMethods(updated);
+      setShowAddCard(false);
+      setCardForm({ number: "", expiry: "", cvv: "", name: "" });
+      toast("Cartão adicionado com sucesso!", "success");
+    } catch { toast("Erro ao salvar cartão", "error"); }
+    finally { setSavingCard(false); }
+  };
+
+  const handleDeleteCard = async (id: string) => {
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("payment_methods").delete().eq("id", id);
+      if (error) { toast("Erro ao remover cartão", "error"); return; }
+      setPaymentMethods(prev => prev.filter(p => p.id !== id));
+      setDeleteConfirm(null);
+      toast("Cartão removido", "success");
+    } catch { toast("Erro ao remover cartão", "error"); }
+  };
+
+  const handleSetDefaultCard = async (id: string) => {
+    setFavoriteCard(id);
+    const supabase = createClient();
+    await supabase.from("payment_methods").update({ is_default: false }).eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "").neq("id", id);
+    await supabase.from("payment_methods").update({ is_default: true }).eq("id", id);
+  };
+
   return (
     <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <PageHeader title="Carteira" />
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold">Carteira</h1>
           <p className="text-sm text-gray-400 mt-1">Gerencie seus pagamentos</p>
@@ -212,29 +296,32 @@ export default function WalletPage() {
                 </motion.button>
               </div>
               <div className="space-y-2">
-                {[
-                  { id: "pix", type: "pix", name: `PIX • ${pixKey?.split("@")[0] || "chave"}`, isDefault: true },
-                ].map((pm) => (
+                {([{ id: "pix", type: "pix", name: `PIX • ${pixKey?.split("@")[0] || "chave"}`, isDefault: true, brand: null, last4: null, expiry_date: null }] as Array<{id:string;type:string;name:string;isDefault:boolean;brand:string|null;last4:string|null;expiry_date:string|null}>).concat(
+                  paymentMethods.filter(p => p.type === "card").map(p => ({ ...p, isDefault: false }))
+                )
+                  .concat(paymentMethods.filter(p => p.type === "card").map(p => ({ ...p, isDefault: false })))
+                  .map((pm) => (
                   <motion.div key={pm.id} whileHover={{ scale: 1.01 }}
-                    className={`glass-panel p-4 flex items-center gap-3 ${pm.isDefault ? "border-primary/30" : ""}`}>
-                    <button onClick={() => setFavoriteCard(pm.id)} className="shrink-0">
+                    className={`glass-panel p-4 flex items-center gap-3 ${pm.isDefault || (favoriteCard === pm.id) ? "border-primary/30" : ""}`}>
+                    <button onClick={() => pm.type === "card" ? handleSetDefaultCard(pm.id) : setFavoriteCard(pm.id)} className="shrink-0">
                       <Star className={`w-4 h-4 ${favoriteCard === pm.id ? "text-yellow-400 fill-yellow-400" : "text-gray-600 hover:text-gray-400"} transition-colors`} />
                     </button>
-                    <div className="w-10 h-10 rounded-xl bg-green-400/15 flex items-center justify-center shrink-0">
-                      <Smartphone className="w-5 h-5 text-green-400" />
+                    <div className={`w-10 h-10 rounded-xl ${pm.type === "pix" ? "bg-green-400/15" : "bg-primary/15"} flex items-center justify-center shrink-0`}>
+                      {pm.type === "pix" ? <Smartphone className="w-5 h-5 text-green-400" /> : <CreditCard className="w-5 h-5 text-primary" />}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{pm.name}</p>
-                      <p className="text-xs text-gray-500">{favoriteCard === pm.id ? "Padrão" : "Chave PIX"}</p>
+                      <p className={`text-sm font-medium ${pm.type === "pix" ? "" : "uppercase tracking-wider"}`}>{pm.type === "pix" ? pm.name : `${pm.brand || "Cartão"} •• ${pm.last4}`}</p>
+                      <p className="text-xs text-gray-500">{pm.type === "pix" ? (favoriteCard === pm.id ? "Padrão" : "Chave PIX") : (pm.expiry_date || "")}</p>
                     </div>
                     {deleteConfirm === pm.id ? (
                       <div className="flex items-center gap-1">
-                        <button onClick={() => setDeleteConfirm(null)} className="text-[10px] text-gray-400 hover:text-white px-2 py-1">Cancelar</button>
-                        <button onClick={() => setDeleteConfirm(null)} className="text-[10px] text-red-400 font-bold px-2 py-1">Confirmar</button>
+                        <button onClick={() => setDeleteConfirm(null)} className={`text-[10px] text-gray-400 hover:text-white px-2 py-1 ${pm.type === "pix" ? "cursor-not-allowed opacity-50" : ""}`}>Cancelar</button>
+                        <button onClick={() => pm.type === "pix" ? null : handleDeleteCard(pm.id)}
+                          className={`text-[10px] text-red-400 font-bold px-2 py-1 ${pm.type === "pix" ? "cursor-not-allowed opacity-50" : ""}`}>Confirmar</button>
                       </div>
                     ) : (
-                      <button onClick={() => setDeleteConfirm(pm.id)} className="shrink-0">
-                        <Trash2 className="w-4 h-4 text-gray-500 hover:text-red-400 transition-colors" />
+                      <button onClick={() => pm.type !== "pix" && setDeleteConfirm(pm.id)} className="shrink-0" type="button">
+                        <Trash2 className={`w-4 h-4 ${pm.type === "pix" ? "text-gray-700" : "text-gray-500 hover:text-red-400"} transition-colors`} />
                       </button>
                     )}
                   </motion.div>
@@ -248,17 +335,31 @@ export default function WalletPage() {
                   <div className="glass-panel p-5 space-y-4">
                     <h3 className="font-semibold text-sm">Adicionar cartão</h3>
                     <input type="text" placeholder="Número do cartão"
+                      value={cardForm.number}
+                      onChange={(e) => setCardForm(f => ({ ...f, number: formatCardNumber(e.target.value) }))}
+                      inputMode="numeric"
                       className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors" />
                     <div className="grid grid-cols-2 gap-3">
                       <input type="text" placeholder="Validade (MM/AA)"
+                        value={cardForm.expiry}
+                        onChange={(e) => setCardForm(f => ({ ...f, expiry: formatExpiry(e.target.value) }))}
+                        inputMode="numeric"
                         className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors" />
                       <input type="text" placeholder="CVV"
+                        value={cardForm.cvv}
+                        onChange={(e) => setCardForm(f => ({ ...f, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                        inputMode="numeric"
                         className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors" />
                     </div>
                     <input type="text" placeholder="Nome no cartão"
+                      value={cardForm.name}
+                      onChange={(e) => setCardForm(f => ({ ...f, name: e.target.value }))}
                       className="w-full bg-background border border-card-border rounded-xl px-4 py-3 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50 transition-colors" />
                     <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                      className="w-full bg-primary text-background font-semibold py-3 rounded-xl text-sm">Salvar cartão</motion.button>
+                      onClick={handleSaveCard} disabled={savingCard}
+                      className="w-full bg-primary text-background font-semibold py-3 rounded-xl text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                      {savingCard && <Loader2 className="w-4 h-4 animate-spin" />}
+                      {savingCard ? "Salvando..." : "Salvar cartão"}</motion.button>
                   </div>
                 </motion.div>
               )}
@@ -292,13 +393,13 @@ export default function WalletPage() {
               <h3 className="font-semibold mb-3 flex items-center gap-2">
                 <Copy className="w-4 h-4 text-primary" /> Sua chave PIX
               </h3>
-              <div className="bg-background border border-card-border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer" onClick={handleCopyPix}>
+              <button type="button" onClick={handleCopyPix} className="w-full bg-background border border-card-border rounded-xl px-4 py-3 flex items-center justify-between cursor-pointer text-left">
                 <span className="text-sm font-mono">{pixKey}</span>
                 <motion.span key={copied ? "copied" : "copy"} initial={{ scale: 0.8 }} animate={{ scale: 1 }}
                   className={`text-xs ${copied ? "text-primary font-bold" : "text-gray-400"}`}>
                   {copied ? "Copiado! ✓" : "Copiar"}
                 </motion.span>
-              </div>
+              </button>
             </motion.div>
           </div>
         </div>
