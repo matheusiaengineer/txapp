@@ -14,6 +14,12 @@ import { calculateRoute } from "@/lib/routing/osrm";
 import { notificationService } from "@/lib/notification/notification-service";
 import { useTripChat } from "@/lib/chat/use-trip-chat";
 import { NegotiationSheet } from "@/components/negotiation/NegotiationSheet";
+import { ActionButton } from "@/components/ui/action-button";
+import { useRideStore } from "@/lib/store/ride-store";
+import { useWalletStore } from "@/lib/store/wallet-store";
+import { socketService } from "@/lib/services/socket-service";
+import { haversineDistance, hasMovedSignificantly, isDriverNearby } from "@/lib/utils/geo";
+import { formatCurrency } from "@/lib/utils/financial";
 import dynamic from "next/dynamic";
 
 const OpenStreetMap = dynamic(
@@ -24,23 +30,10 @@ const OpenStreetMap = dynamic(
 type PageState = "idle" | "route" | "booking" | "searching" | "found" | "tracking" | "no_drivers";
 type VehicleType = "moto" | "carro" | "frete";
 
-function formatCurrency(v: number): string {
-  return `R$ ${v.toFixed(2)}`;
-}
-
 function shortenAddress(addr: string): string {
   const parts = addr.split(",");
   if (parts.length >= 3) return `${parts[0].trim()}, ${parts[1].trim()} - ${parts[2].trim().split("-")[0]?.trim() || parts[2].trim()}`;
   return addr.slice(0, 50);
-}
-
-function estimateTravelTimeMinutes(lat1: number, lng1: number, lat2: number, lng2: number, avgSpeedKmh = 35): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.max(1, Math.round((R * c / avgSpeedKmh) * 60));
 }
 
 const VEHICLES: { id: VehicleType; label: string; icon: any; desc: string; color: string }[] = [
@@ -94,6 +87,21 @@ export default function RidePage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const { messages: chatMessages, send: sendChat, sendFile: sendFileChat, emitTyping, isTyping, typingLabel } = useTripChat(tripId, currentUserId);
+
+  const rideStore = useRideStore();
+  const walletStore = useWalletStore();
+  const [isRequesting, setIsRequesting] = useState(false);
+
+  // Sync ride store with local state
+  useEffect(() => {
+    if (pickupCoords) rideStore.setOrigin(pickupCoords);
+  }, [pickupCoords]);
+  useEffect(() => {
+    if (destCoords) rideStore.setDestination(destCoords);
+  }, [destCoords]);
+  useEffect(() => {
+    if (routeInfo) rideStore.setDistance(routeInfo.distanceKm);
+  }, [routeInfo]);
 
   useEffect(() => {
     if (latitude && longitude) {
@@ -234,6 +242,13 @@ export default function RidePage() {
 
   async function handleBooking() {
     if (!pickupCoords || !destCoords) return;
+    // Check wallet balance before booking (rule 123)
+    if (!walletStore.hasSufficientFunds(Math.round(estimatedFare * 100))) {
+      alert("Saldo insuficiente para esta corrida. Adicione fundos na Carteira.");
+      return;
+    }
+    setIsRequesting(true);
+    rideStore.setRequesting(true);
     setPageState("searching");
 
     fetch("/api/dispatch", {
@@ -289,16 +304,14 @@ export default function RidePage() {
             setDriverPosition({ lat: hb.lat, lng: hb.lng, heading: hb.heading });
             const target = pageState === "tracking" ? destCoords : pickupCoords;
             if (target) {
-              setEta(estimateTravelTimeMinutes(hb.lat, hb.lng, target.lat, target.lng));
-            }
-          }).subscribe();
+            const dist = haversineDistance({ lat: hb.lat, lng: hb.lng }, target);
+            setEta(Math.max(1, Math.round(dist / 1000 / 35 * 60)));
+          }
+        }).subscribe();
 
-          setPageState("found");
-          if (pickupCoords) {
-            setEta(estimateTravelTimeMinutes(
-              pickupCoords.lat, pickupCoords.lng,
-              pickupCoords.lat, pickupCoords.lng
-            ));
+        setPageState("found");
+        if (pickupCoords) {
+          setEta(1);
           }
           timerRef.current = setInterval(() => {
             setElapsed(prev => prev + 1);
@@ -312,7 +325,8 @@ export default function RidePage() {
         } else if (trip.status === "IN_PROGRESS") {
           setPageState("tracking");
           if (destCoords && driverPosition) {
-            setEta(estimateTravelTimeMinutes(driverPosition.lat, driverPosition.lng, destCoords.lat, destCoords.lng));
+            const dist = haversineDistance(driverPosition, destCoords);
+            setEta(Math.max(1, Math.round(dist / 1000 / 35 * 60)));
           }
 
           const { data: { user } } = await supabase.auth.getUser();
@@ -349,6 +363,11 @@ export default function RidePage() {
     if (tripChannelRef.current) { tripChannelRef.current.unsubscribe(); tripChannelRef.current = null; }
     if (heartbeatChannelRef.current) { heartbeatChannelRef.current.unsubscribe(); heartbeatChannelRef.current = null; }
     if (dispatchTimeoutRef.current) { clearTimeout(dispatchTimeoutRef.current); dispatchTimeoutRef.current = undefined; }
+    // Cleanup socket service channels (rule 80)
+    if (tripId) socketService.unsubscribe(`trip-${tripId}`);
+    // Reset ride store (rule 26)
+    rideStore.resetRide();
+    setIsRequesting(false);
     setPageState("idle");
     setDestination("");
     setDestCoords(null);
@@ -413,6 +432,8 @@ export default function RidePage() {
       if (tripChannelRef.current) { tripChannelRef.current.unsubscribe(); }
       if (heartbeatChannelRef.current) { heartbeatChannelRef.current.unsubscribe(); }
       if (dispatchTimeoutRef.current) clearTimeout(dispatchTimeoutRef.current);
+      // Cleanup all socket channels on unmount (rule 80)
+      socketService.unsubscribeAll();
     };
   }, []);
 
@@ -657,10 +678,15 @@ export default function RidePage() {
                   </div>
 
                   {/* Booking button */}
-                  <button onClick={handleBooking}
-                    className="w-full bg-primary/80 hover:bg-primary text-background font-bold py-3.5 rounded-xl transition-all text-sm">
+                  <ActionButton
+                    variant="primary"
+                    loading={isRequesting}
+                    onAction={handleBooking}
+                    disabled={!pickupCoords || !destCoords || !routeInfo}
+                    className="w-full py-3.5 text-sm"
+                  >
                     Buscar {selectedVehicle === "moto" ? "moto" : selectedVehicle === "carro" ? "carro" : "frete"} (preço fixo)
-                  </button>
+                  </ActionButton>
                 </>
               ) : (
                 /* Pickup/dest summary when no route yet */
@@ -805,9 +831,9 @@ export default function RidePage() {
                     <Clock className="w-4 h-4 text-primary" />
                     <span className="text-gray-300">Chegada prevista: {eta} min</span>
                   </div>
-                  <button onClick={reset} className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm">
+                  <ActionButton variant="primary" onAction={reset} className="w-full py-3 text-sm">
                     Finalizar viagem
-                  </button>
+                  </ActionButton>
                 </>
               )}
             </motion.div>
@@ -820,9 +846,9 @@ export default function RidePage() {
               <Navigation className="w-8 h-8 text-amber-400 mx-auto" />
               <p className="text-white font-semibold">Nenhum motorista disponível</p>
               <p className="text-xs text-gray-500">Tente novamente em alguns minutos</p>
-              <button onClick={reset} className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm">
+              <ActionButton variant="primary" onAction={reset} className="w-full py-3 text-sm">
                 Tentar novamente
-              </button>
+              </ActionButton>
             </motion.div>
           )}
         </AnimatePresence>

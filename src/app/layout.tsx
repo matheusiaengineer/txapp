@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ClientLayout } from "./client-layout";
+import { NavigationGuardWrapper } from "@/components/ui/navigation-guard-wrapper";
+import { Suspense } from "react";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -64,7 +66,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="apple-touch-icon" href="/icon.svg" sizes="512x512" />
       </head>
       <body className="min-h-full flex flex-col" style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        <ClientLayout>{children}</ClientLayout>
+        <ClientLayout>
+          <Suspense fallback={null}><NavigationGuardWrapper /></Suspense>
+          {children}
+        </ClientLayout>
         <script dangerouslySetInnerHTML={{
           __html: `(function(){try{if(!window.__txdLoaded){var r=new XMLHttpRequest();r.open("GET","/api/health",true);r.timeout=5000;r.onload=function(){window.__txdLoaded=true};r.onerror=function(){setTimeout(function(){window.location.reload()},5000)};r.send()}}catch(e){}})()`
         }} />

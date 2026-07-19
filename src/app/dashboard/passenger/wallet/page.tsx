@@ -9,6 +9,8 @@ import {
   ArrowUpRight, ArrowDownLeft, Trash2, Star, ChevronRight,
   Coins, Copy, Eye, EyeOff, Loader2, CheckCircle, AlertTriangle,
 } from "lucide-react";
+import { useWalletStore } from "@/lib/store/wallet-store";
+import { formatCurrency, centavosToReais } from "@/lib/utils/financial";
 
 interface Transaction {
   id: string;
@@ -83,6 +85,8 @@ export default function WalletPage() {
   const [couponError, setCouponError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [favoriteCard, setFavoriteCard] = useState("1");
+  const { realBalance, promotionalBalance } = useWalletStore();
+  const balance = realBalance + promotionalBalance;
 
   useEffect(() => { setTimeout(() => setLoading(false), 800); }, []);
   if (loading) return <div className="min-h-[100dvh] bg-background text-foreground p-4 sm:p-6 lg:p-8" style={{paddingBottom:"calc(1.5rem + env(safe-area-inset-bottom,0px))"}}><SkeletonList count={5} /></div>;
@@ -145,13 +149,13 @@ export default function WalletPage() {
                   </button>
                 </div>
                 <p className="text-4xl sm:text-5xl font-bold mb-1">
-                  {privacyMode ? "R$ *****" : "R$ 47,30"}
+                  {privacyMode ? "R$ *****" : formatCurrency(balance)}
                 </p>
                 {/* Split balance (#42) */}
                 <div className="flex items-center gap-3 text-xs text-gray-500 mb-4">
-                  <span>{privacyMode ? "*****" : "R$ 37,30"} Disponível</span>
+                  <span>{privacyMode ? "*****" : formatCurrency(realBalance)} Disponível</span>
                   <span className="w-1 h-1 rounded-full bg-gray-600" />
-                  <span className="text-yellow-400">{privacyMode ? "*****" : "R$ 10,00"} Bônus</span>
+                  <span className="text-yellow-400">{privacyMode ? "*****" : formatCurrency(promotionalBalance)} Bônus</span>
                 </div>
                 <div className="flex gap-3">
                   <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
