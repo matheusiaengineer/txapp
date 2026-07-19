@@ -3,14 +3,14 @@
 import { motion } from "framer-motion";
 import {
   Bike, Car, Truck, Package, Dog, Baby, Users, Route,
-  Accessibility, Venus, Briefcase, Home, LucideIcon,
+  Accessibility, Heart, Briefcase, Home, LucideIcon,
 } from "lucide-react";
 import type { ServiceCategory } from "@/lib/mobility/service-categories";
 
 const iconMap: Record<string, LucideIcon> = {
   bike: Bike, car: Car, truck: Truck, package: Package,
   dog: Dog, baby: Baby, users: Users, route: Route,
-  accessibility: Accessibility, venus: Venus,
+  accessibility: Accessibility, venus: Heart,
   briefcase: Briefcase, home: Home,
 };
 
