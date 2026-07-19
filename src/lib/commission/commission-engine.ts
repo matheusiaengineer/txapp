@@ -48,34 +48,38 @@ export class CommissionEngine {
     let commissionPercent = 25;
     let fixedFee = 0;
 
-    for (const rule of this.rules.sort((a, b) => b.priority - a.priority)) {
-      if (!rule.active) continue;
-      if (rule.serviceCategory && !rule.serviceCategory.includes(category)) continue;
-      if (rule.timeRanges && hour) {
-        const inRange = rule.timeRanges.some(r => hour >= r.start && hour <= r.end);
-        if (!inRange) continue;
-      }
-      if (rule.ratingMultiplier && driverRating && driverRating < 4.7) continue;
-      if (isFirstRide && rule.id !== "first_ride") continue;
+    const marketplaceCategories = ["moto", "carro", "frete", "entregas", "mudanca"];
+    if (marketplaceCategories.includes(category)) {
+      commissionPercent = 10;
+    } else {
+      for (const rule of this.rules.sort((a, b) => b.priority - a.priority)) {
+        if (!rule.active) continue;
+        if (rule.serviceCategory && !rule.serviceCategory.includes(category)) continue;
+        if (rule.timeRanges && hour) {
+          const inRange = rule.timeRanges.some(r => hour >= r.start && hour <= r.end);
+          if (!inRange) continue;
+        }
+        if (rule.ratingMultiplier && driverRating && driverRating < 4.7) continue;
+        if (isFirstRide && rule.id !== "first_ride") continue;
 
-      if (rule.type === "percentage") commissionPercent = rule.value;
-      else if (rule.type === "fixed") { commissionPercent = 0; fixedFee = rule.value; }
-      else if (rule.type === "mixed") { commissionPercent = rule.value; fixedFee = rule.fixedValue || 0; }
+        if (rule.type === "percentage") commissionPercent = rule.value;
+        else if (rule.type === "fixed") { commissionPercent = 0; fixedFee = rule.value; }
+        else if (rule.type === "mixed") { commissionPercent = rule.value; fixedFee = rule.fixedValue || 0; }
+      }
     }
 
     const commissionAmount = fare * (commissionPercent / 100) + fixedFee;
-    const txdFee = fare * 0.05;
+    const txdFee = 0;
     const taxes = fare * 0.03;
     const totalDeductions = commissionAmount + txdFee + taxes;
     const netEarnings = fare - totalDeductions;
 
     breakdown.push({ label: `Comiss\u00e3o TXD (${commissionPercent}%)`, amount: commissionAmount, type: "negative" });
-    breakdown.push({ label: "Taxa de Servi\u00e7o (5%)", amount: txdFee, type: "negative" });
     breakdown.push({ label: "Impostos (3%)", amount: taxes, type: "negative" });
     breakdown.push({ label: "Ganho L\u00edquido do Motorista", amount: netEarnings, type: "positive" });
 
     return {
-      ruleId: "calculated", ruleName: "Comiss\u00e3o Calculada",
+      ruleId: "marketplace", ruleName: "Comiss\u00e3o Marketplace (10%)",
       baseFare: fare, commissionAmount, driverEarnings: netEarnings,
       txdFee, taxes, totalDeductions, netEarnings, breakdown,
     };

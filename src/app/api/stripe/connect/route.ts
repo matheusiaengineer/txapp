@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/payment/stripe-server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function POST(req: NextRequest) {
+const handler = async (req: NextRequest) => {
   try {
     const { userId, email, country } = await req.json();
 
@@ -43,4 +44,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'default');

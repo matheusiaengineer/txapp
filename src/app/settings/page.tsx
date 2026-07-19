@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { User, Bell, Shield, Palette, Globe, DollarSign, Info, Lock, Eye, Smartphone, Key, LogOut, ChevronRight, Moon, Sun, Monitor, Check } from "lucide-react";
+import { User, Bell, Shield, Palette, Globe, DollarSign, Info, Lock, Eye, Smartphone, Key, LogOut, ChevronRight, Moon, Sun, Monitor, Check, Fingerprint, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { useI18n } from "@/lib/i18n/provider";
 import { CURRENCIES } from "@/lib/payment/currencies";
+import { isBiometricSupported, registerBiometric } from "@/lib/auth/webauthn";
 
 type SettingsTab = "profile" | "notifications" | "privacy" | "security" | "appearance" | "language" | "currency" | "about";
 
@@ -12,6 +13,37 @@ export default function SettingsPage() {
   const { t, locale, setLocale, locales } = useI18n();
   const [tab, setTab] = useState<SettingsTab>("profile");
   const [theme, setTheme] = useState<"dark" | "light" | "system">("dark");
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [biometricRegistered, setBiometricRegistered] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+  const [biometricMessage, setBiometricMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    isBiometricSupported().then(setBiometricSupported);
+    async function checkCredential() {
+      try {
+        const { hasBiometricCredential } = await import("@/lib/auth/webauthn");
+        const has = await hasBiometricCredential();
+        setBiometricRegistered(has);
+      } catch {}
+    }
+    checkCredential();
+  }, []);
+
+  async function handleBiometricToggle() {
+    if (biometricRegistered) return;
+    setBiometricLoading(true);
+    setBiometricMessage(null);
+    const res = await registerBiometric();
+    setBiometricLoading(false);
+    if (res.success) {
+      setBiometricRegistered(true);
+      setBiometricMessage("Biometria cadastrada com sucesso!");
+    } else {
+      setBiometricMessage(res.error || "Falha ao cadastrar biometria");
+    }
+    setTimeout(() => setBiometricMessage(null), 4000);
+  }
 
   const tabs = [
     { id: "profile" as SettingsTab, icon: <User className="w-5 h-5" />, label: "Perfil" },
@@ -142,14 +174,46 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-center justify-between p-4 bg-background rounded-xl">
                 <div className="flex items-center gap-3">
-                  <Smartphone className="w-5 h-5 text-primary" />
-                  <div><p className="font-medium text-sm">Reconhecimento Facial</p><p className="text-xs text-gray-500">Login rápido com Face ID</p></div>
+                  <Fingerprint className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-sm">Reconhecimento Biométrico</p>
+                    <p className="text-xs text-gray-500">
+                      {biometricSupported
+                        ? biometricRegistered ? "Biometria cadastrada" : "Face ID / Impressão digital"
+                        : "Não disponível neste dispositivo"}
+                    </p>
+                  </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" defaultChecked className="sr-only peer" />
-                  <div className="w-11 h-6 bg-card-bg rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
-                </label>
+                {biometricSupported && (
+                  <button
+                    onClick={handleBiometricToggle}
+                    disabled={biometricLoading || biometricRegistered}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                      biometricRegistered
+                        ? "bg-primary/10 text-primary"
+                        : "bg-primary text-background hover:bg-primary-hover"
+                    } disabled:opacity-50`}
+                  >
+                    {biometricLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : biometricRegistered ? (
+                      <><CheckCircle className="w-3 h-3" /> Ativo</>
+                    ) : (
+                      "Ativar"
+                    )}
+                  </button>
+                )}
               </div>
+              {biometricMessage && (
+                <div className={`flex items-center gap-2 p-3 rounded-lg text-xs ${
+                  biometricMessage.includes("sucesso")
+                    ? "bg-primary/10 text-primary"
+                    : "bg-red-500/10 text-red-400"
+                }`}>
+                  {biometricMessage.includes("sucesso") ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                  {biometricMessage}
+                </div>
+              )}
               <button className="w-full text-left p-4 bg-background rounded-xl flex items-center justify-between hover:bg-[#1a1a1a] transition-colors">
                 <div><p className="font-medium text-sm">Alterar Senha</p><p className="text-xs text-gray-500">Última alteração há 3 meses</p></div>
                 <ChevronRight className="w-4 h-4 text-gray-500" />

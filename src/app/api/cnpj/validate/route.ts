@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
 interface CNPJResponse {
   valid: boolean;
@@ -15,7 +16,7 @@ interface CNPJResponse {
   error?: string;
 }
 
-export async function POST(req: NextRequest) {
+const handler = async (req: NextRequest) => {
   try {
     const { cnpj } = await req.json();
     const cleanCNPJ = cnpj.replace(/\D/g, "");
@@ -58,4 +59,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ valid: false, error: err.message || "Erro interno" }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'default');

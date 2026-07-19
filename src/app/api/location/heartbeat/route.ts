@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { rateLimit } from "@/lib/rate-limit";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-  const rl = await rateLimit(`heartbeat:${ip}`, 15, 1000);
-  if (!rl.allowed) {
-    return NextResponse.json({ error: "Muitas requisições. Aguarde." }, { status: 429, headers: { "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": String(rl.resetAt) } });
-  }
-
+const handler = async (req: NextRequest) => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -47,4 +41,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'heartbeat');

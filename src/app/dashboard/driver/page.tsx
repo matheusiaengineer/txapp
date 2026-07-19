@@ -19,6 +19,7 @@ import GamificationBar from "@/components/driver/GamificationBar";
 import BatterySaverMode from "@/components/map/BatterySaverMode";
 import SwipeToAccept from "@/components/ride/SwipeToAccept";
 import { PageLayout, PageHeader } from "@/components/ui/page-layout";
+import { useTripOffers } from "@/lib/hooks/use-trip-offers";
 
 function DriverDashboardContent() {
   const { user, loading: userLoading } = useUser();
@@ -27,6 +28,7 @@ function DriverDashboardContent() {
   const [isOnline, setIsOnline] = useState(false);
   const [currentRequest, setCurrentRequest] = useState<any>(null);
   const [requestTimer, setRequestTimer] = useState(15);
+  const { offer: realOffer, acceptOffer, rejectOffer } = useTripOffers(user?.id, isOnline);
   const [qualifiedCount, setQualifiedCount] = useState(0);
   const [activePassengers, setActivePassengers] = useState(3);
   const [modalities, setModalities] = useState({
@@ -308,57 +310,45 @@ function DriverDashboardContent() {
           </motion.div>
         )}
 
-        {/* Simulated Ride Request */}
-        {isOnline && !currentRequest && (
+        {/* Real Trip Offer via Dispatch */}
+        {realOffer && (
+          <SwipeToAccept
+            pickup={realOffer.pickup}
+            destination={realOffer.destination}
+            estimatedFare={realOffer.estimatedFare}
+            distance={realOffer.distance}
+            estimatedTime={realOffer.estimatedTime}
+            passengerName={realOffer.passengerName}
+            passengerRating={realOffer.passengerRating}
+            timer={requestTimer}
+            onAccept={async () => {
+              triggerHaptic("success");
+              const ok = await acceptOffer();
+              if (ok) {
+                setCurrentRequest({
+                  ...realOffer,
+                  id: realOffer.tripId,
+                  passengerName: realOffer.passengerName,
+                  passengerRating: realOffer.passengerRating,
+                });
+                setRequestTimer(0);
+              }
+            }}
+            onReject={async () => {
+              triggerHaptic("medium");
+              await rejectOffer();
+            }}
+          />
+        )}
+
+        {/* Waiting for offers */}
+        {isOnline && !realOffer && !currentRequest && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-6">
             <div className="mb-6 transform scale-75">
               <RadarLoader />
             </div>
-            <button onClick={() => {
-              triggerHaptic("success");
-              setCurrentRequest({
-                id: "sim-" + Date.now(),
-                pickup: "Av. Paulista, 1000",
-                destination: "Shopping Morumbi",
-                estimatedFare: 25.90,
-                distance: "5,2 km",
-                estimatedTime: "8 min",
-                passengerName: "Ana O.",
-                passengerRating: 4.9,
-              });
-              setRequestTimer(15);
-              const timer = setInterval(() => {
-                setRequestTimer(prev => {
-                  if (prev <= 1) { clearInterval(timer); setCurrentRequest(null); return 0; }
-                  return prev - 1;
-                });
-              }, 1000);
-            }}
-              className="w-full max-w-sm glass-panel p-5 text-center border border-primary/20 hover:border-primary/50 transition-all cursor-pointer relative overflow-hidden group">
-              <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-              <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-3">
-                <Navigation className="w-7 h-7 text-primary" />
-              </div>
-              <p className="font-bold text-lg mb-1">Simular nova corrida</p>
-              <p className="text-sm text-gray-400">Toque aqui para forçar um chamado</p>
-            </button>
+            <p className="text-sm text-gray-400">Aguardando solicitações de corrida...</p>
           </motion.div>
-        )}
-
-        {/* Current Request - Swipe to Accept */}
-        {currentRequest && (
-          <SwipeToAccept
-            pickup={currentRequest.pickup}
-            destination={currentRequest.destination}
-            estimatedFare={currentRequest.estimatedFare}
-            distance={currentRequest.distance}
-            estimatedTime={currentRequest.estimatedTime}
-            passengerName={currentRequest.passengerName}
-            passengerRating={currentRequest.passengerRating}
-            timer={requestTimer}
-            onAccept={() => setCurrentRequest(null)}
-            onReject={() => setCurrentRequest(null)}
-          />
         )}
 
         {/* Earnings cards */}
@@ -428,6 +418,12 @@ function DriverDashboardContent() {
             <div className="glass-panel p-4 flex items-center gap-3 hover:border-primary/30 transition-all">
               <Navigation className="w-5 h-5 text-primary" />
               <div><p className="text-sm font-semibold">Endereços</p><p className="text-xs text-gray-500">Locais salvos</p></div>
+            </div>
+          </Link>
+          <Link href="/dashboard/driver/pricing">
+            <div className="glass-panel p-4 flex items-center gap-3 hover:border-primary/30 transition-all">
+              <DollarSign className="w-5 h-5 text-primary" />
+              <div><p className="text-sm font-semibold">Meus Preços</p><p className="text-xs text-gray-500">Valores por km</p></div>
             </div>
           </Link>
           <Link href="/dashboard/driver/kyc">

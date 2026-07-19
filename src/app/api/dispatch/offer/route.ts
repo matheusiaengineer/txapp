@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function PATCH(request: NextRequest) {
+const handler = async (request: NextRequest) => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -60,4 +61,6 @@ export async function PATCH(request: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Erro ao responder oferta" }, { status: 500 });
   }
-}
+};
+
+export const PATCH = withRateLimit(handler, 'dispatch');

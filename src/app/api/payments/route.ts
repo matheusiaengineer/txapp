@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/payment/stripe-server";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function POST(req: NextRequest) {
+const handler = async (req: NextRequest) => {
   try {
     const body = await req.json();
     const { amount, currency = "brl", paymentMethod, metadata } = body;
@@ -40,4 +41,6 @@ export async function POST(req: NextRequest) {
     console.error("[Stripe] Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'payment');

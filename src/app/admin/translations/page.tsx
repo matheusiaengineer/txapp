@@ -172,10 +172,11 @@ export default function AdminTranslations() {
   useEffect(() => setMounted(true), []);
 
   const currentTranslations = translations[selectedLang] || {};
-  const filteredKeys = Object.keys(currentTranslations).filter((key) =>
-    key.toLowerCase().includes(searchKey.toLowerCase()) ||
-    currentTranslations[key].toLowerCase().includes(searchKey.toLowerCase())
-  );
+  const filteredKeys = Object.keys(currentTranslations).filter((key) => {
+    const val = currentTranslations[key];
+    return key.toLowerCase().includes(searchKey.toLowerCase()) ||
+      (val && val.toLowerCase().includes(searchKey.toLowerCase()));
+  });
 
   const updateTranslation = (key: string, value: string) => {
     setTranslations((prev) => ({

@@ -86,6 +86,7 @@ export default function Home() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city: string } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [redirectAfterAuth, setRedirectAfterAuth] = useState<string | null>(null);
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
 
@@ -247,10 +248,12 @@ export default function Home() {
                   }
                   setAuthLoading(false);
                   setAuthOpen(false);
-                  router.push(getDashboardRoute((res.role as Role) || "passenger"));
+                  router.push(redirectAfterAuth || getDashboardRoute((res.role as Role) || "passenger"));
+                  setRedirectAfterAuth(null);
                 } else {
                   setAuthOpen(false);
-                  router.push(`/auth/register?type=${authProfile}`);
+                  router.push(`/auth/register?type=${authProfile}${redirectAfterAuth ? `&redirectTo=${encodeURIComponent(redirectAfterAuth)}` : ""}`);
+                  setRedirectAfterAuth(null);
                 }
               }}
                 className="w-full mt-5 shadow-lg shadow-primary/20 txd-green-glow-sm">
@@ -337,7 +340,13 @@ export default function Home() {
               <p className="text-sm sm:text-lg md:text-xl text-gray-400 mb-7 max-w-lg leading-relaxed">Solicite corridas, entregas e fretes em uma única plataforma.</p>
             </div>
             <div className="flex flex-wrap gap-3 mb-7">
-              <button onClick={() => openAuth("register", "passenger")}
+              <button onClick={async () => {
+                  const supabase = createClient();
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session) { router.push("/ride"); return; }
+                  setRedirectAfterAuth("/ride");
+                  openAuth("login", "passenger");
+                }}
                 className="bg-primary hover:bg-primary-hover text-black font-bold px-4 md:px-6 py-3 md:py-4 rounded-full transition-all hover:scale-95 txd-green-glow-sm flex items-center gap-2 text-sm md:text-base">
                 <Car className="w-5 h-5" /> Solicitar corrida
               </button>

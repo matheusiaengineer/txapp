@@ -1,0 +1,227 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import {
+  DollarSign, Bike, Car, Truck, Save, Plus, X, Loader2, CheckCircle,
+  AlertTriangle, TrendingUp, Info,
+} from "lucide-react";
+import { useUser } from "@/lib/hooks/use-user";
+
+interface DriverPrice {
+  id?: string;
+  service_type: string;
+  min_price_per_km: number;
+  suggested_price_per_km: number;
+  min_trip_value: number;
+  is_active: boolean;
+}
+
+const MIN_POR_KM = 25;
+
+const SERVICE_TYPES = [
+  { id: "moto", label: "Moto", icon: Bike, color: "#60a5fa", suggestMin: 25, suggestMax: 50 },
+  { id: "carro", label: "Carro", icon: Car, color: "#3ECB8E", suggestMin: 25, suggestMax: 50 },
+  { id: "frete", label: "Frete", icon: Truck, color: "#f59e0b", suggestMin: 250, suggestMax: 500 },
+  { id: "entregas", label: "Entregas", icon: Package, color: "#a78bfa", suggestMin: 25, suggestMax: 50 },
+  { id: "mudanca", label: "Mudança", icon: Truck, color: "#f472b6", suggestMin: 300, suggestMax: 800 },
+];
+
+function Package(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16.5 9.4 7.55 4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.29 7 12 12 20.71 7"/><line x1="12" y1="22" x2="12" y2="12"/></svg>; }
+
+export default function DriverPricingPage() {
+  const { user } = useUser();
+  const [prices, setPrices] = useState<DriverPrice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [addingType, setAddingType] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/driver/pricing")
+      .then(r => r.json())
+      .then(data => { setPrices(data); setLoading(false); })
+      .catch(() => { setLoading(false); });
+  }, [user]);
+
+  const upsertPrice = async (p: DriverPrice) => {
+    if (p.min_price_per_km < MIN_POR_KM) {
+      setError(`Preço mínimo por km deve ser no mínimo R$ ${MIN_POR_KM},00`);
+      return;
+    }
+    if (p.suggested_price_per_km < p.min_price_per_km) {
+      setError("Preço sugerido não pode ser menor que o preço mínimo");
+      return;
+    }
+    setSaving(p.service_type);
+    setError(null);
+    setSaved(null);
+    try {
+      const method = p.id ? "PUT" : "POST";
+      const url = p.id ? `/api/driver/pricing/${p.id}` : "/api/driver/pricing";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(p.id ? {
+          min_price_per_km: p.min_price_per_km,
+          suggested_price_per_km: p.suggested_price_per_km,
+          min_trip_value: p.min_trip_value,
+        } : p),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error); setSaving(null); return; }
+      setPrices(prev => {
+        const existing = prev.findIndex(x => x.service_type === p.service_type);
+        if (existing >= 0) {
+          const next = [...prev];
+          next[existing] = data;
+          return next;
+        }
+        return [...prev, data];
+      });
+      setSaved(p.service_type);
+      setAddingType(null);
+    } catch { setError("Erro ao salvar"); }
+    setSaving(null);
+    setTimeout(() => setSaved(null), 2000);
+  };
+
+  const removePrice = async (id: string, serviceType: string) => {
+    await fetch(`/api/driver/pricing/${id}`, { method: "DELETE" });
+    setPrices(prev => prev.filter(p => p.id !== id));
+  };
+
+  const existingTypes = prices.filter(p => p.is_active !== false).map(p => p.service_type);
+  const availableTypes = SERVICE_TYPES.filter(s => !existingTypes.includes(s.id));
+
+  if (!user) return null;
+
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-lg border-b border-card-border px-5 py-4">
+        <div className="flex items-center gap-3">
+          <DollarSign className="w-6 h-6 text-primary" />
+          <div>
+            <h1 className="font-bold text-white text-lg">Meus Preços</h1>
+            <p className="text-xs text-gray-500">Defina seus valores por km</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto p-5 space-y-4">
+        <div className="glass-panel p-4 text-sm flex items-start gap-3 border-primary/20">
+          <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <div className="text-gray-400">
+            <strong className="text-white">Como funciona:</strong> Você define um <strong className="text-white">preço mínimo</strong> e um <strong className="text-white">preço sugerido</strong> por km para cada tipo de serviço. O passageiro vê sua faixa de preço e pode fazer uma oferta. Você aceita, recusa ou contra-oferta.
+          </div>
+        </div>
+
+        {error && (
+          <div className="glass-panel p-4 border border-red-500/30 flex items-center gap-3 text-red-400 text-sm">
+            <AlertTriangle className="w-5 h-5 shrink-0" />{error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div>
+        ) : (
+          <>
+            {prices.filter(p => p.is_active !== false).map(p => {
+              const svc = SERVICE_TYPES.find(s => s.id === p.service_type);
+              return (
+                <motion.div key={p.service_type} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  className="glass-panel p-5 space-y-4 border border-card-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${svc?.color || "#3ECB8E"}20` }}>
+                        {svc ? <svc.icon className="w-5 h-5" style={{ color: svc.color }} /> : <DollarSign className="w-5 h-5 text-primary" />}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-white">{svc?.label || p.service_type}</h3>
+                        <a className="text-xs text-gray-500 hover:text-primary cursor-pointer" onClick={() => removePrice(p.id!, p.service_type)}>Remover</a>
+                      </div>
+                    </div>
+                    {saving === p.service_type ? (
+                      <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                    ) : saved === p.service_type ? (
+                      <CheckCircle className="w-5 h-5 text-primary" />
+                    ) : (
+                      <button onClick={() => upsertPrice(p)}
+                        className="flex items-center gap-1 text-primary text-sm font-medium hover:underline">
+                        <Save className="w-4 h-4" /> Salvar
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Preço mínimo por km</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
+                        <input type="number" step="0.50" min={MIN_POR_KM}
+                          value={p.min_price_per_km}
+                          onChange={e => setPrices(prev => prev.map(x => x.service_type === p.service_type ? { ...x, min_price_per_km: parseFloat(e.target.value) || 0 } : x))}
+                          className="w-full bg-card-bg border border-card-border rounded-xl py-2.5 pl-10 pr-3 text-white text-sm focus:outline-none focus:border-primary/50" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Preço sugerido por km</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
+                        <input type="number" step="0.50" min="0"
+                          value={p.suggested_price_per_km}
+                          onChange={e => setPrices(prev => prev.map(x => x.service_type === p.service_type ? { ...x, suggested_price_per_km: parseFloat(e.target.value) || 0 } : x))}
+                          className="w-full bg-card-bg border border-card-border rounded-xl py-2.5 pl-10 pr-3 text-white text-sm focus:outline-none focus:border-primary/50" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Valor mínimo por corrida</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">R$</span>
+                        <input type="number" step="0.50" min="0"
+                          value={p.min_trip_value}
+                          onChange={e => setPrices(prev => prev.map(x => x.service_type === p.service_type ? { ...x, min_trip_value: parseFloat(e.target.value) || 0 } : x))}
+                          className="w-full bg-card-bg border border-card-border rounded-xl py-2.5 pl-10 pr-3 text-white text-sm focus:outline-none focus:border-primary/50" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Sugestão: R$ {svc?.suggestMin} ~ R$ {svc?.suggestMax}/km
+                  </div>
+                </motion.div>
+              );
+            })}
+
+            {addingType ? (
+              <div className="glass-panel p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-white">Novo preço</h3>
+                  <button onClick={() => setAddingType(null)}><X className="w-5 h-5 text-gray-400" /></button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableTypes.map(s => (
+                    <button key={s.id} onClick={() => {
+                      setPrices(prev => [...prev, {
+                        service_type: s.id, min_price_per_km: s.suggestMin, suggested_price_per_km: Math.round((s.suggestMin + s.suggestMax) / 2), min_trip_value: s.suggestMin, is_active: true,
+                      }]);
+                      setAddingType(null);
+                    }}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card-bg border border-card-border hover:border-primary/30 text-gray-300 text-sm transition">
+                      <s.icon className="w-4 h-4" style={{ color: s.color }} />{s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : availableTypes.length > 0 && (
+              <button onClick={() => setAddingType("new")}
+                className="w-full py-4 glass-panel border border-dashed border-card-border hover:border-primary/30 text-gray-400 hover:text-white transition flex items-center justify-center gap-2 text-sm font-medium">
+                <Plus className="w-4 h-4" /> Adicionar preço para outro serviço
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

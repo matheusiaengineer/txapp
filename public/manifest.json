@@ -2,13 +2,18 @@
   "name": "TXDAPP — Mobilidade Inteligente",
   "short_name": "TXDAPP",
   "description": "Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "background_color": "#0a0d12",
   "theme_color": "#3ECB8E",
-  "categories": ["transportation", "business", "navigation"],
+  "categories": ["transportation", "business", "navigation", "utilities"],
   "lang": "pt-BR",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "scope": "/",
+  "display_override": ["standalone", "window-controls-overlay"],
+  "edge_side_panel": { "preferred_width": 400 },
   "icons": [
     {
       "src": "/icon.svg",
@@ -26,17 +31,30 @@
   "shortcuts": [
     {
       "name": "Solicitar Corrida",
-      "url": "/?action=ride",
+      "short_name": "Corrida",
+      "description": "Solicite uma corrida agora",
+      "url": "/ride?source=shortcut",
       "icons": [{ "src": "/icon.svg", "sizes": "96x96", "type": "image/svg+xml" }]
     },
     {
       "name": "Solicitar Entrega",
-      "url": "/?action=delivery",
+      "short_name": "Entrega",
+      "description": "Solicite uma entrega agora",
+      "url": "/freight/post?source=shortcut",
       "icons": [{ "src": "/icon.svg", "sizes": "96x96", "type": "image/svg+xml" }]
     },
     {
       "name": "Seja Motorista",
-      "url": "/auth/register?type=driver",
+      "short_name": "Motorista",
+      "description": "Cadastre-se como motorista parceiro",
+      "url": "/auth/register?type=driver&source=shortcut",
+      "icons": [{ "src": "/icon.svg", "sizes": "96x96", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Suporte",
+      "short_name": "Ajuda",
+      "description": "Central de ajuda e suporte",
+      "url": "/support?source=shortcut",
       "icons": [{ "src": "/icon.svg", "sizes": "96x96", "type": "image/svg+xml" }]
     }
   ],
@@ -48,5 +66,8 @@
       "form_factor": "narrow",
       "label": "Tela inicial do TXDAPP"
     }
-  ]
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
 }

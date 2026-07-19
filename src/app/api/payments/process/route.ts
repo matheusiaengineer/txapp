@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/payment/stripe-server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
 const PLATFORM_COMMISSION_PERCENT = 0.15;
 
-export async function POST(req: NextRequest) {
+const handler = async (req: NextRequest) => {
   try {
     const { amount, driverId, tripId, currency = "brl" } = await req.json();
 
@@ -51,4 +52,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'payment');

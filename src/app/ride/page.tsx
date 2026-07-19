@@ -4,571 +4,793 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, MapPin, Navigation, ArrowLeft, ChevronDown,
-  Clock, DollarSign, User, Star, Shield, Car, Phone,
-  X, Route, Loader2, Zap, GripVertical, CheckCircle, Wallet,
+  MapPin, Navigation, ArrowLeft, Clock, DollarSign, User, Star,
+  Car, Phone, X, Route, Loader2, CheckCircle, Crosshair,
+  Bike, Truck, LocateFixed, MessageSquare, Send, Image, Mic, MicOff, Play,
 } from "lucide-react";
-import { ServiceCard } from "@/lib/components/service-card";
-import { SERVICE_CATEGORIES } from "@/lib/mobility/service-categories";
 import { pricingEngine } from "@/lib/mobility/pricing-engine";
-import type { PriceEstimate } from "@/lib/mobility/pricing-engine";
+import { useGeolocation } from "@/lib/hooks/use-geolocation";
+import { calculateRoute } from "@/lib/routing/osrm";
+import { notificationService } from "@/lib/notification/notification-service";
+import { useTripChat } from "@/lib/chat/use-trip-chat";
+import { NegotiationSheet } from "@/components/negotiation/NegotiationSheet";
+import dynamic from "next/dynamic";
 
-type PageState = "search" | "selecting" | "confirming" | "searching" | "found" | "tracking" | "no_drivers";
+const OpenStreetMap = dynamic(
+  () => import("@/components/map/OpenStreetMap").then(m => m.OpenStreetMap),
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#1a1a2e]" /> }
+);
 
-interface MockPlace {
-  display: string;
-  address: string;
-  lat: number;
-  lng: number;
-}
-
-const MOCK_PLACES: MockPlace[] = [
-  { display: "Av. Paulista, 1000", address: "Av. Paulista, 1000 - Bela Vista, São Paulo", lat: -23.561, lng: -46.656 },
-  { display: "Praça da Sé", address: "Praça da Sé - Sé, São Paulo", lat: -23.550, lng: -46.633 },
-  { display: "Shopping Morumbi", address: "Av. Roque Petroni Jr., 1089 - Brooklin, São Paulo", lat: -23.624, lng: -46.699 },
-  { display: "Congonhas Airport", address: "Av. Washington Luís, s/n - Campo Belo, São Paulo", lat: -23.626, lng: -46.655 },
-  { display: "Faria Lima, 3000", address: "Av. Brigadeiro Faria Lima, 3000 - Itaim Bibi, São Paulo", lat: -23.581, lng: -46.681 },
-];
+type PageState = "idle" | "route" | "booking" | "searching" | "found" | "tracking" | "no_drivers";
+type VehicleType = "moto" | "carro" | "frete";
 
 function formatCurrency(v: number): string {
   return `R$ ${v.toFixed(2)}`;
 }
 
-import { TxdGoogleMap } from "@/components/map/GoogleMap";
+function estimateTravelTimeMinutes(lat1: number, lng1: number, lat2: number, lng2: number, avgSpeedKmh = 35): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.max(1, Math.round((R * c / avgSpeedKmh) * 60));
+}
+
+const VEHICLES: { id: VehicleType; label: string; icon: any; desc: string; color: string }[] = [
+  { id: "moto", label: "Moto", icon: Bike, desc: "Rápido e econômico", color: "#FF6B35" },
+  { id: "carro", label: "Carro", icon: Car, desc: "Conforto e segurança", color: "#3ECB8E" },
+  { id: "frete", label: "Frete", icon: Truck, desc: "Cargas e entregas", color: "#8B5CF6" },
+];
+
+const CATEGORY_MAP: Record<VehicleType, string> = {
+  moto: "moto",
+  carro: "pop",
+  frete: "carga_leve",
+};
 
 export default function RidePage() {
   const router = useRouter();
-  const [pageState, setPageState] = useState<PageState>("search");
+  const { latitude, longitude, loading: geoLoading, requestPermission } = useGeolocation({ watch: false });
+  const [pageState, setPageState] = useState<PageState>("idle");
   const [pickup, setPickup] = useState("");
   const [destination, setDestination] = useState("");
-  const [pickupSuggestions, setPickupSuggestions] = useState<MockPlace[]>([]);
-  const [destSuggestions, setDestSuggestions] = useState<MockPlace[]>([]);
-  const [activeInput, setActiveInput] = useState<"pickup" | "destination" | null>(null);
-  const [estimates, setEstimates] = useState<PriceEstimate[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
-  const [step, setStep] = useState(1);
-  const [qualified, setQualified] = useState<{ checked: boolean; isQualified: boolean; balance: number; required: number }>({
-    checked: false, isQualified: false, balance: 0, required: 25,
-  });
-
+  const [destSuggestions, setDestSuggestions] = useState<{ display: string; lat: number; lng: number }[]>([]);
   const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [directions, setDirections] = useState<any>(null);
+  const [routeInfo, setRouteInfo] = useState<{ coordinates: [number, number][]; distanceKm: number; durationMin: number } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleType>("carro");
+  const [estimatedFare, setEstimatedFare] = useState(0);
+  const [expandedSearch, setExpandedSearch] = useState(false);
+  const [destFocused, setDestFocused] = useState(false);
+  const destInputRef = useRef<HTMLInputElement>(null);
+  const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([]);
+  const [driversLoading, setDriversLoading] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<any>(null);
+  const [showNegotiation, setShowNegotiation] = useState(false);
 
-  const [driverInfo, setDriverInfo] = useState({
-    name: "Carlos Silva",
-    rating: 4.9,
-    car: "Toyota Corolla 2025",
-    plate: "ABC-1D23",
-    color: "Preto",
-    phone: "(11) 99999-8888",
-    photo: "CS",
-  });
+  const [driverInfo, setDriverInfo] = useState({ name: "Motorista", rating: 4.9, car: "Veículo", plate: "ABC-1234", color: "Prata", phone: "(11) 99999-0000", photo: "M" });
   const [eta, setEta] = useState(8);
   const [elapsed, setElapsed] = useState(0);
-  const [noDrivers, setNoDrivers] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
-  const nearbyPollRef = useRef<ReturnType<typeof setInterval>>(undefined);
-
-  const selectedCategory = SERVICE_CATEGORIES.find(c => c.id === selectedId);
-  const selectedEstimate = estimates.find(e => e.categoryId === selectedId);
-
-  function handleInputChange(value: string, field: "pickup" | "destination") {
-    if (field === "pickup") setPickup(value);
-    else setDestination(value);
-
-    if (value.length < 2) {
-      if (field === "pickup") setPickupSuggestions([]);
-      else setDestSuggestions([]);
-      return;
-    }
-
-    const filtered = MOCK_PLACES.filter(p =>
-      p.display.toLowerCase().includes(value.toLowerCase())
-    );
-    if (field === "pickup") setPickupSuggestions(filtered);
-    else setDestSuggestions(filtered);
-  }
-
-  function selectPlace(place: MockPlace, field: "pickup" | "destination") {
-    if (field === "pickup") {
-      setPickup(place.address);
-      setPickupSuggestions([]);
-      setPickupCoords({ lat: place.lat, lng: place.lng });
-    } else {
-      setDestination(place.address);
-      setDestSuggestions([]);
-      setDestCoords({ lat: place.lat, lng: place.lng });
-    }
-    setActiveInput(null);
-  }
-
-  async function handleSearchRide() {
-    if (!pickup || !destination) return;
-
-    // Optional: Fetch directions from Directions API if loaded
-
-    const distKm = 5 + Math.random() * 10;
-    const durMin = 10 + Math.random() * 30;
-    const surge = pricingEngine.calculateSurgeMultiplier("medium");
-    const all = await pricingEngine.estimateAllCategories(distKm, durMin, surge);
-    setEstimates(all);
-    setPageState("selecting");
-  }
-
-  function handleSelectCategory(id: string) {
-    setSelectedId(id);
-    setStep(2);
-  }
+  const tripChannelRef = useRef<any>(null);
+  const dispatchTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const heartbeatChannelRef = useRef<any>(null);
+  const [driverPosition, setDriverPosition] = useState<{ lat: number; lng: number; heading?: number } | null>(null);
+  const [tripId, setTripId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const { messages: chatMessages, send: sendChat, sendFile: sendFileChat, emitTyping, isTyping, typingLabel } = useTripChat(tripId, currentUserId);
 
   useEffect(() => {
-    async function checkQualification() {
-      const serviceType = selectedCategory?.type === "freight" ? "freight" : selectedId === "moto" ? "moto" : "carro";
-      const res = await fetch(`/api/freight/qualified?service=${serviceType}`);
+    if (latitude && longitude) {
+      setPickupCoords({ lat: latitude, lng: longitude });
+      reverseGeocode(latitude, longitude).then(addr => {
+        if (addr) setPickup(addr);
+      });
+    }
+  }, [latitude, longitude]);
+
+  async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=pt`,
+        { headers: { "User-Agent": "TXDAPP/1.0" } }
+      );
       const data = await res.json();
-      setQualified({ checked: true, isQualified: data.qualified, balance: data.balance, required: data.requiredDeposit });
-    }
-    if (pageState === "selecting") checkQualification();
-  }, [pageState, selectedCategory, selectedId]);
-
-  function handleConfirmBooking() {
-    if (!qualified.isQualified && qualified.checked) {
-      const serviceType = selectedCategory?.type === "freight" ? "freight" : selectedId === "moto" ? "moto" : "carro";
-      router.push(`/deposit?service=${serviceType}`);
-      return;
-    }
-    setNoDrivers(false);
-    setPageState("searching");
-
-    const lat = pickupCoords?.lat || -23.561;
-    const lng = pickupCoords?.lng || -46.656;
-    const modality = selectedId === "moto" ? "mototaxi" : selectedCategory?.type === "freight" ? "fretes" : "carro";
-    let pollCount = 0;
-
-    nearbyPollRef.current = setInterval(async () => {
-      pollCount++;
-      try {
-        const res = await fetch(`/api/location/nearby?lat=${lat}&lng=${lng}&radius=15&modality=${modality}`);
-        const data = await res.json();
-        if (data.drivers && data.drivers.length > 0) {
-          clearInterval(nearbyPollRef.current);
-          nearbyPollRef.current = undefined;
-
-          const d = data.drivers[0];
-          setDriverInfo({
-            name: d.driverId.slice(0, 8),
-            rating: 4.8,
-            car: "Veículo disponível",
-            plate: d.driverId.slice(0, 7).toUpperCase(),
-            color: "Prata",
-            phone: "(11) 99999-0000",
-            photo: d.driverId.charAt(0).toUpperCase(),
-          });
-
-          setPageState("found");
-          let etaCount = 8;
-          setEta(etaCount);
-          timerRef.current = setInterval(() => {
-            etaCount--;
-            setEta(prev => Math.max(0, prev - 1));
-            setElapsed(prev => prev + 1);
-            if (etaCount <= 0 && timerRef.current) {
-              clearInterval(timerRef.current);
-              setPageState("tracking");
-            }
-          }, 1000);
-        } else if (pollCount > 20) {
-          clearInterval(nearbyPollRef.current);
-          nearbyPollRef.current = undefined;
-          setNoDrivers(true);
-          setPageState("no_drivers");
-        }
-      } catch {
-        if (pollCount > 20) {
-          clearInterval(nearbyPollRef.current);
-          nearbyPollRef.current = undefined;
-          setNoDrivers(true);
-          setPageState("no_drivers");
-        }
-      }
-    }, 2000);
+      return data?.display_name || null;
+    } catch { return null; }
   }
 
-  const startTracking = useCallback(() => {
-    setPageState("tracking");
-    setEta(0);
-  }, []);
+  async function searchDestinations(query: string) {
+    if (query.length < 3) { setDestSuggestions([]); return; }
+    try {
+      let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&accept-language=pt`;
+      if (pickupCoords && !expandedSearch) {
+        const viewbox = [
+          pickupCoords.lng - 0.36,
+          pickupCoords.lat - 0.36,
+          pickupCoords.lng + 0.36,
+          pickupCoords.lat + 0.36,
+        ].join(",");
+        url += `&viewbox=${viewbox}&bounded=1`;
+      }
+      const res = await fetch(url, { headers: { "User-Agent": "TXDAPP/1.0" } });
+      const data = await res.json();
+      setDestSuggestions(data.map((r: any) => ({
+        display: r.display_name,
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+      })));
+    } catch { setDestSuggestions([]); }
+  }
+
+  function handleDestChange(value: string) {
+    setDestination(value);
+    searchDestinations(value);
+  }
+
+  async function selectDest(suggestion: { display: string; lat: number; lng: number }) {
+    setDestination(suggestion.display);
+    setDestCoords({ lat: suggestion.lat, lng: suggestion.lng });
+    setDestSuggestions([]);
+    setExpandedSearch(false);
+    setRouteLoading(true);
+    setPageState("route");
+
+    const route = await calculateRoute(
+      pickupCoords || { lat: latitude || -23.561, lng: longitude || -46.656 },
+      { lat: suggestion.lat, lng: suggestion.lng }
+    );
+
+    if (route) {
+      setRouteInfo(route);
+      const distKm = route.distanceKm;
+      const durMin = route.durationMin;
+      const surge = pricingEngine.calculateSurgeMultiplier("medium");
+      const estimates = await pricingEngine.estimateAllCategories(distKm, durMin, surge);
+      const catId = CATEGORY_MAP[selectedVehicle];
+      const est = estimates.find(e => e.categoryId === catId);
+      setEstimatedFare(est?.totalFare || (distKm * 2.5));
+
+      if (pickupCoords) {
+        fetchNearbyDrivers(pickupCoords.lat, pickupCoords.lng, distKm);
+      }
+    }
+    setRouteLoading(false);
+  }
+
+  const fetchNearbyDrivers = useCallback(async (lat: number, lng: number, distKm: number) => {
+    setDriversLoading(true);
+    try {
+      const res = await fetch(`/api/marketplace/nearby?lat=${lat}&lng=${lng}&radius=${Math.max(5, Math.ceil(distKm * 1.5))}&service_type=${selectedVehicle}`);
+      const data = await res.json();
+      setNearbyDrivers(data.drivers || []);
+    } catch {
+      setNearbyDrivers([]);
+    }
+    setDriversLoading(false);
+  }, [selectedVehicle]);
+
+  useEffect(() => {
+    if (routeInfo && selectedVehicle) {
+      const dist = routeInfo.distanceKm;
+      const dur = routeInfo.durationMin;
+      const rates = { moto: { base: 3, perKm: 1.5, perMin: 0.3 }, carro: { base: 5, perKm: 1.8, perMin: 0.4 }, frete: { base: 10, perKm: 2.5, perMin: 0.5 } };
+      const r = rates[selectedVehicle];
+      const fare = Math.max(r.base + dist * r.perKm + dur * r.perMin, selectedVehicle === "moto" ? 7 : selectedVehicle === "carro" ? 10 : 15);
+      setEstimatedFare(Math.round(fare * 100) / 100);
+      if (pickupCoords) {
+        fetchNearbyDrivers(pickupCoords.lat, pickupCoords.lng, dist);
+      }
+    }
+  }, [selectedVehicle, routeInfo, pickupCoords, fetchNearbyDrivers]);
+
+  function handleMapClick(coord: { lat: number; lng: number }) {
+    if (pageState !== "idle" && pageState !== "route") return;
+    setDestCoords(coord);
+    reverseGeocode(coord.lat, coord.lng).then(async (addr) => {
+      if (addr) {
+        setDestination(addr);
+        setDestSuggestions([]);
+        setPageState("route");
+        setRouteLoading(true);
+        const route = await calculateRoute(
+          pickupCoords || { lat: latitude || -23.561, lng: longitude || -46.656 },
+          coord
+        );
+        if (route) {
+          setRouteInfo(route);
+          const surge = pricingEngine.calculateSurgeMultiplier("medium");
+          const estimates = await pricingEngine.estimateAllCategories(route.distanceKm, route.durationMin, surge);
+          const catId = CATEGORY_MAP[selectedVehicle];
+          const est = estimates.find(e => e.categoryId === catId);
+          setEstimatedFare(est?.totalFare || (route.distanceKm * 2.5));
+          if (pickupCoords) {
+            fetchNearbyDrivers(pickupCoords.lat, pickupCoords.lng, route.distanceKm);
+          }
+        }
+        setRouteLoading(false);
+      }
+    });
+  }
+
+  function useCurrentLocation() {
+    requestPermission();
+  }
+
+  async function handleBooking() {
+    if (!pickupCoords || !destCoords) return;
+    setPageState("searching");
+
+    fetch("/api/dispatch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        origin_lat: pickupCoords.lat, origin_lng: pickupCoords.lng,
+        origin_address: pickup,
+        dest_lat: destCoords.lat, dest_lng: destCoords.lng,
+        dest_address: destination,
+        vehicle_type: selectedVehicle,
+        estimated_distance_km: routeInfo?.distanceKm,
+        estimated_duration_min: routeInfo?.durationMin,
+        estimated_fare: estimatedFare,
+      }),
+    }).then(async (res) => {
+      const data = await res.json();
+      if (!data.tripId) { setPageState("no_drivers"); return; }
+      setTripId(data.tripId);
+
+      const { createClient } = await import("@/lib/supabase/browser");
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setCurrentUserId(user.id);
+      const channel = supabase.channel(`trip-${data.tripId}`);
+      tripChannelRef.current = channel;
+
+      channel.on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "trips",
+        filter: `id=eq.${data.tripId}`,
+      }, async (payload) => {
+        const trip = payload.new as any;
+        if (trip.status === "DRIVER_ACCEPTED" && trip.driver_id) {
+          const { data: profile } = await supabase.from("driver_profiles").select("id, rating").eq("id", trip.driver_id).single();
+          const { data: vehicle } = await supabase.from("vehicles").select("brand, model, color, license_plate").eq("driver_id", trip.driver_id).maybeSingle();
+          setDriverInfo({
+            name: "Motorista",
+            rating: profile?.rating || 4.8,
+            car: vehicle ? `${vehicle.brand || ""} ${vehicle.model || ""}`.trim() || "Veículo" : "Veículo",
+            plate: vehicle?.license_plate || "XXX-0000",
+            color: vehicle?.color || "Prata",
+            phone: "(11) 99999-0000", photo: "M",
+          });
+
+          const hbChannel = supabase.channel(`driver-hb-${trip.driver_id}`);
+          heartbeatChannelRef.current = hbChannel;
+          hbChannel.on("postgres_changes", {
+            event: "*", schema: "public", table: "driver_heartbeats",
+            filter: `driver_id=eq.${trip.driver_id}`,
+          }, (hbPayload: any) => {
+            const hb = hbPayload.new as any;
+            if (!hb?.lat || !hb?.lng) return;
+            setDriverPosition({ lat: hb.lat, lng: hb.lng, heading: hb.heading });
+            const target = pageState === "tracking" ? destCoords : pickupCoords;
+            if (target) {
+              setEta(estimateTravelTimeMinutes(hb.lat, hb.lng, target.lat, target.lng));
+            }
+          }).subscribe();
+
+          setPageState("found");
+          if (pickupCoords) {
+            setEta(estimateTravelTimeMinutes(
+              pickupCoords.lat, pickupCoords.lng,
+              pickupCoords.lat, pickupCoords.lng
+            ));
+          }
+          timerRef.current = setInterval(() => {
+            setElapsed(prev => prev + 1);
+          }, 1000);
+
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await notificationService.create(user.id, "trip", "Motorista a caminho",
+              `${driverInfo.car} • ${driverInfo.plate} está indo até você`, "/ride");
+          }
+        } else if (trip.status === "IN_PROGRESS") {
+          setPageState("tracking");
+          if (destCoords && driverPosition) {
+            setEta(estimateTravelTimeMinutes(driverPosition.lat, driverPosition.lng, destCoords.lat, destCoords.lng));
+          }
+
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await notificationService.create(user.id, "trip", "Viagem em andamento",
+              `Seguindo para ${destination.slice(0, 40)}`, "/ride");
+          }
+        } else if (trip.status === "COMPLETED" || trip.status === "CANCELLED") {
+          channel.unsubscribe();
+          if (heartbeatChannelRef.current) {
+            heartbeatChannelRef.current.unsubscribe();
+            heartbeatChannelRef.current = null;
+          }
+
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const notifType = trip.status === "COMPLETED" ? "Viagem concluída" : "Viagem cancelada";
+            const notifBody = trip.status === "COMPLETED"
+              ? `Chegou ao destino • R$ ${(trip.final_fare || trip.estimated_fare)?.toFixed(2)}`
+              : "A viagem foi cancelada";
+            await notificationService.create(user.id, "trip", notifType, notifBody, "/dashboard/passenger");
+          }
+        }
+      }).subscribe();
+
+      dispatchTimeoutRef.current = setTimeout(() => {
+        if (pageState === "searching") { setPageState("no_drivers"); }
+      }, 45000);
+    }).catch(() => setPageState("no_drivers"));
+  }
+
+  function reset() {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (tripChannelRef.current) { tripChannelRef.current.unsubscribe(); tripChannelRef.current = null; }
+    if (heartbeatChannelRef.current) { heartbeatChannelRef.current.unsubscribe(); heartbeatChannelRef.current = null; }
+    if (dispatchTimeoutRef.current) { clearTimeout(dispatchTimeoutRef.current); dispatchTimeoutRef.current = undefined; }
+    setPageState("idle");
+    setDestination("");
+    setDestCoords(null);
+    setRouteInfo(null);
+    setEstimatedFare(0);
+    setElapsed(0);
+    setDriverPosition(null);
+    setNearbyDrivers([]);
+    setSelectedDriver(null);
+    setShowNegotiation(false);
+    setTripId(null);
+    setCurrentUserId(null);
+    setChatOpen(false);
+    setChatInput("");
+    setUploadingFile(false);
+    setRecording(false);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  }
+
+  async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFile(true);
+    await sendFileChat(file);
+    setUploadingFile(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (blob.size > 0) {
+          setUploadingFile(true);
+          await sendFileChat(new File([blob], `audio_${Date.now()}.webm`, { type: "audio/webm" }));
+          setUploadingFile(false);
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setRecording(true);
+    } catch {}
+  }
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (nearbyPollRef.current) clearInterval(nearbyPollRef.current);
+      if (tripChannelRef.current) { tripChannelRef.current.unsubscribe(); }
+      if (heartbeatChannelRef.current) { heartbeatChannelRef.current.unsubscribe(); }
+      if (dispatchTimeoutRef.current) clearTimeout(dispatchTimeoutRef.current);
     };
   }, []);
 
-  function reset() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (nearbyPollRef.current) { clearInterval(nearbyPollRef.current); nearbyPollRef.current = undefined; }
-    setPageState("search");
-    setPickup("");
-    setDestination("");
-    setPickupCoords(null);
-    setDestCoords(null);
-    setDirections(null);
-    setEstimates([]);
-    setSelectedId("");
-    setStep(1);
-    setElapsed(0);
-    setNoDrivers(false);
-  }
-
   return (
-    <main className="min-h-screen bg-background flex flex-col relative overflow-hidden">
-      {/* Map area */}
-      <div className="relative w-full flex-1 min-h-[300px]">
-        <TxdGoogleMap pickupCoords={pickupCoords} destinationCoords={destCoords} directions={directions} />
-        
-        {pageState !== "search" && pickup && (
-          <div className="absolute top-6 left-6 right-6 glass-panel p-3 flex items-center gap-3 z-10">
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="truncate max-w-[40vw]">{pickup}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <div className="w-2 h-2 rounded-full bg-red-400" />
-                <span className="truncate max-w-[200px]">{destination}</span>
-              </div>
-            </div>
-          </div>
-        )}
+    <main className="relative w-full h-dvh bg-background overflow-hidden">
+      {/* Full-screen map */}
+      <div className="absolute inset-0 z-0">
+        <OpenStreetMap
+          pickup={pickupCoords}
+          destination={destCoords}
+          route={routeInfo}
+          showUserLocation={!!(latitude && longitude)}
+          userLocation={latitude && longitude ? { lat: latitude, lng: longitude } : null}
+          drivers={driverPosition ? [{
+            id: "assigned-driver",
+            lat: driverPosition.lat,
+            lng: driverPosition.lng,
+            label: "Motorista",
+            heading: driverPosition.heading,
+          }] : []}
+          interactive={true}
+          height="100%"
+          onMapClick={handleMapClick}
+        />
       </div>
 
-      {/* Bottom sheet */}
-      <div className="relative z-20 mt-[-2rem] rounded-t-3xl bg-background border-t border-card-border flex-1 flex flex-col max-h-[75vh]">
-        <div className="flex justify-center pt-3 pb-2">
-          <div className="w-10 h-1 rounded-full bg-gray-600" />
+      {/* Top bar — back + location */}
+      <div className="absolute top-0 left-0 right-0 z-20 p-4 pt-safe pointer-events-none">
+        <button onClick={() => router.back()} className="pointer-events-auto w-10 h-10 glass-panel rounded-full flex items-center justify-center hover:bg-white/10 transition">
+          <ArrowLeft className="w-5 h-5 text-white" />
+        </button>
+      </div>
+
+      {/* Search inputs */}
+      <div className="absolute top-14 left-0 right-0 z-20 px-4 space-y-2 pointer-events-none">
+        <div className="pointer-events-auto glass-panel rounded-xl p-0.5 flex items-center gap-2 bg-background/80 backdrop-blur-xl">
+          <div className="flex flex-col items-center gap-0.5 pl-3">
+            <div className="w-2 h-2 rounded-full bg-primary" />
+            <div className="w-0.5 h-5 bg-primary/40" />
+            <div className="w-2 h-2 rounded-full bg-red-400" />
+          </div>
+          <div className="flex-1 min-w-0 space-y-1 py-2 pr-3">
+            <input
+              value={pickup}
+              readOnly
+              onClick={useCurrentLocation}
+              placeholder={geoLoading ? "Obtendo localização..." : "Sua localização"}
+              className="w-full bg-transparent text-white text-sm font-medium placeholder-gray-500 outline-none cursor-pointer truncate"
+            />
+            <input
+              ref={destInputRef}
+              value={destination}
+              onChange={e => handleDestChange(e.target.value)}
+              onFocus={() => setDestFocused(true)}
+              placeholder="Para onde vamos?"
+              className="w-full bg-transparent text-white text-sm placeholder-gray-500 outline-none"
+            />
+          </div>
+          {geoLoading ? (
+            <Loader2 className="w-4 h-4 text-primary animate-spin mr-3" />
+          ) : latitude ? (
+            <button onClick={useCurrentLocation} className="mr-3 text-primary hover:text-primary-hover" title="Atualizar localização">
+              <LocateFixed className="w-4 h-4" />
+            </button>
+          ) : null}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 pb-8 space-y-4">
-          <AnimatePresence mode="wait">
-            {pageState === "search" && (
-              <motion.div
-                key="search" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-                className="space-y-3"
-              >
-                <h1 className="text-xl font-bold text-white">Para onde vamos?</h1>
-                <div className="relative">
-                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
-                  <input
-                    value={pickup} onChange={e => handleInputChange(e.target.value, "pickup")}
-                    onFocus={() => setActiveInput("pickup")}
-                    placeholder="Local de partida"
-                    className="w-full bg-card-bg border border-card-border rounded-xl py-3.5 pl-11 pr-4 text-white text-sm placeholder-gray-500 outline-none focus:border-primary/50 transition"
-                  />
-                  {activeInput === "pickup" && pickupSuggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 glass-panel rounded-xl overflow-hidden z-20">
-                      {pickupSuggestions.map((p, i) => (
-                        <button key={i} onClick={() => selectPlace(p, "pickup")}
-                          className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3 transition"
-                        >
-                          <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-                          {p.display}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="relative">
-                  <Navigation className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
-                  <input
-                    value={destination} onChange={e => handleInputChange(e.target.value, "destination")}
-                    onFocus={() => setActiveInput("destination")}
-                    placeholder="Para onde você vai?"
-                    className="w-full bg-card-bg border border-card-border rounded-xl py-3.5 pl-11 pr-4 text-white text-sm placeholder-gray-500 outline-none focus:border-primary/50 transition"
-                    onKeyDown={e => { if (e.key === "Enter") handleSearchRide(); }}
-                  />
-                  {activeInput === "destination" && destSuggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 glass-panel rounded-xl overflow-hidden z-20">
-                      {destSuggestions.map((p, i) => (
-                        <button key={i} onClick={() => selectPlace(p, "destination")}
-                          className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3 transition"
-                        >
-                          <Navigation className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                          {p.display}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleSearchRide}
-                  disabled={!pickup || !destination}
-                  className="w-full bg-primary hover:bg-primary-hover disabled:opacity-30 disabled:cursor-not-allowed text-background font-bold py-3.5 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] text-base"
-                >
-                  Buscar corrida
+        {/* Autocomplete dropdown */}
+        <AnimatePresence>
+          {destSuggestions.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              className="pointer-events-auto glass-panel rounded-xl overflow-hidden max-h-60 overflow-y-auto bg-background/95 backdrop-blur-xl">
+              {destSuggestions.map((s, i) => (
+                <button key={i} onClick={() => selectDest(s)}
+                  className="w-full px-4 py-3 text-left text-sm text-gray-300 hover:bg-white/5 flex items-center gap-3 transition border-b border-white/5 last:border-0">
+                  <MapPin className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                  <span className="line-clamp-1">{s.display}</span>
                 </button>
-              </motion.div>
-            )}
+              ))}
+              {pickupCoords && !expandedSearch && destSuggestions.length < 5 && (
+                <button onClick={() => { setExpandedSearch(true); searchDestinations(destination); }}
+                  className="w-full px-4 py-3 text-center text-xs text-primary hover:bg-white/5 transition">
+                  Expandir busca para todo o país
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-            {pageState === "selecting" && (
-              <motion.div
-                key="selecting" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-                className="space-y-3"
-              >
-                <div className="flex items-center gap-3">
-                  <button onClick={() => { setPageState("search"); setSelectedId(""); setStep(1); }}>
-                    <ArrowLeft className="w-5 h-5 text-gray-400 hover:text-white transition" />
-                  </button>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">Escolha a categoria</h2>
-                    <p className="text-xs text-gray-500">Selecione o tipo de viagem</p>
+      {/* Bottom panel */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 p-4 pb-safe pointer-events-none">
+        <AnimatePresence mode="wait">
+          {/* Route info + category select */}
+          {(pageState === "route" || pageState === "idle") && (
+            <motion.div key="route" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+              className="pointer-events-auto glass-panel rounded-2xl p-4 space-y-4 bg-background/90 backdrop-blur-xl">
+              {routeLoading ? (
+                <div className="flex items-center justify-center py-6 gap-2 text-gray-400 text-sm">
+                  <Loader2 className="w-5 h-5 animate-spin" /> Calculando rota...
+                </div>
+              ) : routeInfo ? (
+                <>
+                  {/* Route summary */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-sm">
+                      <Route className="w-4 h-4 text-primary" />
+                      <span className="text-white font-medium">{routeInfo.distanceKm} km</span>
+                      <span className="text-gray-500">•</span>
+                      <Clock className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-300">{routeInfo.durationMin} min</span>
+                    </div>
+                    <div className="text-lg font-bold text-primary">{formatCurrency(estimatedFare)}</div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  {estimates.map((est, i) => {
-                    const cat = SERVICE_CATEGORIES.find(c => c.id === est.categoryId);
-                    if (!cat) return null;
-                    return (
-                      <ServiceCard
-                        key={cat.id}
-                        category={cat}
-                        price={est.totalFare}
-                        etaMinutes={Math.round(est.etaMinutes)}
-                        selected={selectedId === cat.id}
-                        onSelect={() => handleSelectCategory(cat.id)}
-                        index={i}
-                      />
-                    );
-                  })}
-                </div>
+                  {/* Vehicle selector */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {VEHICLES.map(v => {
+                      const Icon = v.icon;
+                      const isSelected = selectedVehicle === v.id;
+                      return (
+                        <button key={v.id} onClick={() => setSelectedVehicle(v.id)}
+                          className={`flex flex-col items-center gap-1 p-3 rounded-xl border transition-all ${
+                            isSelected ? "border-primary bg-primary/10 text-primary" : "border-white/10 text-gray-400 hover:border-white/30"
+                          }`}>
+                          <Icon className="w-5 h-5" />
+                          <span className="text-xs font-semibold">{v.label}</span>
+                          <span className={`text-[10px] ${isSelected ? "text-primary/80" : "text-gray-500"}`}>{v.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                {step === 2 && selectedEstimate && selectedCategory && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                    className="glass-panel p-4 space-y-3"
-                  >
-                    <h3 className="font-semibold text-white text-sm">Detalhamento do preço</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between text-gray-400">
-                        <span>Tarifa base</span>
-                        <span>{formatCurrency(selectedEstimate.baseFare)}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-400">
-                        <span>Distância ({selectedEstimate.distanceKm.toFixed(1)} km)</span>
-                        <span>{formatCurrency(selectedEstimate.distanceFare)}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-400">
-                        <span>Tempo ({Math.round(selectedEstimate.durationMin)} min)</span>
-                        <span>{formatCurrency(selectedEstimate.timeFare)}</span>
-                      </div>
-                      {selectedEstimate.surgeMultiplier > 1 && (
-                        <div className="flex justify-between text-amber-400">
-                          <span>Multiplicador ×{selectedEstimate.surgeMultiplier.toFixed(1)}</span>
-                          <span>{formatCurrency(selectedEstimate.totalFare - (selectedEstimate.baseFare + selectedEstimate.distanceFare + selectedEstimate.timeFare))}</span>
+                  {/* Nearby drivers with marketplace pricing */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        {driversLoading ? "Buscando motoristas..." : `Motoristas disponíveis (${nearbyDrivers.length})`}
+                      </h3>
+                      {driversLoading && <Loader2 className="w-3.5 h-3.5 text-primary animate-spin" />}
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {driversLoading && nearbyDrivers.length === 0 ? (
+                        Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 animate-pulse">
+                            <div className="w-10 h-10 rounded-full bg-white/10" />
+                            <div className="flex-1 space-y-1.5">
+                              <div className="h-3 bg-white/10 rounded w-24" />
+                              <div className="h-2.5 bg-white/5 rounded w-32" />
+                            </div>
+                          </div>
+                        ))
+                      ) : nearbyDrivers.length === 0 ? (
+                        <p className="text-xs text-gray-500 text-center py-2">Nenhum motorista encontrado com preço para {VEHICLES.find(v => v.id === selectedVehicle)?.label}</p>
+                      ) : (
+                        nearbyDrivers.slice(0, 5).map((d: any) => (
+                          <button key={d.driverId} onClick={() => { setSelectedDriver(d); setShowNegotiation(true); }}
+                            className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition text-left">
+                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold shrink-0">
+                              {d.rating >= 4.8 ? "★" : "M"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-white">Motorista</span>
+                                <span className="text-xs text-amber-400 flex items-center gap-0.5">
+                                  <Star className="w-3 h-3 fill-amber-400" />{d.rating.toFixed(1)}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {d.distanceKm} km • {d.totalTrips} corridas
+                                {d.pricing && ` • R$ ${d.pricing.min_price_per_km}/km`}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              {d.pricing ? (
+                                <span className="text-primary text-sm font-bold">
+                                  R$ {Math.max(Math.round(routeInfo.distanceKm * d.pricing.suggested_price_per_km * 100) / 100, d.pricing.min_trip_value || 0).toFixed(0)}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-500">—</span>
+                              )}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Booking button */}
+                  <button onClick={handleBooking}
+                    className="w-full bg-primary/80 hover:bg-primary text-background font-bold py-3.5 rounded-xl transition-all text-sm">
+                    Buscar {selectedVehicle === "moto" ? "moto" : selectedVehicle === "carro" ? "carro" : "frete"} (preço fixo)
+                  </button>
+                </>
+              ) : (
+                /* Pickup/dest summary when no route yet */
+                <div className="flex items-center justify-between py-1">
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span className="truncate max-w-[200px]">{pickup ? `${pickup.slice(0, 40)}...` : "Sua localização"}</span>
+                  </div>
+                  {destCoords && (
+                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                      <MapPin className="w-4 h-4 text-red-400" />
+                      <span className="truncate max-w-[150px]">{destination.slice(0, 30)}...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Searching */}
+          {pageState === "searching" && (
+            <motion.div key="searching" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+              className="pointer-events-auto glass-panel rounded-2xl p-5 flex flex-col items-center gap-3 bg-background/90 backdrop-blur-xl">
+              <Loader2 className="w-10 h-10 text-primary animate-spin" />
+              <p className="text-white font-semibold">Procurando motorista...</p>
+              <p className="text-xs text-gray-500">{pickup.slice(0, 25)} → {destination.slice(0, 25)}</p>
+            </motion.div>
+          )}
+
+          {/* Found / Tracking */}
+          {(pageState === "found" || pageState === "tracking") && (
+            <motion.div key="tracking" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+              className="pointer-events-auto glass-panel rounded-2xl p-4 space-y-3 bg-background/90 backdrop-blur-xl">
+              <div className="flex items-center gap-2 text-primary text-sm font-semibold">
+                <CheckCircle className="w-5 h-5" />
+                {pageState === "found" ? "Motorista a caminho" : "Viagem em andamento"}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">{driverInfo.photo}</div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white">{driverInfo.name}</span>
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                    <span className="text-xs text-amber-400">{driverInfo.rating}</span>
+                  </div>
+                  <p className="text-sm text-gray-400">{driverInfo.car} • {driverInfo.plate}</p>
+                </div>
+              </div>
+              {pageState === "found" && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="w-4 h-4 text-primary" />
+                  <span className="text-gray-300">Chega em {eta} min</span>
+                </div>
+              )}
+              <div className="text-xs text-gray-500">
+                {pickup.slice(0, 30)} → {destination.slice(0, 30)}
+              </div>
+
+              {/* Chat toggle */}
+              <button onClick={() => setChatOpen(!chatOpen)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-white/10 text-sm text-gray-300 hover:border-primary/30 hover:text-primary transition-all">
+                <MessageSquare className="w-4 h-4" />
+                {chatOpen ? "Fechar mensagens" : `Mensagem${chatMessages.length > 0 ? ` (${chatMessages.length})` : ""}`}
+              </button>
+
+              {/* Chat panel */}
+              <AnimatePresence>
+                {chatOpen && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden">
+                    <div className="max-h-48 overflow-y-auto space-y-2 mb-3 pt-1">
+                      {uploadingFile && (
+                        <div className="flex justify-center py-2">
+                          <Loader2 className="w-5 h-5 text-primary animate-spin" />
                         </div>
                       )}
-                      <div className="border-t border-card-border pt-2 flex justify-between text-white font-bold">
-                        <span>Total</span>
-                        <span>{formatCurrency(selectedEstimate.totalFare)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>Comissão TXD (25%)</span>
-                        <span>{formatCurrency(selectedEstimate.commission)}</span>
-                      </div>
+                      {chatMessages.length === 0 ? (
+                        <p className="text-xs text-gray-500 text-center py-3">Nenhuma mensagem ainda</p>
+                      ) : (
+                        chatMessages.map(msg => (
+                          <div key={msg.id} className={`flex ${msg.senderId === currentUserId ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
+                              msg.senderId === currentUserId
+                                ? "bg-primary text-background rounded-br-md"
+                                : "bg-white/10 text-white rounded-bl-md"
+                            }`}>
+                              {msg.fileType === "image" && msg.fileUrl ? (
+                                <img src={msg.fileUrl} alt="Foto" className="rounded-xl max-w-full max-h-40 mb-1 object-cover cursor-pointer"
+                                  onClick={() => window.open(msg.fileUrl, "_blank")} />
+                              ) : msg.fileType === "audio" && msg.fileUrl ? (
+                                <audio controls src={msg.fileUrl} className="max-w-full h-8" />
+                              ) : null}
+                              <p>{msg.content}</p>
+                              <p className={`text-[10px] mt-0.5 ${msg.senderId === currentUserId ? "text-background/60" : "text-gray-500"}`}>
+                                {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {isTyping && (
+                        <div className="flex justify-start">
+                          <div className="bg-white/10 px-4 py-2 rounded-2xl rounded-bl-md text-xs text-gray-400 italic flex items-center gap-2">
+                            <span className="flex gap-0.5">{typingLabel}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      onClick={handleConfirmBooking}
-                      className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3.5 rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] text-base mt-2"
-                    >
-                      Confirmar corrida
-                    </button>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      if (!chatInput.trim()) return;
+                      await sendChat(chatInput);
+                      setChatInput("");
+                    }} className="flex gap-2">
+                      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoPick} />
+                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                        className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center hover:border-primary/30 transition shrink-0 disabled:opacity-30">
+                        <Image className="w-4 h-4 text-gray-400" />
+                      </button>
+                      <button type="button" onClick={toggleRecording} disabled={uploadingFile}
+                        className={`w-10 h-10 rounded-xl border flex items-center justify-center transition shrink-0 disabled:opacity-30 ${
+                          recording ? "bg-red-500 border-red-500 animate-pulse" : "bg-white/5 border-white/10 hover:border-primary/30"
+                        }`}>
+                        {recording ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-gray-400" />}
+                      </button>
+                      <input value={chatInput} onChange={e => { setChatInput(e.target.value); emitTyping(); }}
+                        placeholder="Digite sua mensagem..."
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-primary/50 transition"
+                      />
+                      <button type="submit" disabled={!chatInput.trim() || uploadingFile}
+                        className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center disabled:opacity-30 shrink-0">
+                        <Send className="w-4 h-4 text-background" />
+                      </button>
+                    </form>
                   </motion.div>
                 )}
-              </motion.div>
-            )}
+              </AnimatePresence>
 
-            {pageState === "searching" && (
-              <motion.div
-                key="searching" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-12 space-y-6"
-              >
-                <div className="relative">
-                  <Loader2 className="w-16 h-16 text-primary animate-spin" />
-                  <Zap className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                </div>
-                <div className="text-center">
-                  <h2 className="text-xl font-bold text-white">Procurando motorista</h2>
-                  <p className="text-sm text-gray-500 mt-2">Aguarde enquanto encontramos o melhor motorista para você</p>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <MapPin className="w-3 h-3" />
-                  <span>{pickup.slice(0, 30)}</span>
-                  <Navigation className="w-3 h-3 ml-2" />
-                  <span>{destination.slice(0, 30)}</span>
-                </div>
-              </motion.div>
-            )}
+              {pageState === "tracking" && (
+                <>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="w-4 h-4 text-primary" />
+                    <span className="text-gray-300">Chegada prevista: {eta} min</span>
+                  </div>
+                  <button onClick={reset} className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm">
+                    Finalizar viagem
+                  </button>
+                </>
+              )}
+            </motion.div>
+          )}
 
-            {(pageState === "found" || pageState === "tracking") && (
-              <motion.div
-                key="tracking" initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="space-y-4"
-              >
-                {pageState === "found" && (
-                  <>
-                    <div className="flex items-center gap-2 text-primary">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="text-sm font-semibold">Motorista a caminho</span>
-                    </div>
-                    <div className="glass-panel p-4 flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg">
-                        {driverInfo.photo}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-white">{driverInfo.name}</span>
-                          <div className="flex items-center gap-1 text-xs text-amber-400">
-                            <Star className="w-3 h-3 fill-amber-400" />
-                            {driverInfo.rating}
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-400">{driverInfo.car} • {driverInfo.color}</p>
-                        <p className="text-xs text-gray-500">{driverInfo.plate}</p>
-                      </div>
-                      <button className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary hover:bg-primary/30 transition">
-                        <Phone className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="glass-panel p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-gray-300">
-                          <Clock className="w-4 h-4 text-primary" />
-                          <span>Chega em {eta} min</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-300">
-                          <Car className="w-4 h-4 text-primary" />
-                          <span>{driverInfo.plate}</span>
-                        </div>
-                      </div>
-                      <div className="relative h-1.5 bg-card-border rounded-full overflow-hidden">
-                        <motion.div
-                          className="absolute left-0 top-0 h-full bg-primary rounded-full"
-                          initial={{ width: "0%" }}
-                          animate={{ width: `${Math.max(0, (1 - eta / 8) * 100)}%` }}
-                          transition={{ duration: 0.5 }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500">
-                        <span>{pickup.slice(0, 25)}</span>
-                        <span>{destination.slice(0, 25)}</span>
-                      </div>
-                    </div>
-                    {selectedEstimate && (
-                      <div className="flex justify-between items-center glass-panel p-3">
-                        <span className="text-sm text-gray-400">{selectedCategory?.name}</span>
-                        <span className="font-bold text-white">{formatCurrency(selectedEstimate.totalFare)}</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={startTracking}
-                      className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3.5 rounded-xl transition-all text-sm"
-                    >
-                      Acompanhar em tempo real
-                    </button>
-                  </>
-                )}
-
-                {pageState === "tracking" && (
-                  <>
-                    <div className="flex items-center gap-2 text-primary">
-                      <Route className="w-5 h-5" />
-                      <span className="text-sm font-semibold">Viagem em andamento</span>
-                    </div>
-                    <div className="glass-panel p-4 flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-lg">
-                        {driverInfo.photo}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-white">{driverInfo.name}</span>
-                          <div className="flex items-center gap-1 text-xs text-amber-400">
-                            <Star className="w-3 h-3 fill-amber-400" />
-                            {driverInfo.rating}
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-400">{driverInfo.car} • {driverInfo.plate}</p>
-                      </div>
-                    </div>
-                    <div className="glass-panel p-4 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="w-3 h-3 rounded-full bg-primary" />
-                          <div className="w-0.5 h-8 bg-primary/30" />
-                          <div className="w-3 h-3 rounded-full bg-red-400" />
-                        </div>
-                        <div className="flex-1 text-sm space-y-4">
-                          <div>
-                            <p className="text-white font-medium">Partida</p>
-                            <p className="text-gray-500 text-xs truncate">{pickup}</p>
-                          </div>
-                          <div>
-                            <p className="text-white font-medium">Destino</p>
-                            <p className="text-gray-500 text-xs truncate">{destination}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {selectedEstimate && (
-                      <div className="glass-panel p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4 text-primary" />
-                          <span className="text-sm text-gray-300">Valor estimado</span>
-                        </div>
-                        <span className="font-bold text-white">{formatCurrency(selectedEstimate.totalFare)}</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={reset}
-                      className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3.5 rounded-xl transition-all text-sm"
-                    >
-                      Finalizar viagem
-                    </button>
-                  </>
-                )}
-              </motion.div>
-            )}
-
-            {pageState === "no_drivers" && (
-              <motion.div
-                key="no_drivers" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-12 space-y-6"
-              >
-                <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center">
-                  <Navigation className="w-8 h-8 text-amber-400" />
-                </div>
-                <div className="text-center">
-                  <h2 className="text-xl font-bold text-white">Nenhum motorista disponível</h2>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Não encontramos motoristas próximos para esta categoria. Tente novamente em alguns minutos ou escolha outra modalidade.
-                  </p>
-                </div>
-                <button onClick={() => { setPageState("selecting"); setStep(1); }}
-                  className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3.5 rounded-xl transition-all text-sm"
-                >
-                  Escolher outra categoria
-                </button>
-                <button onClick={reset}
-                  className="w-full bg-card-bg border border-card-border hover:border-primary/30 text-gray-300 font-semibold py-3.5 rounded-xl transition-all text-sm"
-                >
-                  Nova busca
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+          {/* No drivers */}
+          {pageState === "no_drivers" && (
+            <motion.div key="no_drivers" initial={{ y: 100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 100, opacity: 0 }}
+              className="pointer-events-auto glass-panel rounded-2xl p-5 text-center space-y-3 bg-background/90 backdrop-blur-xl">
+              <Navigation className="w-8 h-8 text-amber-400 mx-auto" />
+              <p className="text-white font-semibold">Nenhum motorista disponível</p>
+              <p className="text-xs text-gray-500">Tente novamente em alguns minutos</p>
+              <button onClick={reset} className="w-full bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm">
+                Tentar novamente
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {/* Negotiation Sheet */}
+      <AnimatePresence>
+        {showNegotiation && selectedDriver && pickupCoords && destCoords && routeInfo && (
+          <NegotiationSheet
+            driver={{
+              driverId: selectedDriver.driverId,
+              distanceKm: selectedDriver.distanceKm,
+              rating: selectedDriver.rating,
+              pricing: selectedDriver.pricing,
+            }}
+            distanceKm={routeInfo.distanceKm}
+            originLat={pickupCoords.lat}
+            originLng={pickupCoords.lng}
+            destLat={destCoords.lat}
+            destLng={destCoords.lng}
+            serviceType={selectedVehicle}
+            onClose={() => { setShowNegotiation(false); setSelectedDriver(null); }}
+            onSuccess={(negotiation) => {
+              setShowNegotiation(false);
+              setSelectedDriver(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </main>
   );
 }

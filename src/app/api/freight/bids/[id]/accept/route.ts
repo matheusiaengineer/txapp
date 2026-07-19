@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function PATCH(
+const handler = async (
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
-) {
+) => {
   const { id } = await params;
   const supabase = await createClient();
 
@@ -58,4 +59,6 @@ export async function PATCH(
     .eq("status", "pending");
 
   return NextResponse.json({ success: true });
-}
+};
+
+export const PATCH = withRateLimit(handler, 'default');

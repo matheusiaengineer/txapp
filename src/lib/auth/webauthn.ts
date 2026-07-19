@@ -14,63 +14,38 @@ export async function isBiometricSupported(): Promise<boolean> {
   }
 }
 
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
+export async function hasBiometricCredential(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/webauthn/challenge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "login_start" }),
+    });
+    const data = await res.json();
+    return (data.credentials?.length || 0) > 0;
+  } catch {
+    return false;
+  }
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
-export async function registerBiometric(userId: string, email: string): Promise<WebAuthnResponse> {
+export async function registerBiometric(): Promise<WebAuthnResponse> {
   try {
     const challengeRes = await fetch("/api/webauthn/challenge", {
       method: "POST",
-      body: JSON.stringify({ action: "register_start", userId }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "register_start" }),
     });
-    const challengeData = await challengeRes.json();
-    if (!challengeRes.ok) return { success: false, error: challengeData.error || "Falha ao obter challenge" };
+    const options = await challengeRes.json();
+    if (!challengeRes.ok) return { success: false, error: options.error || "Falha ao obter challenge" };
 
     const credential = await navigator.credentials.create({
-      publicKey: {
-        challenge: base64ToArrayBuffer(challengeData.challenge),
-        rp: { id: window.location.hostname, name: "TXDAPP" },
-        user: {
-          id: new TextEncoder().encode(userId),
-          name: email,
-          displayName: email,
-        },
-        pubKeyCredParams: [
-          { type: "public-key", alg: -7 },
-          { type: "public-key", alg: -257 },
-        ],
-        authenticatorSelection: {
-          authenticatorAttachment: "platform",
-          userVerification: "required",
-        },
-        timeout: 60000,
-        attestation: "none",
-      },
-    }) as PublicKeyCredential;
+      publicKey: options,
+    });
 
-    const attResp = credential.response as AuthenticatorAttestationResponse;
     const registerRes = await fetch("/api/webauthn/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        credentialId: credential.id,
-        rawId: arrayBufferToBase64(credential.rawId),
-        attestationObject: arrayBufferToBase64(attResp.attestationObject),
-        clientDataJSON: arrayBufferToBase64(attResp.clientDataJSON),
-        transports: attResp.getTransports?.() || [],
-      }),
+      body: JSON.stringify(credential),
     });
 
     const registerData = await registerRes.json();
@@ -87,38 +62,20 @@ export async function loginWithBiometric(): Promise<WebAuthnResponse> {
   try {
     const challengeRes = await fetch("/api/webauthn/challenge", {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "login_start" }),
     });
-    const challengeData = await challengeRes.json();
-    if (!challengeRes.ok) return { success: false, error: challengeData.error || "Falha ao obter challenge" };
-
-    const allowedCredentials = (challengeData.credentials || []).map((c: any) => ({
-      id: base64ToArrayBuffer(c.id),
-      type: "public-key" as const,
-      transports: c.transports || ["internal"],
-    }));
+    const options = await challengeRes.json();
+    if (!challengeRes.ok) return { success: false, error: options.error || "Falha ao obter challenge" };
 
     const assertion = await navigator.credentials.get({
-      publicKey: {
-        challenge: base64ToArrayBuffer(challengeData.challenge),
-        allowCredentials: allowedCredentials.length > 0 ? allowedCredentials : undefined,
-        userVerification: "required",
-        timeout: 60000,
-      },
-    }) as PublicKeyCredential;
+      publicKey: options,
+    });
 
-    const authResp = assertion.response as AuthenticatorAssertionResponse;
     const loginRes = await fetch("/api/webauthn/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        credentialId: assertion.id,
-        rawId: arrayBufferToBase64(assertion.rawId),
-        authenticatorData: arrayBufferToBase64(authResp.authenticatorData),
-        signature: arrayBufferToBase64(authResp.signature),
-        userHandle: authResp.userHandle ? arrayBufferToBase64(authResp.userHandle) : null,
-        clientDataJSON: arrayBufferToBase64(authResp.clientDataJSON),
-      }),
+      body: JSON.stringify(assertion),
     });
 
     const loginData = await loginRes.json();

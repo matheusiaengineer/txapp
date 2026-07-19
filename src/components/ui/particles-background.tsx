@@ -6,6 +6,12 @@ export function ParticlesBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const lowEnd =
+      (navigator as any).deviceMemory !== undefined && (navigator as any).deviceMemory <= 2 ||
+      navigator.hardwareConcurrency !== undefined && navigator.hardwareConcurrency <= 2 ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (lowEnd) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 

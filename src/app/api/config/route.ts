@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { globalConfig } from "@/lib/config/global-config";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function GET(request: NextRequest) {
+const handler = async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const cityId = searchParams.get("city");
   const countryCode = searchParams.get("country");
@@ -33,4 +34,6 @@ export async function GET(request: NextRequest) {
   }));
 
   return NextResponse.json({ success: true, data: { countries: globalConfig.getActiveCountries(), cities } });
-}
+};
+
+export const GET = withRateLimit(handler, 'default');

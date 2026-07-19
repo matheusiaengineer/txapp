@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
 const VEHICLE_CATEGORY_MAP: Record<string, string[]> = {
   moto: ["moto", "mototaxi", "motoboy"],
@@ -34,7 +35,7 @@ function scoreDriver(driver: any, originLat: number, originLng: number): number 
   return distScore + ratingScore + acceptanceScore + tripScore;
 }
 
-export async function POST(request: NextRequest) {
+const handler = async (request: NextRequest) => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -157,4 +158,6 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Erro no dispatch" }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'dispatch');

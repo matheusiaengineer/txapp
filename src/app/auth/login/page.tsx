@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Fingerprint, Smartphone, Apple, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CountrySelector } from "@/lib/components/country-selector";
 import { COUNTRIES, type Country } from "@/lib/auth/countries";
 import { signIn, getDashboardRoute } from "@/lib/auth/auth-service";
@@ -12,8 +13,10 @@ import { isBiometricSupported, loginWithBiometric, registerBiometric } from "@/l
 
 type LoginMethod = "email" | "phone" | "biometric";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo");
   const [country, setCountry] = useState<Country>(COUNTRIES[0]);
   const [method, setMethod] = useState<LoginMethod>("email");
   const [showPassword, setShowPassword] = useState(false);
@@ -54,7 +57,7 @@ export default function LoginPage() {
     }
     setLoading(false);
     const role = (res.role || "passenger") as "passenger" | "driver" | "company" | "transporter" | "employee";
-    router.push(getDashboardRoute(role));
+    router.push(redirectTo || getDashboardRoute(role));
   }
 
   async function handleBiometricLogin() {
@@ -63,7 +66,7 @@ export default function LoginPage() {
     const res = await loginWithBiometric();
     setBiometricLoading(false);
     if (res.success && res.user) {
-      router.push(getDashboardRoute(res.user.role || "passenger"));
+      router.push(redirectTo || getDashboardRoute(res.user.role || "passenger"));
     } else {
       setError(res.error || "Falha no login biométrico");
     }
@@ -217,5 +220,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

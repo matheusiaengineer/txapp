@@ -13,57 +13,98 @@ export interface AppNotification {
 }
 
 export class NotificationService {
-  private notifications: AppNotification[] = [];
-  private listeners: Array<(notifications: AppNotification[]) => void> = [];
+  private listeners: Array<() => void> = [];
+  private channel: any = null;
+  private userId: string | null = null;
 
-  constructor() {
-    this.loadMock();
+  async init() {
+    const { createClient } = await import("@/lib/supabase/browser");
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    this.userId = user.id;
+    this.channel = supabase
+      .channel("notifications-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${user.id}`,
+      }, () => this.notifyListeners())
+      .subscribe();
   }
 
-  private loadMock() {
-    const mockNotifications: AppNotification[] = [
-      { id: "n1", type: "trip", title: "Motorista a caminho", body: "João está a caminho. ETA: 3 min.", read: false, createdAt: new Date(Date.now() - 300000).toISOString(), priority: "high", actionUrl: "/ride/active" },
-      { id: "n2", type: "payment", title: "Pagamento recebido", body: "R$ 25,50 da corrida para Av. Paulista.", read: false, createdAt: new Date(Date.now() - 3600000).toISOString(), priority: "normal", actionUrl: "/wallet" },
-      { id: "n3", type: "promotion", title: "Bônus de final de semana", body: "Ganhe 20% a mais em corridas até domingo!", read: false, createdAt: new Date(Date.now() - 7200000).toISOString(), priority: "low", actionUrl: "/promotions" },
-      { id: "n4", type: "security", title: "Alerta de segurança", body: "Sua corrida saiu da rota esperada.", read: true, createdAt: new Date(Date.now() - 86400000).toISOString(), priority: "urgent", actionUrl: "/ride/active" },
-      { id: "n5", type: "system", title: "Documento aprovado", body: "Sua CNH foi verificada com sucesso!", read: true, createdAt: new Date(Date.now() - 172800000).toISOString(), priority: "normal", actionUrl: "/verification" },
-      { id: "n6", type: "message", title: "Nova mensagem", body: "Passageiro: 'Estou na porta'", read: false, createdAt: new Date(Date.now() - 60000).toISOString(), priority: "high", actionUrl: "/chat" },
-      { id: "n7", type: "verification", title: "Verificação pendente", body: "Seu selfie ainda não foi aprovada.", read: false, createdAt: new Date(Date.now() - 259200000).toISOString(), priority: "high", actionUrl: "/verification" },
-    ];
-    this.notifications = mockNotifications;
+  private async getSupabase() {
+    const { createClient } = await import("@/lib/supabase/browser");
+    return createClient();
   }
 
   async getAll(): Promise<AppNotification[]> {
-    return [...this.notifications].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const supabase = await this.getSupabase();
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (!data) return [];
+    return data.map(this.mapRow);
   }
 
   async getUnread(): Promise<AppNotification[]> {
-    return this.notifications.filter(n => !n.read);
+    const all = await this.getAll();
+    return all.filter(n => !n.read);
+  }
+
+  async getUnreadCount(): Promise<number> {
+    const supabase = await this.getSupabase();
+    const { count } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("read", false);
+    return count || 0;
+  }
+
+  async create(
+    userId: string,
+    type: AppNotification["type"],
+    title: string,
+    body: string,
+    actionUrl?: string,
+    data?: Record<string, string>,
+  ) {
+    const supabase = await this.getSupabase();
+    await supabase.from("notifications").insert({
+      user_id: userId,
+      type,
+      title,
+      body,
+      action_url: actionUrl,
+      data: data || {},
+    });
   }
 
   async markAsRead(id: string): Promise<void> {
-    const n = this.notifications.find(n => n.id === id);
-    if (n) n.read = true;
-    this.notifyListeners();
+    const supabase = await this.getSupabase();
+    await supabase.from("notifications").update({ read: true }).eq("id", id);
   }
 
   async markAllAsRead(): Promise<void> {
-    this.notifications.forEach(n => n.read = true);
-    this.notifyListeners();
+    const supabase = await this.getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
   }
 
   async delete(id: string): Promise<void> {
-    this.notifications = this.notifications.filter(n => n.id !== id);
-    this.notifyListeners();
+    const supabase = await this.getSupabase();
+    await supabase.from("notifications").delete().eq("id", id);
   }
 
   async sendPush(title: string, body: string, data?: Record<string, string>): Promise<void> {
-    const n: AppNotification = {
-      id: "n_" + Date.now(), type: "system", title, body, data,
-      read: false, createdAt: new Date().toISOString(), priority: "normal",
-    };
-    this.notifications.unshift(n);
-    this.notifyListeners();
+    const supabase = await this.getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await this.create(user.id, "system", title, body, data?.url, data);
+    }
     if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
       new Notification(title, { body, icon: "/icon.png" });
     }
@@ -75,17 +116,27 @@ export class NotificationService {
     return result === "granted";
   }
 
-  async getUnreadCount(): Promise<number> {
-    return this.notifications.filter(n => !n.read).length;
-  }
-
-  subscribe(callback: (notifications: AppNotification[]) => void): () => void {
+  subscribe(callback: () => void): () => void {
     this.listeners.push(callback);
     return () => { this.listeners = this.listeners.filter(fn => fn !== callback); };
   }
 
   private notifyListeners() {
-    this.listeners.forEach(fn => fn(this.notifications));
+    this.listeners.forEach(fn => fn());
+  }
+
+  private mapRow(row: any): AppNotification {
+    return {
+      id: row.id,
+      type: row.type || "system",
+      title: row.title,
+      body: row.body || "",
+      read: row.read || false,
+      createdAt: row.created_at,
+      actionUrl: row.action_url,
+      data: row.data || {},
+      priority: row.data?.priority || "normal",
+    };
   }
 }
 

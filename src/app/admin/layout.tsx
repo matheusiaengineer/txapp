@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, Car, Building2, Route, Package,
   CreditCard, Percent, Gift, FileText, Languages, HeadphonesIcon,
   ShieldAlert, Settings, ChevronLeft, ChevronRight, Menu, X,
-  LogOut, Bell, Search, ChevronDown
+  LogOut, Bell, Search, ChevronDown, MapPin, DollarSign
 } from "lucide-react";
 
 const navItems = [
@@ -25,6 +25,8 @@ const navItems = [
   { label: "Traduções", icon: Languages, href: "/admin/translations", color: "from-teal-500/20 to-teal-600/10", iconColor: "text-teal-400" },
   { label: "Suporte", icon: HeadphonesIcon, href: "/admin/support", color: "from-sky-500/20 to-sky-600/10", iconColor: "text-sky-400" },
   { label: "Fraude", icon: ShieldAlert, href: "/admin/fraud", color: "from-red-500/20 to-red-600/10", iconColor: "text-red-400" },
+  { label: "Cidades", icon: MapPin, href: "/admin/cities", color: "from-cyan-500/20 to-cyan-600/10", iconColor: "text-cyan-400" },
+  { label: "Preços", icon: DollarSign, href: "/admin/pricing", color: "from-lime-500/20 to-lime-600/10", iconColor: "text-lime-400" },
   { label: "Configurações", icon: Settings, href: "/admin/settings", color: "from-gray-500/20 to-gray-600/10", iconColor: "text-gray-400" },
 ];
 

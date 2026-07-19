@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { rateLimit } from "@/lib/rate-limit";
+import { withRateLimit } from "@/lib/api-middleware";
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
@@ -23,13 +23,7 @@ const MOCK_DRIVERS = [
   { driverId: "mock-rafa", lat: -23.546, lng: -46.631, heading: 225, speed: 35, status: "ONLINE", modalities: ["entregas", "motoboy"] },
 ];
 
-export async function GET(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-  const rl = await rateLimit(`nearby:${ip}`, 30, 1000);
-  if (!rl.allowed) {
-    return NextResponse.json({ error: "Muitas requisições." }, { status: 429, headers: { "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": String(rl.resetAt) } });
-  }
-
+const handler = async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url);
     const lat = parseFloat(searchParams.get("lat") || "0");
@@ -113,4 +107,6 @@ export async function GET(req: NextRequest) {
       refreshedAt: new Date().toISOString(),
     });
   }
-}
+};
+
+export const GET = withRateLimit(handler, 'nearby');

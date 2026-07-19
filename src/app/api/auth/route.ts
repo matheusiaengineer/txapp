@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { rateLimit } from "@/lib/rate-limit";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-  const rl = await rateLimit(`auth:${ip}`, 5, 60000);
-  if (!rl.allowed) {
-    return NextResponse.json({ error: "Muitas tentativas. Aguarde 1 minuto." }, { status: 429 });
-  }
-
+const handler = async (req: NextRequest) => {
   try {
     const body = await req.json();
     const { action, email, password, role, metadata } = body;
@@ -185,4 +179,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'auth');

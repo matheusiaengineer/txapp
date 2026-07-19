@@ -42,3 +42,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# scripts (contém tokens/credenciais)
+scripts/migrate.mjs
+scripts/run-migrations.mjs

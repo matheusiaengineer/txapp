@@ -1,21 +1,28 @@
 "use client";
 
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell, User, Search, MapPin, Home, Briefcase, Plane, Heart,
   ChevronRight, Star, Clock, ArrowRight, DollarSign, Bike, Car,
   Sparkles, Shield, Package, PawPrint, VenusAndMars, Truck, Navigation, Loader2,
-  Camera, X, Video,
+  Camera, X, Video, Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/lib/hooks/use-user";
 import { usePassengerData } from "@/lib/hooks/use-passenger-data";
+import { useGeolocation } from "@/lib/hooks/use-geolocation";
 import { triggerHaptic } from "@/lib/haptics";
 import SosButton from "@/components/safety/SosButton";
 import { createClient } from "@/lib/supabase/browser";
 import { PageLayout } from "@/components/ui/page-layout";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import dynamic from "next/dynamic";
+const OpenStreetMap = dynamic(
+  () => import("@/components/map/OpenStreetMap").then(m => m.OpenStreetMap),
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#1a1a2e] rounded-2xl flex items-center justify-center text-gray-500 text-sm">Carregando mapa...</div> }
+);
 
 interface Service {
   id: string; name: string; icon: typeof Car; color: string; priceRange: string; eta: string;
@@ -99,15 +106,20 @@ function VerificationBanner({ onClose }: { onClose: () => void }) {
 }
 
 export default function PassengerDashboard() {
+  const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const { trips, addresses, stats, loading: dataLoading } = usePassengerData(user?.id);
   const [currentPromo, setCurrentPromo] = useState(0);
   const [searchFocused, setSearchFocused] = useState(false);
   const [depositStatus, setDepositStatus] = useState<{ balance: number; qualified: boolean; required: number } | null>(null);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [showVerificationBanner, setShowVerificationBanner] = useState(true);
   const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([]);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [nearbyDriversCount, setNearbyDriversCount] = useState<number | null>(null);
   const [placeholderText, setPlaceholderText] = useState("Para onde você vai?");
+  const { latitude: userLat, longitude: userLng, loading: geoLoading, error: geoError, requestPermission } = useGeolocation({ watch: false });
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | undefined>(undefined);
   
   const placeholders = [
     "Para onde você vai?",
@@ -134,9 +146,27 @@ export default function PassengerDashboard() {
   }, []);
 
   useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        const { data } = await createClient().from("wallets").select("balance").eq("profile_id", user.id).maybeSingle();
+        if (data) setWalletBalance((data as any).balance);
+      } catch {}
+    })();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (userLat && userLng && !mapCenter) {
+      setMapCenter({ lat: userLat, lng: userLng });
+    }
+  }, [userLat, userLng, mapCenter]);
+
+  useEffect(() => {
     async function fetchNearby() {
       try {
-        const res = await fetch("/api/location/nearby?radius=20&limit=20");
+        const lat = userLat || "";
+        const lng = userLng || "";
+        const res = await fetch(`/api/location/nearby?radius=20&limit=20&lat=${lat}&lng=${lng}`);
         const data = await res.json();
         if (data.drivers) {
           setNearbyDrivers(data.drivers);
@@ -145,7 +175,6 @@ export default function PassengerDashboard() {
       } catch {}
     }
     fetchNearby();
-    // Realtime subscription para atualizações de heartbeat
     let channel: any;
     try {
       const supabase = createClient();
@@ -162,7 +191,7 @@ export default function PassengerDashboard() {
       clearInterval(interval);
       if (channel) channel.unsubscribe();
     };
-  }, []);
+  }, [userLat, userLng]);
 
   const nextPromo = useCallback(() => setCurrentPromo(p => (p + 1) % promos.length), []);
 
@@ -192,15 +221,53 @@ export default function PassengerDashboard() {
   if (userLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-sm text-gray-400">Carregando sua conta...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="text-center max-w-sm">
+          <User className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Sessão expirada</h2>
+          <p className="text-sm text-gray-400 mb-6">Faça login novamente para acessar seu dashboard.</p>
+          <Link href="/auth/login" className="inline-block bg-primary text-background font-bold px-6 py-3 rounded-xl">Entrar</Link>
+        </div>
       </div>
     );
   }
 
   return (
     <PageLayout maxWidth="max-w-7xl">
+      <ErrorBoundary>
       <SosButton />
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+        {/* Pedir corrida CTA */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => router.push("/ride")}
+          className="w-full mb-5 p-5 rounded-2xl bg-gradient-to-r from-primary to-[#2da874] text-black font-bold flex items-center justify-between group cursor-pointer shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all hover:scale-[1.01]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-xl bg-black/15 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Car className="w-8 h-8" />
+            </div>
+            <div className="text-left">
+              <div className="text-lg sm:text-xl font-bold">Pedir corrida</div>
+              <div className="text-sm opacity-80">Toque para solicitar</div>
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-black/15 flex items-center justify-center group-hover:translate-x-1 transition-transform">
+            <ArrowRight className="w-5 h-5" />
+          </div>
+        </motion.button>
+
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-6">
           <div>
@@ -347,7 +414,7 @@ export default function PassengerDashboard() {
               </div>
             </motion.div>
 
-            {/* Map Preview */}
+            {/* Map Preview — OpenStreetMap real */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-5 sm:p-6 relative overflow-hidden">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold">
@@ -357,31 +424,32 @@ export default function PassengerDashboard() {
                   )}
                 </h3>
                 <Link href="/ride" className="text-xs text-primary flex items-center gap-1">
-                  Ver mapa <ChevronRight className="w-3 h-3" />
+                  Ver mapa completo <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
               <Link href="/ride">
-                <div className="relative h-40 sm:h-48 rounded-2xl overflow-hidden bg-[#0a0a0a] cursor-pointer">
-                  <div className="absolute inset-0 opacity-30"
-                    style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #3ECB8E 0%, transparent 50%), radial-gradient(circle at 80% 30%, #3ECB8E 0%, transparent 50%), radial-gradient(circle at 50% 70%, #3ECB8E 0%, transparent 50%)" }} />
-                  <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(#2a2a2a 1px, transparent 1px)", backgroundSize: "20px 20px" }} />
-                  {nearbyDrivers.length > 0
-                    ? nearbyDrivers.slice(0, 8).map((d: any, i: number) => (
-                        <motion.div key={d.driverId} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2 + i * 0.3, delay: i * 0.2 }}
-                          className="absolute" style={{ top: `${20 + (d.lat * 100 % 50)}%`, left: `${20 + (d.lng * 100 % 60)}%` }}>
-                          <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-                            <Navigation className="w-3 h-3 text-background" />
-                          </div>
-                        </motion.div>
-                      ))
-                    : [{ top: "30%", left: "25%" }, { top: "45%", left: "55%" }, { top: "60%", left: "35%" }, { top: "25%", left: "70%" }, { top: "70%", left: "60%" }].map((pos, i) => (
-                        <motion.div key={i} animate={{ y: [0, -4, 0] }} transition={{ repeat: Infinity, duration: 2 + i * 0.3, delay: i * 0.2 }}
-                          className="absolute opacity-30" style={{ top: pos.top, left: pos.left }}>
-                          <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
-                            <Navigation className="w-3 h-3 text-background" />
-                          </div>
-                        </motion.div>
-                      ))}
+                <div className="relative h-48 sm:h-56 rounded-2xl overflow-hidden cursor-pointer">
+                  {geoLoading && !mapCenter ? (
+                    <div className="w-full h-full bg-[#1a1a2e] flex items-center justify-center text-gray-400 text-sm">
+                      Obtendo localização...
+                    </div>
+                  ) : (
+                    <OpenStreetMap
+                      center={mapCenter || undefined}
+                      zoom={13}
+                      drivers={nearbyDrivers.map(d => ({
+                        id: d.driverId || d.id || Math.random().toString(),
+                        lat: d.lat || d.latitude || -23.561,
+                        lng: d.lng || d.longitude || -46.656,
+                        label: d.name || d.driverId?.slice(0, 8) || "Motorista",
+                        modality: d.modality || d.modalities?.[0] || "carro",
+                      }))}
+                      showUserLocation={!!(userLat && userLng)}
+                      userLocation={userLat && userLng ? { lat: userLat, lng: userLng } : null}
+                      interactive={false}
+                      height="100%"
+                    />
+                  )}
                 </div>
               </Link>
             </motion.div>
@@ -399,9 +467,22 @@ export default function PassengerDashboard() {
               </div>
               <div className="space-y-2">
                 {dataLoading ? (
-                  <div className="glass-panel p-4 text-center text-gray-500 text-sm">Carregando...</div>
+                  <div className="space-y-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="glass-panel p-4 animate-pulse">
+                        <div className="h-4 bg-white/5 rounded w-3/4 mb-3" />
+                        <div className="h-3 bg-white/5 rounded w-1/2 mb-2" />
+                        <div className="h-3 bg-white/5 rounded w-1/3" />
+                      </div>
+                    ))}
+                  </div>
                 ) : trips.length === 0 ? (
-                  <div className="glass-panel p-4 text-center text-gray-500 text-sm">Nenhuma viagem ainda</div>
+                  <div className="glass-panel p-8 text-center">
+                    <Navigation className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                    <p className="text-sm text-gray-400 font-medium">Nenhuma viagem ainda</p>
+                    <p className="text-xs text-gray-600 mt-1">Suas corridas aparecerão aqui</p>
+                    <Link href="/ride" className="inline-block mt-3 text-xs text-primary font-medium hover:underline">Solicitar primeira corrida</Link>
+                  </div>
                 ) : trips.slice(0, 4).map((trip) => {
                   const status = statusLabels[trip.status] || { label: trip.status, color: "text-gray-400 bg-gray-400/15" };
                   return (
@@ -459,11 +540,19 @@ export default function PassengerDashboard() {
                   <p className="text-lg font-bold">R$ {stats.total_spent.toFixed(0)}</p>
                   <p className="text-[10px] text-gray-500">Total gasto</p>
                 </div>
+                {walletBalance !== null && (
+                  <div className="col-span-2 bg-primary/5 border border-primary/20 rounded-xl p-3">
+                    <Wallet className="w-4 h-4 text-primary mb-1" />
+                    <p className="text-lg font-bold text-primary">R$ {walletBalance.toFixed(2)}</p>
+                    <p className="text-[10px] text-gray-500">Saldo da carteira</p>
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
         </div>
       </motion.div>
+      </ErrorBoundary>
     </PageLayout>
   );
 }

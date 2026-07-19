@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -19,23 +20,115 @@ import {
   Clock,
   Star,
   Bell,
+  Check,
+  Send,
+  Image,
+  Mic,
+  MicOff,
+  Loader2,
 } from "lucide-react";
+import { useGeolocation } from "@/lib/hooks/use-geolocation";
+import { useUser } from "@/lib/hooks/use-user";
+import { useActiveTrip } from "@/lib/hooks/use-active-trip";
+import { useTripChat } from "@/lib/chat/use-trip-chat";
+import { triggerHaptic } from "@/lib/haptics";
+import SosButton from "@/components/safety/SosButton";
+
+const OpenStreetMap = dynamic(
+  () => import("@/components/map/OpenStreetMap").then(m => m.OpenStreetMap),
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#1a1a2e]" /> }
+);
+
+const STATUS_LABELS: Record<string, string> = {
+  DRIVER_ACCEPTED: "A caminho do passageiro",
+  GOING_TO_PICKUP: "A caminho do passageiro",
+  ARRIVED: "Esperando passageiro",
+  PASSENGER_ON_BOARD: "Viagem iniciada",
+  IN_PROGRESS: "Viagem em andamento",
+  FINISHING: "Finalizando viagem",
+};
+
+const STATUS_ACTIONS: Record<string, { label: string; next: string; icon: any }[]> = {
+  DRIVER_ACCEPTED: [{ label: "A caminho", next: "GOING_TO_PICKUP", icon: Navigation }],
+  GOING_TO_PICKUP: [{ label: "Cheguei", next: "ARRIVED", icon: MapPin }],
+  ARRIVED: [{ label: "Embarcar", next: "PASSENGER_ON_BOARD", icon: User }],
+  PASSENGER_ON_BOARD: [{ label: "Iniciar viagem", next: "IN_PROGRESS", icon: Navigation }],
+  IN_PROGRESS: [{ label: "Finalizar", next: "FINISHING", icon: Check }],
+  FINISHING: [{ label: "Confirmar", next: "COMPLETED", icon: Check }],
+};
+
+function openNavigation(lat: number, lng: number, label: string) {
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  window.open(url, "_blank");
+}
 
 export default function DriverMapView() {
   const [loading, setLoading] = useState(true);
   const [showHeatMap, setShowHeatMap] = useState(true);
-  const [showRideCard, setShowRideCard] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  const { user, loading: userLoading } = useUser();
+  const { latitude, longitude, loading: geoLoading } = useGeolocation({ watch: true });
+  const { trip, loading: tripLoading, updateStatus } = useActiveTrip(user?.id);
+  const { messages, send, sendFile, emitTyping, isTyping, typingLabel } = useTripChat(trip?.id || null, user?.id || null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500);
+    const timer = setTimeout(() => setLoading(false), 700);
     return () => clearTimeout(timer);
   }, []);
 
+  const handleChatSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    await send(chatInput);
+    setChatInput("");
+  }, [chatInput, send]);
+
+  const handlePhotoPick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFile(true);
+    await sendFile(file);
+    setUploadingFile(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [sendFile]);
+
+  const toggleRecording = useCallback(async () => {
+    if (recording) {
+      mediaRecorderRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const file = new File([blob], `audio_${Date.now()}.webm`, { type: "audio/webm" });
+        setUploadingFile(true);
+        await sendFile(file);
+        setUploadingFile(false);
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setRecording(true);
+    } catch {}
+  }, [recording, sendFile]);
+
+  const isWorking = tripLoading || loading || userLoading;
+
   return (
     <>
-      {loading ? (
+      {isWorking ? (
         <div className="w-full h-dvh bg-background flex items-center justify-center">
           <div className="space-y-4 text-center">
             <Skeleton className="w-16 h-16 rounded-full mx-auto" />
@@ -45,68 +138,28 @@ export default function DriverMapView() {
         </div>
       ) : (
         <div className="relative w-full h-dvh bg-background text-foreground overflow-hidden">
-      {/* Full-screen Map Placeholder */}
+      <SosButton driverId={user?.id} />
+      {/* Full-screen OpenStreetMap */}
       <div className="absolute inset-0 z-0">
-        <div
-          className="w-full h-full bg-[#121212] relative"
-          style={{
-            backgroundImage: "radial-gradient(#2a2a2a 1px, transparent 1px)",
-            backgroundSize: "22px 22px",
-          }}
-        >
-          {/* Street lines */}
-          <svg className="absolute inset-0 w-full h-full opacity-30" xmlns="http://www.w3.org/2000/svg">
-            <line x1="0" y1="30%" x2="100%" y2="35%" stroke="#333" strokeWidth="2" />
-            <line x1="0" y1="55%" x2="100%" y2="50%" stroke="#333" strokeWidth="3" />
-            <line x1="0" y1="75%" x2="100%" y2="72%" stroke="#333" strokeWidth="2" />
-            <line x1="25%" y1="0" x2="22%" y2="100%" stroke="#333" strokeWidth="2" />
-            <line x1="50%" y1="0" x2="55%" y2="100%" stroke="#333" strokeWidth="3" />
-            <line x1="75%" y1="0" x2="72%" y2="100%" stroke="#333" strokeWidth="2" />
-            <line x1="40%" y1="0" x2="38%" y2="100%" stroke="#333" strokeWidth="1" />
-            <line x1="65%" y1="0" x2="68%" y2="100%" stroke="#333" strokeWidth="1" />
-          </svg>
-
-          {/* Heat map overlay */}
-          {showHeatMap && (
-            <div
-              className="absolute inset-0 transition-opacity duration-500"
-              style={{
-                backgroundImage: `
-                  radial-gradient(circle at 30% 40%, rgba(62,203,142,0.35) 0%, transparent 45%),
-                  radial-gradient(circle at 65% 30%, rgba(62,203,142,0.25) 0%, transparent 40%),
-                  radial-gradient(circle at 70% 60%, rgba(62,203,142,0.3) 0%, transparent 45%),
-                  radial-gradient(circle at 40% 70%, rgba(62,203,142,0.2) 0%, transparent 35%),
-                  radial-gradient(circle at 15% 65%, rgba(255,107,53,0.2) 0%, transparent 35%),
-                  radial-gradient(circle at 85% 20%, rgba(62,203,142,0.15) 0%, transparent 30%)
-                `,
-              }}
-            />
-          )}
-
-          {/* Driver Marker */}
-          <motion.div
-            animate={{ y: [0, -4, 0] }}
-            transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"
-          >
-            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center shadow-2xl shadow-primary/50 border-2 border-background">
-              <Navigation className="w-6 h-6 text-background" />
-            </div>
-            <div className="w-24 h-24 bg-primary/10 rounded-full absolute -top-6 -left-6 animate-ping" />
-            <div className="w-32 h-32 bg-primary/5 rounded-full absolute -top-10 -left-10 animate-pulse" />
-          </motion.div>
-
-          {/* Simulated destinations */}
-          <motion.div
-            animate={{ y: [0, -3, 0] }}
-            transition={{ repeat: Infinity, duration: 3, delay: 0.5 }}
-            className="absolute top-[30%] left-[22%] z-10"
-          >
-            <div className="w-8 h-8 bg-red-400 rounded-full flex items-center justify-center shadow-lg border-2 border-background">
-              <MapPin className="w-4 h-4 text-white" />
-            </div>
-          </motion.div>
-        </div>
+        {latitude && longitude ? (
+          <OpenStreetMap
+            center={{ lat: latitude, lng: longitude }}
+            zoom={15}
+            userLocation={{ lat: latitude, lng: longitude }}
+            showUserLocation={true}
+            pickup={trip ? { lat: trip.originLat, lng: trip.originLng } : null}
+            destination={trip ? { lat: trip.destLat, lng: trip.destLng } : null}
+            interactive={true}
+            height="100%"
+          />
+        ) : (
+          <OpenStreetMap
+            center={{ lat: -23.561, lng: -46.656 }}
+            zoom={14}
+            interactive={true}
+            height="100%"
+          />
+        )}
       </div>
 
       {/* Floating UI */}
@@ -119,9 +172,7 @@ export default function DriverMapView() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowHeatMap(!showHeatMap)}
-                className={`glass-panel p-3 rounded-full ${
-                  showHeatMap ? "border-primary/50" : ""
-                }`}
+                className={`glass-panel p-3 rounded-full ${showHeatMap ? "border-primary/50" : ""}`}
               >
                 <Layers className={`w-5 h-5 ${showHeatMap ? "text-primary" : ""}`} />
               </motion.button>
@@ -129,6 +180,11 @@ export default function DriverMapView() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="glass-panel p-3 rounded-full"
+                onClick={() => {
+                  if (latitude && longitude) {
+                    openNavigation(latitude, longitude, "Minha localização");
+                  }
+                }}
               >
                 <Locate className="w-5 h-5" />
               </motion.button>
@@ -140,7 +196,7 @@ export default function DriverMapView() {
                 transition={{ repeat: Infinity, duration: 1.5 }}
                 className="w-2.5 h-2.5 bg-primary rounded-full"
               />
-              <span className="text-sm font-bold">Online</span>
+              <span className="text-sm font-bold">{trip ? "Em corrida" : "Online"}</span>
             </div>
 
             <motion.button
@@ -157,10 +213,10 @@ export default function DriverMapView() {
 
           {/* Bottom Panel */}
           <div className="pointer-events-auto">
-            {/* Current Ride Card */}
-            <AnimatePresence>
-              {showRideCard && (
+            <AnimatePresence mode="wait">
+              {trip ? (
                 <motion.div
+                  key="ride-card"
                   initial={{ y: 100, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   exit={{ y: 100, opacity: 0 }}
@@ -186,7 +242,7 @@ export default function DriverMapView() {
                         >
                           <div className="flex items-center gap-3">
                             <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
-                            <span className="font-semibold">Em viagem • 8 min restantes</span>
+                            <span className="font-semibold">{STATUS_LABELS[trip.status] || trip.status}</span>
                           </div>
                           <ChevronUp className="w-5 h-5 text-gray-400" />
                         </motion.div>
@@ -206,12 +262,9 @@ export default function DriverMapView() {
                                 transition={{ repeat: Infinity, duration: 1.5 }}
                                 className="w-3 h-3 bg-primary rounded-full"
                               />
-                              <h2 className="font-bold">Viagem em andamento</h2>
+                              <h2 className="font-bold">{STATUS_LABELS[trip.status] || "Viagem"}</h2>
                             </div>
-                            <motion.button
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => setMinimized(true)}
-                            >
+                            <motion.button whileTap={{ scale: 0.9 }} onClick={() => setMinimized(true)}>
                               <ChevronDown className="w-5 h-5 text-gray-400" />
                             </motion.button>
                           </div>
@@ -219,25 +272,25 @@ export default function DriverMapView() {
                           {/* Passenger Info */}
                           <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold text-primary">
-                              AO
+                              {trip.passengerName.charAt(0)}
                             </div>
                             <div className="flex-1">
-                              <p className="font-semibold text-lg">Ana Oliveira</p>
+                              <p className="font-semibold text-lg">{trip.passengerName}</p>
                               <div className="flex items-center gap-2 text-sm text-gray-400">
                                 <span className="flex items-center gap-1">
                                   <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" />
-                                  4.9
+                                  {trip.passengerRating.toFixed(1)}
                                 </span>
                                 <span>•</span>
                                 <span className="flex items-center gap-1">
                                   <Clock className="w-3.5 h-3.5" />
-                                  ETA: 8 min
+                                  ~{trip.estimatedDurationMin} min
                                 </span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Destination */}
+                          {/* Route */}
                           <div className="bg-background border border-card-border rounded-2xl p-4">
                             <div className="flex items-start gap-3">
                               <div className="flex flex-col items-center gap-1 mt-0.5">
@@ -246,19 +299,41 @@ export default function DriverMapView() {
                                 <div className="w-3 h-3 rounded-full bg-red-400 shrink-0" />
                               </div>
                               <div>
-                                <p className="text-sm font-medium">Av. Paulista, 1000</p>
-                                <p className="text-xs text-gray-500">Origem • 2 min atrás</p>
-                                <p className="text-sm font-medium mt-2">Shopping Morumbi</p>
-                                <p className="text-xs text-gray-500">Destino • Av. Roque Petroni Jr, 1089</p>
+                                <p className="text-sm font-medium">{trip.originAddress}</p>
+                                <p className="text-xs text-gray-500">Origem</p>
+                                <p className="text-sm font-medium mt-2">{trip.destAddress}</p>
+                                <p className="text-xs text-gray-500">Destino</p>
                               </div>
                             </div>
                           </div>
+
+                          {/* Status Action */}
+                          {STATUS_ACTIONS[trip.status] && (
+                            <div className="grid grid-cols-2 gap-2">
+                              {STATUS_ACTIONS[trip.status].map(action => (
+                                <motion.button
+                                  key={action.next}
+                                  whileHover={{ scale: 1.03 }}
+                                  whileTap={{ scale: 0.97 }}
+                                  onClick={async () => {
+                                    triggerHaptic("medium");
+                                    await updateStatus(action.next);
+                                  }}
+                                  className="glass-panel p-3 flex flex-col items-center gap-1 border-primary/30"
+                                >
+                                  <action.icon className="w-5 h-5 text-primary" />
+                                  <span className="text-xs">{action.label}</span>
+                                </motion.button>
+                              ))}
+                            </div>
+                          )}
 
                           {/* Action Buttons */}
                           <div className="grid grid-cols-4 gap-2">
                             <motion.button
                               whileHover={{ scale: 1.03 }}
                               whileTap={{ scale: 0.97 }}
+                              onClick={() => openNavigation(trip.destLat, trip.destLng, trip.destAddress)}
                               className="glass-panel p-3 flex flex-col items-center gap-1"
                             >
                               <Navigation className="w-5 h-5 text-primary" />
@@ -276,6 +351,7 @@ export default function DriverMapView() {
                             <motion.button
                               whileHover={{ scale: 1.03 }}
                               whileTap={{ scale: 0.97 }}
+                              onClick={() => window.open(`tel:${trip.passengerName}`, "_blank")}
                               className="glass-panel p-3 flex flex-col items-center gap-1"
                             >
                               <Phone className="w-5 h-5 text-green-400" />
@@ -285,9 +361,13 @@ export default function DriverMapView() {
                               whileHover={{ scale: 1.03 }}
                               whileTap={{ scale: 0.97 }}
                               className="glass-panel p-3 flex flex-col items-center gap-1 border-red-500/30"
+                              onClick={async () => {
+                                triggerHaptic("warning");
+                                await updateStatus("CANCELLED");
+                              }}
                             >
                               <AlertTriangle className="w-5 h-5 text-red-400" />
-                              <span className="text-xs">Emergência</span>
+                              <span className="text-xs">Cancelar</span>
                             </motion.button>
                           </div>
                         </motion.div>
@@ -295,26 +375,30 @@ export default function DriverMapView() {
                     </AnimatePresence>
                   </div>
                 </motion.div>
+              ) : (
+                /* Empty state when no ride */
+                <motion.div
+                  key="empty"
+                  initial={{ y: 100, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 100, opacity: 0 }}
+                  className="max-w-md mx-auto w-full"
+                >
+                  <div className="glass-panel p-5 text-center">
+                    <Navigation className="w-10 h-10 text-gray-500 mx-auto mb-2" />
+                    <p className="font-semibold">Aguardando solicitações</p>
+                    <p className="text-xs text-gray-500 mt-1">Você será notificado quando houver uma corrida</p>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
-
-            {/* Empty state when no ride */}
-            {!showRideCard && (
-              <div className="max-w-md mx-auto w-full">
-                <div className="glass-panel p-5 text-center">
-                  <Navigation className="w-10 h-10 text-gray-500 mx-auto mb-2" />
-                  <p className="font-semibold">Aguardando solicitações</p>
-                  <p className="text-xs text-gray-500 mt-1">Você será notificado quando houver uma corrida</p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
       {/* Chat Panel Overlay */}
       <AnimatePresence>
-        {showChat && (
+        {showChat && trip && (
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
@@ -326,10 +410,10 @@ export default function DriverMapView() {
             <div className="flex items-center justify-between p-4 border-b border-card-border">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary">
-                  AO
+                  {trip.passengerName.charAt(0)}
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">Ana Oliveira</p>
+                  <p className="font-semibold text-sm">{trip.passengerName}</p>
                   <p className="text-xs text-primary">Online</p>
                 </div>
               </div>
@@ -340,43 +424,67 @@ export default function DriverMapView() {
 
             {/* Chat Messages */}
             <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-              <div className="flex justify-start">
-                <div className="bg-background border border-card-border rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[80%]">
-                  <p className="text-sm">Oi, estou na portaria de blazer azul</p>
-                  <p className="text-xs text-gray-500 mt-1">14:32</p>
+              {uploadingFile && (
+                <div className="flex justify-center py-2">
+                  <Loader2 className="w-5 h-5 text-primary animate-spin" />
                 </div>
-              </div>
-              <div className="flex justify-end">
-                <div className="bg-primary text-background rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-[80%]">
-                  <p className="text-sm">Já estou chegando!</p>
-                  <p className="text-xs text-white/60 mt-1">14:32</p>
+              )}
+              {messages.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-6">Nenhuma mensagem ainda. Envie uma mensagem para o passageiro.</p>
+              ) : (
+                messages.map(msg => (
+                  <div key={msg.id} className={`flex ${msg.senderId === user?.id ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
+                      msg.senderId === user?.id
+                        ? "bg-primary text-background rounded-br-md"
+                        : "bg-background border border-card-border text-white rounded-bl-md"
+                    }`}>
+                      {msg.fileType === "image" && msg.fileUrl ? (
+                        <img src={msg.fileUrl} alt="Foto" className="rounded-xl max-w-full max-h-40 mb-1 object-cover cursor-pointer"
+                          onClick={() => window.open(msg.fileUrl, "_blank")} />
+                      ) : msg.fileType === "audio" && msg.fileUrl ? (
+                        <audio controls src={msg.fileUrl} className="max-w-full h-8" />
+                      ) : null}
+                      {msg.content && <p>{msg.content}</p>}
+                      <p className={`text-[10px] mt-0.5 ${msg.senderId === user?.id ? "text-background/60" : "text-gray-500"}`}>
+                        {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="bg-background border border-card-border px-4 py-2 rounded-2xl rounded-bl-md text-xs text-gray-400 italic">
+                    {typingLabel}
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-start">
-                <div className="bg-background border border-card-border rounded-2xl rounded-tl-sm px-4 py-2.5 max-w-[80%]">
-                  <p className="text-sm">Perfeito, estou te aguardando</p>
-                  <p className="text-xs text-gray-500 mt-1">14:33</p>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Chat Input */}
             <div className="p-4 border-t border-card-border">
-              <div className="flex gap-2">
-                <input
-                  type="text"
+              <form onSubmit={handleChatSubmit} className="flex gap-2">
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoPick} />
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploadingFile}
+                  className="w-10 h-10 rounded-xl bg-background border border-card-border flex items-center justify-center hover:border-primary/30 transition shrink-0 disabled:opacity-30">
+                  <Image className="w-4 h-4 text-gray-400" />
+                </button>
+                <button type="button" onClick={toggleRecording} disabled={uploadingFile}
+                  className={`w-10 h-10 rounded-xl border flex items-center justify-center transition shrink-0 disabled:opacity-30 ${
+                    recording ? "bg-red-500 border-red-500 animate-pulse" : "bg-background border-card-border hover:border-primary/30"
+                  }`}>
+                  {recording ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-gray-400" />}
+                </button>
+                <input value={chatInput} onChange={e => { setChatInput(e.target.value); emitTyping(); }}
                   placeholder="Digite sua mensagem..."
-                  className="flex-1 bg-background border border-card-border rounded-full px-4 py-2.5 text-sm text-white placeholder:text-gray-500 outline-none focus:border-primary/50"
+                  className="flex-1 bg-background border border-card-border rounded-xl px-4 py-2.5 text-sm text-white placeholder-gray-500 outline-none focus:border-primary/50 transition"
                 />
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-primary hover:bg-primary-hover text-background font-bold w-10 h-10 rounded-xl transition-all hover:scale-[0.98] flex items-center justify-center shrink-0"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                </motion.button>
-              </div>
+                <button type="submit" disabled={!chatInput.trim() || uploadingFile}
+                  className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center disabled:opacity-30 shrink-0">
+                  <Send className="w-4 h-4 text-background" />
+                </button>
+              </form>
             </div>
           </motion.div>
         )}

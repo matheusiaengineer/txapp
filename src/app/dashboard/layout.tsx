@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Clock, Wallet, Heart, User, HeadphonesIcon,
   Settings, LogOut, Bell, ChevronDown, Building2, Truck,
-  Package, TrendingUp, Users, Briefcase, Map, MapPin,
+  Package, TrendingUp, Users, Briefcase, Map, MapPin, Car,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
 import { useUser } from "@/lib/hooks/use-user";
+import { notificationService } from "@/lib/notification/notification-service";
 
 interface NavItem {
   label: string;
@@ -86,6 +87,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [currentRole, setCurrentRole] = useState<string>("passenger");
+  const [notifCount, setNotifCount] = useState(0);
+
+  useEffect(() => {
+    notificationService.getUnreadCount().then(setNotifCount);
+    const unsub = notificationService.subscribe(() => notificationService.getUnreadCount().then(setNotifCount));
+    return unsub;
+  }, []);
 
   useEffect(() => {
     const seg = pathname.split("/")[2];
@@ -157,11 +165,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div className="pt-4 border-t border-card-border">
-          <div className="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-foreground cursor-pointer transition-colors">
+          <Link href="/notifications" className="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-foreground cursor-pointer transition-colors">
             <Bell className="w-5 h-5" />
             <span className="text-sm">Notificações</span>
-            <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">3</span>
-          </div>
+            {notifCount > 0 && (
+              <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{notifCount > 9 ? "9+" : notifCount}</span>
+            )}
+          </Link>
           <motion.button
             whileHover={{ x: 4 }}
             whileTap={{ scale: 0.98 }}
@@ -180,7 +190,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass-panel rounded-none border-t border-card-border px-1 py-1 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
         <div className="flex items-center justify-around">
-          {navItems.slice(0, 4).map((item) => {
+          {navItems.slice(0, 2).map((item) => {
+            const active = isActive(item.href);
+            const Icon = item.icon;
+            return (
+              <Link key={item.label} href={item.href} className="flex-1">
+                <motion.div
+                  whileTap={{ scale: 0.9 }}
+                  className={`flex flex-col items-center gap-0.5 py-3 rounded-xl transition-colors relative ${
+                    active ? "text-primary" : "text-gray-400"
+                  }`}
+                >
+                  {active && <motion.div layoutId="nav-active" className="absolute -top-1 left-1/2 -translate-x-1/2 w-6 h-1 rounded-full bg-primary" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
+                  <Icon className="w-5 h-5" />
+                  <span className="text-[11px] font-medium">{item.label}</span>
+                </motion.div>
+              </Link>
+            );
+          })}
+          {/* Central Corrida button */}
+          <Link href="/ride" className="flex-1">
+            <motion.div
+              whileTap={{ scale: 0.9 }}
+              className="flex flex-col items-center gap-0 py-1 rounded-xl relative"
+            >
+              <div className="w-12 h-12 -mt-4 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30 ring-4 ring-background">
+                <Car className="w-6 h-6 text-black" />
+              </div>
+              <span className="text-[11px] font-medium text-primary">Corrida</span>
+            </motion.div>
+          </Link>
+          {navItems.slice(2, 4).map((item) => {
             const active = isActive(item.href);
             const Icon = item.icon;
             return (

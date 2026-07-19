@@ -17,12 +17,23 @@ export const metadata: Metadata = {
     { rel: "apple-touch-icon", url: "/icon.svg", sizes: "192x192" },
     { rel: "icon", url: "/icon.svg", type: "image/svg+xml", sizes: "512x512" },
     { rel: "apple-touch-icon", url: "/icon.svg", sizes: "512x512" },
+    { rel: "mask-icon", url: "/icon.svg", color: "#3ECB8E" },
   ],
+  appleWebApp: {
+    capable: true,
+    title: "TXDAPP",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: true,
+    date: false,
+    address: false,
+    email: false,
+    url: false,
+  },
   other: {
     "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "TXDAPP",
   },
   keywords: "aplicativo de corrida, corrida de moto, entrega, frete, mudança, mototáxi, motorista particular, transporte, logística",
   openGraph: {
@@ -37,8 +48,8 @@ export const viewport: Viewport = {
   themeColor: "#3ECB8E",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
 };
 

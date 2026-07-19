@@ -1,3 +1,4 @@
+import { createClient } from "@/lib/supabase/server";
 import { eventBus } from "../events/bus";
 import { mobilityEngine, Coordinates } from "../mobility/engine";
 import { aiService } from "../ai/ai-service";
@@ -232,41 +233,49 @@ export class ScoreDispatch3 {
   }
 
   private async findAvailableDrivers(origin: Coordinates, categoryId: string): Promise<DriverCandidate[]> {
-    const drivers: DriverCandidate[] = [
-      {
-        driverId: "drv-1", lat: origin.lat + 0.01, lng: origin.lng,
-        rating: 4.9, acceptanceRate: 98, cancellationRate: 2,
-        onlineTimeHours: 4, tripsCompleted: 1240,
-        vehicleTypeId: categoryId, batteryLevel: 85, gpsAccuracy: 8,
-        isFavorite: true,
-      },
-      {
-        driverId: "drv-2", lat: origin.lat + 0.02, lng: origin.lng + 0.01,
-        rating: 4.7, acceptanceRate: 85, cancellationRate: 5,
-        onlineTimeHours: 2, tripsCompleted: 520,
-        vehicleTypeId: categoryId, batteryLevel: 60, gpsAccuracy: 15,
-      },
-      {
-        driverId: "drv-3", lat: origin.lat - 0.01, lng: origin.lng + 0.02,
-        rating: 4.3, acceptanceRate: 70, cancellationRate: 12,
-        onlineTimeHours: 6, tripsCompleted: 180,
-        vehicleTypeId: categoryId, batteryLevel: 30, gpsAccuracy: 35,
-      },
-      {
-        driverId: "drv-4", lat: origin.lat + 0.005, lng: origin.lng - 0.005,
-        rating: 4.8, acceptanceRate: 92, cancellationRate: 3,
-        onlineTimeHours: 1, tripsCompleted: 890,
-        vehicleTypeId: categoryId, batteryLevel: 95, gpsAccuracy: 5,
-      },
-      {
-        driverId: "drv-5", lat: origin.lat + 0.03, lng: origin.lng + 0.02,
-        rating: 4.5, acceptanceRate: 78, cancellationRate: 8,
-        onlineTimeHours: 3, tripsCompleted: 340,
-        vehicleTypeId: categoryId, batteryLevel: 50, gpsAccuracy: 20,
-      },
-    ];
+    try {
+      const supabase = await createClient();
+      const thirtySecondsAgo = new Date(Date.now() - 30000).toISOString();
 
-    return drivers;
+      const { data: heartbeats } = await supabase
+        .from("driver_heartbeats")
+        .select("driver_id, lat, lng, accuracy, battery_level, status, last_updated_at")
+        .neq("status", "OFFLINE")
+        .gte("last_updated_at", thirtySecondsAgo)
+        .limit(50);
+
+      if (!heartbeats || heartbeats.length === 0) return [];
+
+      const driverIds = heartbeats.map((h: any) => h.driver_id);
+      const { data: profiles } = await supabase
+        .from("driver_profiles")
+        .select("id, rating, acceptance_rate, cancellation_rate, total_trips, online_time_hours, modalities")
+        .in("id", driverIds);
+
+      const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
+      return heartbeats
+        .map((h: any) => {
+          const p = profileMap.get(h.driver_id);
+          if (!p) return null;
+          return {
+            driverId: h.driver_id,
+            lat: h.lat,
+            lng: h.lng,
+            rating: p.rating || 5.0,
+            acceptanceRate: p.acceptance_rate || 100,
+            cancellationRate: p.cancellation_rate || 0,
+            onlineTimeHours: p.online_time_hours || 0,
+            tripsCompleted: p.total_trips || 0,
+            vehicleTypeId: categoryId,
+            batteryLevel: h.battery_level || 100,
+            gpsAccuracy: h.accuracy || 50,
+          };
+        })
+        .filter(Boolean) as DriverCandidate[];
+    } catch {
+      return [];
+    }
   }
 
   private waitForAcceptance(tripId: string, driverId: string, timeoutMs: number): Promise<boolean> {

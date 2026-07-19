@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
 const REQUIRED: Record<string, number> = { moto: 15, carro: 25, freight: 30 };
 
@@ -26,7 +27,7 @@ async function upsertWallet(userId: string, balance: number) {
   return { error, isQualified, required };
 }
 
-export async function GET(request: NextRequest) {
+const getHandler = async (request: NextRequest) => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -58,9 +59,9 @@ export async function GET(request: NextRequest) {
       serviceType: "carro", canRequest: false, missingAmount: 25, qualifiedCount: 0,
     });
   }
-}
+};
 
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
   try {
     const body = await request.json();
     const supabase = await createClient();
@@ -93,4 +94,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Erro ao processar depósito" }, { status: 500 });
   }
-}
+};
+
+export const GET = withRateLimit(getHandler, 'default');
+export const POST = withRateLimit(postHandler, 'default');

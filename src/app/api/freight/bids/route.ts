@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
 
-export async function GET(request: NextRequest) {
+const getHandler = async (request: NextRequest) => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const { searchParams } = new URL(request.url);
@@ -33,9 +34,9 @@ export async function GET(request: NextRequest) {
     limit,
     totalPages: Math.ceil((count || 0) / limit),
   });
-}
+};
 
-export async function POST(request: NextRequest) {
+const postHandler = async (request: NextRequest) => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -67,4 +68,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Erro ao criar lance" }, { status: 500 });
   }
-}
+};
+
+export const GET = withRateLimit(getHandler, 'default');
+export const POST = withRateLimit(postHandler, 'default');

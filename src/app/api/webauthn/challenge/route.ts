@@ -1,48 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withRateLimit } from "@/lib/api-middleware";
+import { generateRegistrationOptions, generateAuthenticationOptions } from "@simplewebauthn/server";
 
-function generateChallenge(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return btoa(String.fromCharCode(...bytes));
-}
+const RP_NAME = "TXDAPP";
+const rpId = process.env.VERCEL_URL || "localhost:3000";
 
-export async function POST(req: NextRequest) {
+const handler = async (req: NextRequest) => {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-    }
-
     const body = await req.json();
     const { action } = body;
-    const challenge = generateChallenge();
 
     if (action === "register_start") {
-      await supabase.from("biometric_credentials").update({
-        counter: 0,
-      }).eq("user_id", user.id);
+      if (!user) {
+        return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+      }
 
-      return NextResponse.json({ challenge });
+      const { data: existing } = await supabase
+        .from("biometric_credentials")
+        .select("credential_id")
+        .eq("user_id", user.id);
+
+      const excludeCredentials = (existing || []).map((c: any) => ({
+        id: c.credential_id,
+        type: "public-key" as const,
+        transports: ["internal"] as AuthenticatorTransport[],
+      }));
+
+      const options = await generateRegistrationOptions({
+        rpName: RP_NAME,
+        rpID: rpId,
+        userName: user.email || user.id,
+        attestationType: "none",
+        excludeCredentials,
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+        },
+      });
+
+      await supabase.from("biometric_credentials").upsert({
+        user_id: user.id,
+        credential_id: `challenge:${user.id}`,
+        public_key: JSON.stringify({ currentChallenge: options.challenge }),
+        counter: 0,
+        device_type: "challenge",
+      }, { onConflict: "credential_id" });
+
+      return NextResponse.json(options);
     }
 
     if (action === "login_start") {
-      const { data: credentials } = await supabase
-        .from("biometric_credentials")
-        .select("credential_id, device_type")
-        .eq("user_id", user.id);
+      const options = await generateAuthenticationOptions({
+        rpID: rpId,
+        userVerification: "required",
+        allowCredentials: [],
+      });
 
-      const creds = (credentials || []).map((c: any) => ({
-        id: c.credential_id,
-        transports: ["internal"],
-      }));
+      await supabase.from("biometric_credentials").upsert({
+        user_id: "challenge-storage",
+        credential_id: "current-challenge",
+        public_key: JSON.stringify({ currentChallenge: options.challenge }),
+        counter: 0,
+        device_type: "challenge",
+      }, { onConflict: "credential_id" });
 
-      return NextResponse.json({ challenge, credentials: creds });
+      return NextResponse.json(options);
     }
 
     return NextResponse.json({ error: "Ação inválida" }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'default');

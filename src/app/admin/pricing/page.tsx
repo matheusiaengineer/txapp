@@ -1,0 +1,238 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Plus, Search, Edit, Trash2, X, DollarSign, Check, Loader2, Car
+} from "lucide-react";
+
+interface PricingRule {
+  id: string;
+  city_id: string;
+  vehicle_category: string;
+  base_fare: number;
+  price_per_unit: number;
+  price_per_minute: number;
+  min_fare: number;
+  platform_fee_percent: number;
+  surge_multiplier: number;
+  cities?: { name: string; state: string };
+}
+
+const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } };
+const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
+
+const CATEGORY_LABELS: Record<string, string> = {
+  moto: "Moto", pop: "Econômico", comfort: "Conforto", black: "Black", suv: "SUV",
+  van: "Van", carga_leve: "Carga Leve", carga_pesada: "Carga Pesada",
+};
+
+export default function AdminPricing() {
+  const [pricing, setPricing] = useState<PricingRule[]>([]);
+  const [cities, setCities] = useState<{ id: string; name: string; state: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<PricingRule | null>(null);
+  const [form, setForm] = useState({
+    city_id: "", vehicle_category: "pop", base_fare: 5, price_per_unit: 2,
+    price_per_minute: 0.5, min_fare: 5, platform_fee_percent: 15, surge_multiplier: 1,
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const [pRes, cRes] = await Promise.all([
+        fetch("/api/admin/pricing").then(r => r.json()),
+        fetch("/api/admin/cities").then(r => r.json()),
+      ]);
+      setPricing(pRes.pricing || []);
+      setCities(cRes.cities || []);
+    } catch {}
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = pricing.filter(p =>
+    (p.cities?.name || "").toLowerCase().includes(search.toLowerCase()) ||
+    p.vehicle_category.toLowerCase().includes(search.toLowerCase())
+  );
+
+  async function save() {
+    setSaving(true);
+    try {
+      if (editing) {
+        await fetch("/api/admin/pricing", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...form, id: editing.id }),
+        });
+      } else {
+        await fetch("/api/admin/pricing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+      }
+      await load();
+      setShowForm(false);
+      setEditing(null);
+    } catch {}
+    setSaving(false);
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Remover esta regra de preço?")) return;
+    await fetch(`/api/admin/pricing?id=${id}`, { method: "DELETE" });
+    await load();
+  }
+
+  function openEdit(rule: PricingRule) {
+    setEditing(rule);
+    setForm({
+      city_id: rule.city_id, vehicle_category: rule.vehicle_category,
+      base_fare: rule.base_fare, price_per_unit: rule.price_per_unit,
+      price_per_minute: rule.price_per_minute, min_fare: rule.min_fare,
+      platform_fee_percent: rule.platform_fee_percent, surge_multiplier: rule.surge_multiplier,
+    });
+    setShowForm(true);
+  }
+
+  function openNew() {
+    setEditing(null);
+    setForm({ city_id: cities[0]?.id || "", vehicle_category: "pop", base_fare: 5, price_per_unit: 2, price_per_minute: 0.5, min_fare: 5, platform_fee_percent: 15, surge_multiplier: 1 });
+    setShowForm(true);
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0f] text-white p-6">
+      <motion.div variants={container} initial="hidden" animate="show" className="max-w-7xl mx-auto space-y-6">
+        <motion.div variants={item} className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Regras de Preço</h1>
+            <p className="text-white/40 text-sm mt-1">{pricing.length} regras cadastradas</p>
+          </div>
+          <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors text-sm font-medium">
+            <Plus className="w-4 h-4" /> Nova Regra
+          </button>
+        </motion.div>
+
+        <motion.div variants={item} className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por cidade ou categoria..."
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm text-white/70 placeholder-white/20 outline-none focus:border-white/[0.12] transition-colors"
+          />
+        </motion.div>
+
+        {loading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        ) : (
+          <motion.div variants={item} className="grid gap-3">
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 text-white/30">Nenhuma regra encontrada. Crie cidades antes de definir preços.</div>
+            ) : (
+              filtered.map(rule => (
+                <motion.div key={rule.id} layout
+                  className="flex items-center justify-between p-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl hover:border-white/[0.1] transition-all"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-green-500/10 flex items-center justify-center">
+                      <DollarSign className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{CATEGORY_LABELS[rule.vehicle_category] || rule.vehicle_category}
+                        <span className="text-white/40 ml-2">{rule.cities?.name}/{rule.cities?.state}</span>
+                      </p>
+                      <p className="text-xs text-white/40">
+                        Base: R$ {rule.base_fare.toFixed(2)} · km: R$ {rule.price_per_unit.toFixed(2)} · min: R$ {rule.price_per_minute.toFixed(2)}
+                        · Taxa: {rule.platform_fee_percent}%
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => openEdit(rule)} className="p-2 rounded-lg hover:bg-white/[0.06] transition-colors text-white/30 hover:text-white/70">
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => remove(rule.id)} className="p-2 rounded-lg hover:bg-rose-500/10 transition-colors text-rose-400/50 hover:text-rose-400">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </motion.div>
+        )}
+      </motion.div>
+
+      <AnimatePresence>
+        {showForm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setShowForm(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              className="relative w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#0d0d14] backdrop-blur-2xl p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">{editing ? "Editar Preço" : "Nova Regra de Preço"}</h2>
+                <button onClick={() => setShowForm(false)} className="p-1.5 rounded-lg hover:bg-white/[0.06]"><X className="w-4 h-4" /></button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs text-white/30 mb-1">Cidade</label>
+                  <select value={form.city_id} onChange={e => setForm(p => ({ ...p, city_id: e.target.value }))}
+                    className="w-full p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm outline-none">
+                    {cities.map(c => <option key={c.id} value={c.id}>{c.name}/{c.state}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">Categoria</label>
+                  <select value={form.vehicle_category} onChange={e => setForm(p => ({ ...p, vehicle_category: e.target.value }))}
+                    className="w-full p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm outline-none">
+                    {Object.entries(CATEGORY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">Taxa Plataforma (%)</label>
+                  <input type="number" value={form.platform_fee_percent} onChange={e => setForm(p => ({ ...p, platform_fee_percent: +e.target.value }))}
+                    className="w-full p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">Tarifa Base (R$)</label>
+                  <input type="number" step="0.01" value={form.base_fare} onChange={e => setForm(p => ({ ...p, base_fare: +e.target.value }))}
+                    className="w-full p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">Valor por km (R$)</label>
+                  <input type="number" step="0.01" value={form.price_per_unit} onChange={e => setForm(p => ({ ...p, price_per_unit: +e.target.value }))}
+                    className="w-full p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">Valor por min (R$)</label>
+                  <input type="number" step="0.01" value={form.price_per_minute} onChange={e => setForm(p => ({ ...p, price_per_minute: +e.target.value }))}
+                    className="w-full p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-white/30 mb-1">Tarifa Mínima (R$)</label>
+                  <input type="number" step="0.01" value={form.min_fare} onChange={e => setForm(p => ({ ...p, min_fare: +e.target.value }))}
+                    className="w-full p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-sm outline-none" />
+                </div>
+              </div>
+
+              <button onClick={save} disabled={saving || !form.city_id}
+                className="w-full py-3 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors font-medium disabled:opacity-30 flex items-center justify-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {editing ? "Salvar" : "Criar Regra"}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
