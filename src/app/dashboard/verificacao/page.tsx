@@ -7,9 +7,10 @@ import {
   Award, Star, CreditCard, Unlock, Zap,
 } from "lucide-react";
 import Link from "next/link";
-import { SkeletonList } from "@/components/ui/skeleton";
 import { SelfieCapture } from "@/lib/components/selfie-capture";
 import { VideoIntro } from "@/lib/components/video-intro";
+import { useUser } from "@/lib/hooks/use-user";
+import { createClient } from "@/lib/supabase/browser";
 
 const STEPS_META = [
   { icon: ScanLine, title: "Selfie com documento", desc: "Tire uma foto do seu rosto segurando um documento" },
@@ -27,14 +28,54 @@ const BENEFITS = [
 type Step = "intro" | "selfie" | "video" | "done";
 
 export default function VerificationPage() {
+  const { user } = useUser();
   const [step, setStep] = useState<Step>("intro");
   const [selfie, setSelfie] = useState<string | null>(null);
+  const [selfieBlob, setSelfieBlob] = useState<Blob | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const stepIndex = step === "intro" ? 0 : step === "selfie" ? 1 : step === "video" ? 2 : 3;
   const progress = Math.round((stepIndex / 3) * 100);
+
+  const handleFinalize = async () => {
+    if (!user) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+
+      let selfieUrl = "";
+      if (selfieBlob) {
+        const formData = new FormData();
+        formData.append("file", new File([selfieBlob], "selfie.jpg", { type: "image/jpeg" }));
+        formData.append("bucket", "verifications");
+        formData.append("userId", user.id);
+        formData.append("docType", "selfie_document");
+        const res = await fetch("/api/storage/upload", { method: "POST", body: formData });
+        if (res.ok) {
+          const data = await res.json();
+          selfieUrl = data.url || "";
+        }
+      }
+
+      const { error: verifError } = await supabase.from("verifications").upsert({
+        profile_id: user.id,
+        selfie_url: selfieUrl || null,
+        selfie_status: selfieUrl ? "pending" : null,
+        document_type: "selfie",
+      }, { onConflict: "profile_id" });
+
+      if (verifError) throw verifError;
+
+      setStep("done");
+    } catch (err: any) {
+      setError(err.message || "Erro ao enviar verificação");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
@@ -61,9 +102,6 @@ export default function VerificationPage() {
           </div>
         )}
 
-        {loading ? (
-          <SkeletonList count={5} />
-        ) : (
         <motion.div key={step} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
           {step === "intro" && (
             <>
@@ -72,7 +110,6 @@ export default function VerificationPage() {
                 <p className="text-sm text-gray-400 mt-1">Complete 3 etapas rápidas para desbloquear todos os recursos</p>
               </div>
 
-              {/* Benefits preview */}
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
                 className="glass-panel p-4 border-primary/10">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Após verificado você ganha</h3>
@@ -109,9 +146,7 @@ export default function VerificationPage() {
                 <Camera className="w-4 h-4" /> Iniciar verificação
               </button>
 
-              <p className="text-xs text-gray-600 text-center">
-                Seus dados são protegidos com criptografia de ponta a ponta
-              </p>
+              <p className="text-xs text-gray-600 text-center">Seus dados são protegidos com criptografia de ponta a ponta</p>
 
               <Link href="/dashboard/passenger"
                 className="block text-center text-sm text-gray-500 hover:text-white transition-colors">
@@ -125,60 +160,41 @@ export default function VerificationPage() {
               <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
                 <ScanLine className="w-5 h-5 text-primary" /> Selfie com documento
               </h2>
-              <p className="text-sm text-gray-400 mb-4">
-                Posicione seu documento ao lado do rosto e tire uma selfie
-              </p>
+              <p className="text-sm text-gray-400 mb-4">Posicione seu documento ao lado do rosto e tire uma selfie</p>
 
               {selfie ? (
                 <div className="space-y-3">
                   <img src={selfie} alt="Selfie" className="w-full rounded-2xl border border-card-border" />
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => setSelfie(null)}
-                      className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-sm"
-                    >
-                      Refazer
-                    </button>
-                    <button
-                      onClick={() => setStep("video")}
-                      className="flex-1 bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm"
-                    >
-                      Próximo
-                    </button>
+                    <button onClick={() => { setSelfie(null); setSelfieBlob(null); }}
+                      className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-sm">Refazer</button>
+                    <button onClick={() => setStep("video")}
+                      className="flex-1 bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm">Próximo</button>
                   </div>
                 </div>
               ) : (
                 <SelfieCapture
-                  onCapture={(blob) => setSelfie(URL.createObjectURL(blob))}
+                  onCapture={(blob) => { setSelfie(URL.createObjectURL(blob)); setSelfieBlob(blob); }}
                   livenessRequired={false}
                   onSkip={() => setStep("video")}
                 />
               )}
-              {error && (
-                <p className="text-sm text-red-400 mt-2">{error}</p>
-              )}
+              {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
             </div>
           )}
 
           {step === "video" && (
             <div className="glass-panel p-5 sm:p-6">
-              <VideoIntro
-                onCapture={(blob) => setVideoBlob(blob)}
-              />
+              <VideoIntro onCapture={(blob) => setVideoBlob(blob)} />
               <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() => setStep("selfie")}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-sm"
-                >
-                  Voltar
-                </button>
-                <button
-                  onClick={() => { setStep("done"); }}
-                  className="flex-1 bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm"
-                >
-                  {videoBlob ? "Finalizar" : "Pular e finalizar"}
+                <button onClick={() => setStep("selfie")}
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl transition-all text-sm">Voltar</button>
+                <button onClick={handleFinalize} disabled={submitting}
+                  className="flex-1 bg-primary hover:bg-primary-hover text-background font-bold py-3 rounded-xl transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                  {submitting ? "Enviando..." : videoBlob ? "Finalizar" : "Pular e finalizar"}
                 </button>
               </div>
+              {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
             </div>
           )}
 
@@ -209,7 +225,6 @@ export default function VerificationPage() {
             </div>
           )}
         </motion.div>
-        )}
       </div>
     </div>
   );

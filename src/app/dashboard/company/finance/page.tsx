@@ -1,30 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Wallet, Download, FileText, CreditCard, TrendingUp, Calendar, ArrowDown, ArrowUp, CheckCircle, AlertCircle } from "lucide-react";
-import { SkeletonList } from "@/components/ui/skeleton";
-
-const MOCK_INVOICES = [
-  { id: "INV-001", period: "Junho/2026", amount: 1247.50, status: "paid", dueDate: "10/07/2026", nf: "NF-2026-001" },
-  { id: "INV-002", period: "Julho/2026", amount: 1893.20, status: "pending", dueDate: "10/08/2026", nf: "" },
-  { id: "INV-003", period: "Maio/2026", amount: 987.30, status: "paid", dueDate: "10/06/2026", nf: "NF-2026-0003" },
-];
-
-const MOCK_TRANSACTIONS = [
-  { id: 1, desc: "Comissão TXDAPP - Período", amount: -189.32, date: "15/07", type: "fee" },
-  { id: 2, desc: "Repasse entregas (12 corridas)", amount: 1893.20, date: "15/07", type: "revenue" },
-  { id: 3, desc: "Plano Business - Julho", amount: -199.00, date: "10/07", type: "plan" },
-  { id: 4, desc: "Repasse entregas (8 corridas)", amount: 1247.50, date: "15/06", type: "revenue" },
-  { id: 5, desc: "Plano Free - Maio", amount: 0, date: "10/05", type: "plan" },
-];
+import { Wallet, Download, FileText, TrendingUp, ArrowDown, ArrowUp } from "lucide-react";
 
 export default function CompanyFinancePage() {
-  const [selectedTab, setSelectedTab] = useState<"overview" | "invoices" | "costs">("overview");
-  const [loading] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<"overview" | "invoices">("overview");
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const totalRevenue = MOCK_TRANSACTIONS.filter(t => t.type === "revenue").reduce((a, b) => a + b.amount, 0);
-  const totalFees = MOCK_TRANSACTIONS.filter(t => t.type === "fee" || t.type === "plan").reduce((a, b) => a + Math.abs(b.amount), 0);
+  useEffect(() => {
+    fetch("/api/company/finance").then(r => r.ok ? r.json() : null).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="min-h-[100dvh] bg-background text-foreground p-4 sm:p-6 lg:p-8" style={{paddingBottom:"calc(1.5rem + env(safe-area-inset-bottom,0px))"}}>
+      <div className="space-y-3">{Array.from({length:4}).map((_,i)=><div key={i} className="glass-panel p-4 animate-pulse"><div className="h-4 bg-white/10 rounded w-3/4 mb-2"/><div className="h-3 bg-white/5 rounded w-1/2"/></div>)}</div>
+    </div>
+  );
+
+  const totalRevenue = data?.overview?.totalRevenue || 0;
+  const totalFees = data?.overview?.platformFees || 0;
+  const netRevenue = data?.overview?.netRevenue || 0;
+  const transactions = data?.transactions || [];
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
@@ -40,20 +38,19 @@ export default function CompanyFinancePage() {
             <p className="text-xl font-bold text-primary">R$ {totalRevenue.toFixed(2)}</p>
           </div>
           <div className="glass-panel p-4">
-            <p className="text-xs text-gray-500 mb-1">Custos</p>
+            <p className="text-xs text-gray-500 mb-1">Custos (10% comissão)</p>
             <p className="text-xl font-bold text-red-400">R$ {totalFees.toFixed(2)}</p>
           </div>
           <div className="glass-panel p-4">
-            <p className="text-xs text-gray-500 mb-1">Saldo</p>
-            <p className="text-xl font-bold text-primary">R$ {(totalRevenue - totalFees).toFixed(2)}</p>
+            <p className="text-xs text-gray-500 mb-1">Saldo líquido</p>
+            <p className="text-xl font-bold text-primary">R$ {netRevenue.toFixed(2)}</p>
           </div>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2">
           {[
             { key: "overview" as const, label: "Visão Geral", icon: TrendingUp },
-            { key: "invoices" as const, label: "Faturas", icon: FileText },
-            { key: "costs" as const, label: "Centro de Custos", icon: Wallet },
+            { key: "invoices" as const, label: "Transações", icon: FileText },
           ].map(tab => {
             const Icon = tab.icon;
             return (
@@ -67,94 +64,77 @@ export default function CompanyFinancePage() {
           })}
         </motion.div>
 
-        {loading ? (
-          <SkeletonList count={4} />
-        ) : (
-          <>
-            {selectedTab === "overview" && (
-              <div className="space-y-3">
-                <h2 className="font-semibold">Últimas transações</h2>
-                {MOCK_TRANSACTIONS.map(t => (
-                  <div key={t.id} className="glass-panel p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                        t.amount > 0 ? "bg-primary/10" : "bg-red-500/10"
-                      }`}>
-                        {t.amount > 0 ? <ArrowUp className="w-4 h-4 text-primary" /> : <ArrowDown className="w-4 h-4 text-red-400" />}
-                      </div>
-                      <div>
-                        <p className="text-sm">{t.desc}</p>
-                        <p className="text-xs text-gray-500">{t.date}</p>
-                      </div>
-                    </div>
-                    <span className={`font-bold text-sm ${t.amount > 0 ? "text-primary" : "text-red-400"}`}>
-                      {t.amount > 0 ? "+" : ""}R$ {t.amount.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                <button className="w-full text-gray-400 hover:text-white hover:bg-white/5 py-3 rounded-xl transition-all flex items-center justify-center gap-2">
-                  <Download className="w-4 h-4" /> Exportar CSV
-                </button>
-              </div>
-            )}
-
-            {selectedTab === "invoices" && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-semibold">Faturas</h2>
-                  <button className="text-xs text-primary flex items-center gap-1"><Download className="w-3 h-3" /> Exportar tudo</button>
+        <>
+          {selectedTab === "overview" && (
+            <div className="space-y-3">
+              <h2 className="font-semibold">Resumo do período</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="glass-panel p-4">
+                  <p className="text-xs text-gray-500">Corridas neste mês</p>
+                  <p className="text-xl font-bold">{data?.overview?.monthTrips || 0}</p>
                 </div>
-                {MOCK_INVOICES.map(inv => (
-                  <div key={inv.id} className="glass-panel p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-semibold text-sm">{inv.period}</p>
-                        <p className="text-xs text-gray-500">{inv.id}</p>
-                      </div>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        inv.status === "paid" ? "bg-primary/15 text-primary" : "bg-yellow-400/15 text-yellow-400"
-                      }`}>{inv.status === "paid" ? "Paga" : "Pendente"}</span>
+                <div className="glass-panel p-4">
+                  <p className="text-xs text-gray-500">Receita no mês</p>
+                  <p className="text-xl font-bold text-primary">R$ {(data?.overview?.monthRevenue || 0).toFixed(2)}</p>
+                </div>
+                <div className="glass-panel p-4">
+                  <p className="text-xs text-gray-500">Total de corridas</p>
+                  <p className="text-xl font-bold">{data?.overview?.totalTrips || 0}</p>
+                </div>
+                <div className="glass-panel p-4">
+                  <p className="text-xs text-gray-500">Ticket médio</p>
+                  <p className="text-xl font-bold text-primary">R$ {(data?.overview?.totalTrips ? (totalRevenue / data.overview.totalTrips).toFixed(2) : "0,00")}</p>
+                </div>
+              </div>
+
+              <h2 className="font-semibold mt-4">Últimas transações</h2>
+              {transactions.length === 0 && (
+                <div className="glass-panel p-8 text-center text-sm text-gray-500">Nenhuma transação encontrada</div>
+              )}
+              {transactions.map((t: any) => (
+                <div key={t.id} className="glass-panel p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${t.type === 'payment' || t.type === 'deposit' ? 'bg-primary/10' : 'bg-red-500/10'}`}>
+                      {t.type === 'payment' || t.type === 'deposit' ? <ArrowUp className="w-4 h-4 text-primary" /> : <ArrowDown className="w-4 h-4 text-red-400" />}
                     </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-bold text-primary">R$ {inv.amount.toFixed(2)}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">Vencimento: {inv.dueDate}</span>
-                        {inv.nf && <button className="text-xs text-primary flex items-center gap-1"><FileText className="w-3 h-3" /> NF</button>}
-                        {!inv.nf && <button className="text-xs text-gray-400 hover:text-primary"><CreditCard className="w-3 h-3" /> Pagar</button>}
-                      </div>
+                    <div>
+                      <p className="text-sm">{t.description || t.type}</p>
+                      <p className="text-xs text-gray-500">{t.date}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {selectedTab === "costs" && (
-              <div className="glass-panel p-5 space-y-4">
-                <h2 className="font-semibold">Centro de Custos</h2>
-                <div className="space-y-3">
-                  {[
-                    { dept: "Entregas", cost: 1247.50, percent: 65 },
-                    { dept: "Administrativo", cost: 199.00, percent: 10 },
-                    { dept: "Marketing", cost: 480.00, percent: 25 },
-                  ].map(d => (
-                    <div key={d.dept}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>{d.dept}</span>
-                        <span className="text-primary font-semibold">R$ {d.cost.toFixed(2)}</span>
-                      </div>
-                      <div className="w-full bg-background rounded-full h-2 overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: `${d.percent}%` }} />
-                      </div>
-                    </div>
-                  ))}
+                  <span className={`font-bold text-sm ${t.type === 'deposit' || t.type === 'refund' ? 'text-primary' : 'text-red-400'}`}>
+                    {t.type === 'deposit' || t.type === 'refund' ? '+' : '-'}R$ {(t.amount || 0).toFixed(2)}
+                  </span>
                 </div>
-                <button className="w-full text-gray-400 hover:text-white hover:bg-white/5 py-2 rounded-xl transition-all flex items-center justify-center gap-2">
-                  <Download className="w-3 h-3" /> Exportar relatório PDF
-                </button>
-              </div>
-            )}
-          </>
-        )}
+              ))}
+            </div>
+          )}
+
+          {selectedTab === "invoices" && (
+            <div className="space-y-3">
+              <h2 className="font-semibold">Histórico de transações</h2>
+              {transactions.length === 0 && (
+                <div className="glass-panel p-8 text-center text-sm text-gray-500">Nenhuma transação registrada</div>
+              )}
+              {transactions.map((tx: any) => (
+                <div key={tx.id} className="glass-panel p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-sm">{tx.description || tx.type}</p>
+                      <p className="text-xs text-gray-500">{tx.date}</p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      tx.status === "confirmed" ? "bg-primary/15 text-primary" : tx.status === "pending" ? "bg-yellow-400/15 text-yellow-400" : "bg-red-400/15 text-red-400"
+                    }`}>{tx.status === "confirmed" ? "Confirmada" : tx.status === "pending" ? "Pendente" : "Falhou"}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-bold text-primary">R$ {(tx.amount || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       </div>
     </div>
   );
