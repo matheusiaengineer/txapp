@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
-import { useAuth } from "./auth-context";
 
 const NAV_LINKS = [
   { label: "Como funciona", href: "#como-funciona" },
@@ -15,7 +15,6 @@ const NAV_LINKS = [
 
 export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { openAuth } = useAuth();
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-transparent" id="navbar">
@@ -32,8 +31,8 @@ export function Navbar() {
           ))}
         </div>
         <div className="hidden md:flex items-center gap-3">
-          <button onClick={() => openAuth("login")} className="text-sm font-medium text-gray-300 hover:text-white transition px-4 py-2">Entrar</button>
-          <button onClick={() => openAuth("register")} className="bg-primary hover:bg-primary-hover text-black text-sm font-bold px-5 py-2.5 rounded-full transition-all hover:scale-95 txd-green-glow-sm">Criar conta</button>
+          <Link href="/auth/login" className="text-sm font-medium text-gray-300 hover:text-white transition px-4 py-2">Entrar</Link>
+          <Link href="/auth/register" className="bg-primary hover:bg-primary-hover text-black text-sm font-bold px-5 py-2.5 rounded-full transition-all hover:scale-95 txd-green-glow-sm">Criar conta</Link>
         </div>
         <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden w-10 h-10 flex items-center justify-center rounded-xl bg-white/5">
           {menuOpen ? <Icon name="x" size={20} /> : <Icon name="menu" size={20} />}
@@ -46,8 +45,8 @@ export function Navbar() {
               <a key={l.label} href={l.href} onClick={() => setMenuOpen(false)} className="block py-3 px-4 text-gray-300 hover:text-white hover:bg-white/5 rounded-xl transition text-sm">{l.label}</a>
             ))}
             <hr className="border-white/5 my-2" />
-            <button onClick={() => { setMenuOpen(false); openAuth("login"); }} className="w-full py-3 text-center text-sm text-gray-300 hover:text-white">Entrar</button>
-            <button onClick={() => { setMenuOpen(false); openAuth("register"); }} className="w-full py-3 text-center text-sm font-bold bg-primary text-black rounded-xl hover:bg-primary-hover transition">Criar conta</button>
+            <Link href="/auth/login" onClick={() => setMenuOpen(false)} className="block w-full py-3 text-center text-sm text-gray-300 hover:text-white">Entrar</Link>
+            <Link href="/auth/register" onClick={() => setMenuOpen(false)} className="block w-full py-3 text-center text-sm font-bold bg-primary text-black rounded-xl hover:bg-primary-hover transition">Criar conta</Link>
           </div>
         </div>
       )}

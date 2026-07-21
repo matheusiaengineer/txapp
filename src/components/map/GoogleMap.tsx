@@ -108,7 +108,7 @@ interface TxdMapProps {
   directions?: google.maps.DirectionsResult | null;
 }
 
-export function TxdGoogleMap({ pickupCoords, destinationCoords, directions }: TxdMapProps) {
+export default function TxdGoogleMap({ pickupCoords, destinationCoords, directions }: TxdMapProps) {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY" // Fallback to avoid breaking if missing

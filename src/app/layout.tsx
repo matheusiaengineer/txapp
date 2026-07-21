@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ClientLayout } from "./client-layout";
-import { NavigationGuardWrapper } from "@/components/ui/navigation-guard-wrapper";
-import { Suspense } from "react";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -11,38 +9,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "TXDAPP — Mobilidade Inteligente",
+  title: "TXAP — Mobilidade Inteligente",
   description: "Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.",
   manifest: "/manifest.json",
   icons: [
     { rel: "icon", url: "/icon.svg", type: "image/svg+xml", sizes: "192x192" },
     { rel: "apple-touch-icon", url: "/icon.svg", sizes: "192x192" },
-    { rel: "icon", url: "/icon.svg", type: "image/svg+xml", sizes: "512x512" },
-    { rel: "apple-touch-icon", url: "/icon.svg", sizes: "512x512" },
-    { rel: "mask-icon", url: "/icon.svg", color: "#3ECB8E" },
   ],
   appleWebApp: {
     capable: true,
-    title: "TXDAPP",
+    title: "TXAP",
     statusBarStyle: "black-translucent",
-  },
-  formatDetection: {
-    telephone: true,
-    date: false,
-    address: false,
-    email: false,
-    url: false,
-  },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "black-translucent",
-  },
-  keywords: "aplicativo de corrida, corrida de moto, entrega, frete, mudança, mototáxi, motorista particular, transporte, logística",
-  openGraph: {
-    title: "TXDAPP — Mobilidade Inteligente",
-    description: "Solicite corridas, entregas e fretes em uma única plataforma.",
-    locale: "pt_BR",
-    type: "website",
   },
 };
 
@@ -60,23 +37,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="pt-BR" className={`${inter.variable} h-full antialiased`}>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="192x192" />
-        <link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="512x512" />
-        <link rel="apple-touch-icon" href="/icon.svg" sizes="180x180" />
-        <link rel="apple-touch-icon" href="/icon.svg" sizes="152x152" />
-        <link rel="apple-touch-icon" href="/icon.svg" sizes="120x120" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="TXDAPP" />
+        <meta name="apple-mobile-web-app-title" content="TXAP" />
       </head>
-      <body className="min-h-full flex flex-col" style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-        <ClientLayout>
-          <Suspense fallback={null}><NavigationGuardWrapper /></Suspense>
-          {children}
-        </ClientLayout>
-        <script dangerouslySetInnerHTML={{
-          __html: `(function(){try{if(!window.__txdLoaded){var r=new XMLHttpRequest();r.open("GET","/api/health",true);r.timeout=5000;r.onload=function(){window.__txdLoaded=true};r.onerror=function(){setTimeout(function(){window.location.reload()},5000)};r.send()}}catch(e){}})()`
-        }} />
+      <body className="min-h-[100dvh] flex flex-col bg-background text-foreground"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );

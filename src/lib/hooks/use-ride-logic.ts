@@ -2,9 +2,8 @@
 
 import { useRideStore } from "@/lib/store/ride-store";
 import { useWalletStore } from "@/lib/store/wallet-store";
-import { useCallback } from "react";
-
-const PRICE_PER_KM = 2500;
+import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/browser";
 
 export function useRideLogic() {
   const {
@@ -17,8 +16,21 @@ export function useRideLogic() {
   } = useRideStore();
 
   const { realBalance, promotionalBalance, hasSufficientFunds } = useWalletStore();
+  const [pricePerKm, setPricePerKm] = useState(2500);
 
-  const estimatedCost = currentRide.distance * PRICE_PER_KM;
+  useEffect(() => {
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("app_config")
+        .select("value")
+        .eq("key", "global.price_per_km")
+        .single();
+      if (data?.value?.default) setPricePerKm(data.value.default);
+    })();
+  }, []);
+
+  const estimatedCost = currentRide.distance * pricePerKm;
   const canRequestRide =
     !!currentRide.origin &&
     !!currentRide.destination &&

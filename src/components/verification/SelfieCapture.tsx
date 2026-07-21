@@ -3,19 +3,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, RefreshCw, CheckCircle2, ScanFace } from "lucide-react";
 import Webcam from "react-webcam";
-import { motion, AnimatePresence } from "framer-motion";
-import { triggerHaptic } from "@/lib/haptics";
+import { motion } from "framer-motion";
 
 export function SelfieCapture({ onCaptureSuccess }: { onCaptureSuccess: (url: string) => void }) {
   const webcamRef = useRef<Webcam>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
 
   const capture = useCallback(() => {
-    triggerHaptic("medium");
     const imageSrc = webcamRef.current?.getScreenshot();
     if (imageSrc) {
       setImageSrc(imageSrc);
-      triggerHaptic("success");
     }
   }, [webcamRef]);
 
