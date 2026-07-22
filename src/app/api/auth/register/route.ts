@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
       cpf_verified: false,
       account_type: accountType,
       device_fingerprint: deviceFingerprint,
-      role: accountType === "business" ? "company" : accountType === "driver_moto" || accountType === "driver_car" ? "driver" : "user",
+      role: accountType === "business" ? "company" : accountType === "driver_moto" || accountType === "driver_car" ? "driver" : "passenger",
     })
 
     if (profileError) {
@@ -122,9 +122,14 @@ export async function POST(req: NextRequest) {
       ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: true,
     })
 
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) {
+      return NextResponse.json({ error: signInError.message }, { status: 500 })
+    }
+
     return NextResponse.json({
       user: authData.user,
-      message: "Conta criada! Verifique seu email para ativar.",
+      message: "Conta criada com sucesso!",
       accountType,
     }, { status: 201 })
   } catch (err: any) {

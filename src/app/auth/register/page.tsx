@@ -61,7 +61,7 @@ export default function RegisterPage() {
         return
       }
 
-      router.push(`/auth/verify?email=${encodeURIComponent(form.email)}&type=${form.accountType}`)
+      router.push("/home")
     } catch (err: any) {
       setError(err.message)
       setLoading(false)
@@ -69,19 +69,21 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">Criar Conta TXAP</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+    <main className="min-h-[100dvh] flex flex-col bg-background px-4"
+      style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <div className="flex-1 flex flex-col justify-center max-w-sm mx-auto w-full">
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
+            <span className="text-black font-bold text-xl">T</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white">Criar Conta TXAP</h1>
+          <p className="text-sm text-gray-400 mt-1">
             {step === 1 ? "Escolha seu perfil" : "Preencha seus dados"}
           </p>
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-300 text-red-700 text-sm p-3 rounded">
-            {error}
-          </div>
+          <div className="text-error text-sm bg-error/10 border border-error/20 px-4 py-2 rounded-lg mb-4">{error}</div>
         )}
 
         {step === 1 ? (
@@ -90,97 +92,102 @@ export default function RegisterPage() {
               <button
                 key={type.id}
                 onClick={() => { setForm(f => ({ ...f, accountType: type.id })); setStep(2) }}
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
                   form.accountType === type.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
+                    ? "border-primary bg-primary/10"
+                    : "border-card-border bg-card-bg hover:border-primary/50"
                 }`}
               >
                 <span className="text-2xl">{type.icon}</span>
                 <div>
-                  <p className="font-semibold">{type.label}</p>
-                  <p className="text-sm text-muted-foreground">{type.desc}</p>
+                  <p className="font-semibold text-white">{type.label}</p>
+                  <p className="text-sm text-gray-400">{type.desc}</p>
                 </div>
               </button>
             ))}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-3 flex items-center gap-3">
+            <div className="bg-card-bg-2 border border-card-border rounded-2xl p-3 flex items-center gap-3">
               <span className="text-xl">{ACCOUNT_TYPES.find(t => t.id === form.accountType)?.icon}</span>
-              <span className="text-sm font-medium">{ACCOUNT_TYPES.find(t => t.id === form.accountType)?.label}</span>
+              <span className="text-sm font-medium text-white">
+                {ACCOUNT_TYPES.find(t => t.id === form.accountType)?.label}
+              </span>
               <button type="button" onClick={() => setStep(1)} className="ml-auto text-xs text-primary underline">
                 Alterar
               </button>
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1 block">Celular</label>
+              <label className="text-sm text-gray-300 mb-1 block">Celular</label>
               <input
                 type="tel"
                 required
                 placeholder="(11) 99999-9999"
-                className="w-full border rounded-lg px-3 py-2.5 text-sm"
+                className="w-full px-4 py-3 rounded-xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary transition-colors"
                 value={form.phone}
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 onBlur={e => checkAvailability("phone", e.target.value)}
               />
               {form.phone && availability.phoneAvailable === false && (
-                <p className="text-xs text-red-500 mt-1">Celular ja cadastrado</p>
+                <p className="text-xs text-error mt-1">Celular já cadastrado</p>
               )}
               {form.phone && availability.phoneAvailable === true && (
-                <p className="text-xs text-green-500 mt-1">Celular disponivel</p>
+                <p className="text-xs text-success mt-1">Celular disponível</p>
               )}
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1 block">CPF</label>
+              <label className="text-sm text-gray-300 mb-1 block">CPF</label>
               <input
                 type="text"
                 required
                 placeholder="000.000.000-00"
-                className="w-full border rounded-lg px-3 py-2.5 text-sm"
+                className="w-full px-4 py-3 rounded-xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary transition-colors"
                 value={form.cpf}
                 onChange={e => setForm(f => ({ ...f, cpf: e.target.value }))}
                 onBlur={e => checkAvailability("cpf", e.target.value)}
               />
               {form.cpf && availability.cpfAvailable === false && (
-                <p className="text-xs text-red-500 mt-1">CPF ja cadastrado</p>
+                <p className="text-xs text-error mt-1">CPF já cadastrado</p>
               )}
               {form.cpf && availability.cpfAvailable === true && (
-                <p className="text-xs text-green-500 mt-1">CPF disponivel</p>
+                <p className="text-xs text-success mt-1">CPF disponível</p>
               )}
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1 block">Nome Completo</label>
+              <label className="text-sm text-gray-300 mb-1 block">Nome Completo</label>
               <input
                 type="text"
                 required
-                className="w-full border rounded-lg px-3 py-2.5 text-sm"
+                placeholder="Seu nome completo"
+                className="w-full px-4 py-3 rounded-xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary transition-colors"
                 value={form.name}
                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1 block">Email</label>
+              <label className="text-sm text-gray-300 mb-1 block">Email</label>
               <input
                 type="email"
                 required
-                className="w-full border rounded-lg px-3 py-2.5 text-sm"
+                placeholder="seu@email.com"
+                className="w-full px-4 py-3 rounded-xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary transition-colors"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               />
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-1 block">Senha</label>
+              <label className="text-sm text-gray-300 mb-1 block">Senha</label>
               <input
                 type="password"
                 required
                 minLength={6}
-                className="w-full border rounded-lg px-3 py-2.5 text-sm"
+                placeholder="Mínimo 6 caracteres"
+                className="w-full px-4 py-3 rounded-xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary transition-colors"
                 value={form.password}
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               />
@@ -189,23 +196,21 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-white py-3 rounded-xl font-semibold disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary-hover text-black font-bold py-3.5 rounded-full txd-green-glow-sm disabled:opacity-50 transition-all"
             >
               {loading ? "Criando conta..." : "Criar Conta"}
             </button>
 
-            <p className="text-xs text-muted-foreground text-center">
-              Ao criar conta, voce aceita nossos Termos de Uso e Politica de Privacidade.
-              CPF e celular nao podem ser alterados apos o cadastro.
+            <p className="text-xs text-gray-500 text-center">
+              Ao criar conta, você aceita nossos Termos de Uso e Política de Privacidade.
+              CPF e celular não podem ser alterados após o cadastro.
             </p>
           </form>
         )}
 
-        <p className="text-center text-sm text-muted-foreground">
-          Ja tem conta?{" "}
-          <Link href="/auth/login" className="text-primary font-medium underline">
-            Entrar
-          </Link>
+        <p className="text-center text-sm text-gray-500 mt-6">
+          Já tem conta?{" "}
+          <Link href="/auth/login" className="text-primary font-medium">Entrar</Link>
         </p>
       </div>
     </main>

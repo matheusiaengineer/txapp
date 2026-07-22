@@ -44,12 +44,12 @@ export default function LoginPage() {
     }
 
     const { data: profile } = await supabase
-      .from("users")
-      .select("tipo")
+      .from("profiles")
+      .select("role")
       .eq("id", user.user.id)
       .single();
 
-    const role = profile?.tipo || "passenger";
+    const role = profile?.role || "passenger";
     router.push(`/dashboard/${role}`);
   }
 
