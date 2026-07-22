@@ -111,25 +111,23 @@ export default function Home() {
   return (
     <main className="flex-1 flex flex-col min-h-[100dvh] relative bg-background">
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass-panel-light mx-4 mt-2 px-4 py-3 flex items-center justify-between"
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-white/5 px-4 py-3 flex items-center justify-between"
         style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.5rem)" }}>
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-[#00a884] flex items-center justify-center shadow-lg shadow-primary/20">
             <span className="text-black font-bold text-sm">T</span>
           </div>
           <span className="font-bold text-lg text-white">TXAP</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/auth/login" className="text-sm text-gray-300 px-4 py-2 hover:text-white transition-colors">Entrar</Link>
-          <Link href="/auth/register" className="text-sm bg-primary hover:bg-primary-hover text-black font-bold px-5 py-2 rounded-full transition-all">Criar conta</Link>
+        <div className="flex items-center gap-3">
+          <Link href="/auth/login" className="text-sm text-gray-300 font-medium hover:text-white transition-colors">Entrar</Link>
+          <Link href="/auth/register" className="text-sm bg-primary hover:bg-primary-hover text-black font-bold px-5 py-2 rounded-full transition-all active:scale-[0.97]">Criar conta</Link>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="relative min-h-[90dvh] flex flex-col items-center justify-center px-4 txd-radial-glow overflow-hidden">
+      <section className="relative min-h-[90dvh] flex flex-col items-center justify-center px-4 overflow-hidden">
         <div className="absolute inset-0 txd-grid-bg opacity-20" />
-        <div className="absolute top-1/4 left-1/4 w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         <div className="relative z-10 text-center max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20 mb-5 animate-float">
             <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
@@ -168,8 +166,10 @@ export default function Home() {
           </div>
         </div>
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-float">
-          <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2" style={{animation: "bounce 2s infinite"}}>
+          <div className="w-6 h-10 rounded-full border-2 border-gray-700 flex items-start justify-center p-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-gray-400" style={{animation: "scrollDot 2s infinite"}} />
+          </div>
         </div>
       </section>
 

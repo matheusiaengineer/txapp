@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { createClient as createAdminClient } from "@supabase/supabase-js"
 
 const VALID_TYPES = ["passenger", "driver_moto", "driver_car", "business"] as const
 
@@ -83,10 +84,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Muitas tentativas. Tente novamente em 1 hora." }, { status: 429 })
     }
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+    const admin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+
+    const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email,
       password,
-      options: { data: { full_name: name, account_type: accountType, phone } },
+      email_confirm: true,
+      user_metadata: { full_name: name, account_type: accountType, phone },
     })
 
     if (authError) {
@@ -114,7 +122,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (profileError) {
-      await supabase.auth.admin.deleteUser(authData.user.id)
+      await admin.auth.admin.deleteUser(authData.user.id)
       return NextResponse.json({ error: profileError.message }, { status: 500 })
     }
 
@@ -122,13 +130,8 @@ export async function POST(req: NextRequest) {
       ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: true,
     })
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) {
-      return NextResponse.json({ error: signInError.message }, { status: 500 })
-    }
-
     return NextResponse.json({
-      user: authData.user,
+      user: { id: authData.user.id, email: authData.user.email },
       message: "Conta criada com sucesso!",
       accountType,
     }, { status: 201 })
