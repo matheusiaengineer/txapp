@@ -1,4 +1,84 @@
-import Link from "next/link";
+"use client"
+
+import Link from "next/link"
+import { useEffect, useState } from "react"
+
+interface Influencer {
+  id: string
+  instagram_handle: string
+  display_name: string
+  avatar_url: string
+  bio: string
+  is_founder: boolean
+}
+
+function InfluencerSection() {
+  const [influencers, setInfluencers] = useState<Influencer[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/influencers")
+      .then(r => r.json())
+      .then(data => {
+        setInfluencers(data.influencers || [])
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  if (loading) return <div className="text-center py-8 text-gray-500">Carregando...</div>
+  if (influencers.length === 0) return null
+
+  return (
+    <section className="py-16 bg-background">
+      <div className="max-w-6xl mx-auto px-4">
+        <div className="text-center mb-8">
+          <span className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-medium border border-primary/20 mb-3">
+            🎤 Parceiros
+          </span>
+          <h2 className="text-2xl font-bold">Quem já está usando o TXAP</h2>
+          <p className="text-sm text-gray-400 mt-1">Influenciadores e parceiros que confiam na gente</p>
+        </div>
+
+        <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+          {influencers.map((inf) => (
+            <a
+              key={inf.id}
+              href={`https://instagram.com/${inf.instagram_handle.replace("@", "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 w-64 bg-card-bg-2 border border-card-border rounded-2xl p-5 hover:border-primary/40 hover:bg-card-bg-2/80 transition-all duration-300 hover:-translate-y-1 cursor-pointer group"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${
+                  inf.is_founder
+                    ? "bg-gradient-to-br from-[#ffd700] to-[#ffaa00]"
+                    : "bg-gradient-to-br from-primary to-[#00a884]"
+                }`}>
+                  {inf.avatar_url ? (
+                    <img src={inf.avatar_url} alt={inf.display_name} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    inf.is_founder ? "👑" : "📸"
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-white text-sm truncate">{inf.display_name}</div>
+                  <div className="text-primary text-xs">{inf.instagram_handle}</div>
+                </div>
+              </div>
+              <p className="text-gray-400 text-xs leading-relaxed line-clamp-2">{inf.bio}</p>
+              {inf.is_founder && (
+                <div className="mt-3 inline-flex items-center gap-1 bg-[#ffd700]/10 text-[#ffd700] text-xs font-bold px-3 py-1 rounded-full">
+                  ⭐ Fundador
+                </div>
+              )}
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
 
 export default function Home() {
   return (
@@ -99,6 +179,9 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* Influenciadores */}
+      <InfluencerSection />
 
       {/* CTA */}
       <section className="py-12 px-4">

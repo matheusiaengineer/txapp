@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import dynamic from "next/dynamic"
 import { useGeolocation } from "@/hooks/useGeolocation"
+import { useRouter } from "next/navigation"
 
 const DriverMap = dynamic(() => import("@/components/maps/DriverMap"), {
   ssr: false,
@@ -13,27 +14,59 @@ const DriverMap = dynamic(() => import("@/components/maps/DriverMap"), {
   ),
 })
 
-const mockDrivers = [
-  { id: "1", name: "Joao Silva", lat: -23.5505, lng: -46.6333, vehicleType: "moto" as const, rating: 4.8, pricePerKm: 2.50, isOnline: true },
-  { id: "2", name: "Maria Souza", lat: -23.5520, lng: -46.6350, vehicleType: "carro" as const, rating: 4.9, pricePerKm: 3.80, isOnline: true },
-  { id: "3", name: "Pedro Costa", lat: -23.5480, lng: -46.6310, vehicleType: "moto" as const, rating: 4.5, pricePerKm: 2.20, isOnline: true },
-  { id: "4", name: "Ana Oliveira", lat: -23.5535, lng: -46.6345, vehicleType: "carro" as const, rating: 4.7, pricePerKm: 3.50, isOnline: true },
-]
-
 const QUICK_ACTIONS = [
-  { icon: "🚕", label: "Taxi", color: "from-amber-500 to-orange-600" },
-  { icon: "🛵", label: "Motoboy", color: "from-emerald-500 to-teal-600" },
-  { icon: "📦", label: "Frete", color: "from-blue-500 to-indigo-600" },
-  { icon: "🏙️", label: "Cidade", color: "from-purple-500 to-pink-600" },
+  { icon: "🚕", label: "Taxi", color: "from-amber-500 to-orange-600", type: "taxi" },
+  { icon: "🛵", label: "Motoboy", color: "from-emerald-500 to-teal-600", type: "moto" },
+  { icon: "📦", label: "Frete", color: "from-blue-500 to-indigo-600", type: "frete" },
+  { icon: "🏙️", label: "Cidade", color: "from-purple-500 to-pink-600", type: "cidade" },
 ]
 
 export default function HomePage() {
+  const router = useRouter()
   const { coords, loading, error, getLocation } = useGeolocation()
   const [selectedDriver, setSelectedDriver] = useState<any>(null)
+  const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([])
+  const [driversLoading, setDriversLoading] = useState(false)
+  const [favorites, setFavorites] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!coords) return
+    setDriversLoading(true)
+    fetch(`/api/drivers/nearby?lat=${coords[0]}&lng=${coords[1]}&radius=5`)
+      .then(r => r.json())
+      .then(data => {
+        setNearbyDrivers(data.drivers || [])
+        setDriversLoading(false)
+      })
+      .catch(() => { setNearbyDrivers([]); setDriversLoading(false) })
+  }, [coords])
+
+  useEffect(() => {
+    fetch("/api/favorites")
+      .then(r => r.json())
+      .then(data => {
+        setFavorites((data.favorites || []).map((f: any) => f.driver_id).filter(Boolean))
+      })
+      .catch(() => {})
+  }, [])
+
+  async function toggleFavorite(driverId: string) {
+    if (favorites.includes(driverId)) {
+      await fetch(`/api/favorites/${driverId}`, { method: "DELETE" })
+      setFavorites(prev => prev.filter(id => id !== driverId))
+    } else {
+      await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorite_type: "driver", driver_id: driverId }),
+      })
+      setFavorites(prev => [...prev, driverId])
+    }
+  }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a1a] flex items-center justify-center text-emerald-500">
+      <div className="min-h-screen bg-background flex items-center justify-center text-primary">
         📍 Obtendo sua localizacao...
       </div>
     )
@@ -41,9 +74,9 @@ export default function HomePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0a0a1a] flex flex-col items-center justify-center gap-4">
-        <div className="text-red-400">❌ {error}</div>
-        <button onClick={getLocation} className="px-6 py-3 bg-emerald-500 text-black rounded-xl font-bold cursor-pointer hover:bg-emerald-400">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <div className="text-error">❌ {error}</div>
+        <button onClick={getLocation} className="px-6 py-3 bg-primary text-black rounded-xl font-bold cursor-pointer hover:bg-primary-hover">
           🔄 Tentar Novamente
         </button>
       </div>
@@ -51,33 +84,38 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a1a] text-white flex flex-col">
+    <div className="min-h-screen bg-background text-white flex flex-col">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
         <div>
           <div className="text-xs text-gray-500">Bem-vindo ao</div>
-          <div className="text-xl font-extrabold bg-gradient-to-r from-white to-emerald-500 bg-clip-text text-transparent">TXAP</div>
+          <div className="text-xl font-extrabold bg-gradient-to-r from-white to-primary bg-clip-text text-transparent">TXAP</div>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-emerald-500">📍 Sao Paulo</span>
+          <span className="text-xs text-primary">📍 Sao Paulo</span>
           <span className="text-xl cursor-pointer">🔔</span>
         </div>
       </div>
 
       <div className="px-4 h-[45vh] min-h-[300px]">
-        <Suspense fallback={<div className="text-emerald-500">Carregando...</div>}>
+        <Suspense fallback={<div className="text-primary">Carregando...</div>}>
           <DriverMap
             userLocation={coords || [-23.5505, -46.6333]}
-            nearbyDrivers={mockDrivers}
+            nearbyDrivers={nearbyDrivers}
             onDriverClick={setSelectedDriver}
             onMapClick={(lat, lng) => console.log("Clicou em:", lat, lng)}
           />
         </Suspense>
       </div>
 
+      {driversLoading && (
+        <div className="px-4 py-1 text-xs text-primary">🔄 Buscando motoristas...</div>
+      )}
+
       <div className="px-4 py-4 grid grid-cols-4 gap-3">
         {QUICK_ACTIONS.map(action => (
           <button
             key={action.label}
+            onClick={() => router.push(`/ride?type=${action.type}`)}
             className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-gradient-to-br ${action.color} text-white text-xs font-semibold cursor-pointer border-none hover:scale-[1.02] transition-transform`}
           >
             <span className="text-xl">{action.icon}</span>
@@ -88,10 +126,10 @@ export default function HomePage() {
 
       <div className="px-4">
         <h3 className="text-sm font-semibold mb-3">Empresas em Destaque</h3>
-        <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-none">
+        <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
           {[1, 2, 3].map(i => (
-            <div key={i} className="min-w-[140px] bg-white/5 border border-white/10 rounded-xl p-3 shrink-0">
-              <div className="w-full h-20 rounded-lg bg-gradient-to-br from-emerald-500/20 to-purple-500/20 mb-2 flex items-center justify-center text-2xl">
+            <div key={i} className="min-w-[140px] bg-card-bg-2 border border-card-border rounded-xl p-3 shrink-0">
+              <div className="w-full h-20 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20 mb-2 flex items-center justify-center text-2xl">
                 {["🏪", "🍕", "💊"][i - 1]}
               </div>
               <p className="text-xs font-semibold">{["Mercado Silva", "Pizza Nova", "Farmacia Total"][i - 1]}</p>
@@ -102,13 +140,21 @@ export default function HomePage() {
       </div>
 
       {selectedDriver && (
-        <div className="fixed bottom-20 left-4 right-4 bg-[#1a1a2e]/95 border border-emerald-500/20 rounded-2xl p-4 backdrop-blur z-50">
+        <div className="fixed bottom-20 left-4 right-4 bg-[#1a1a2e]/95 border border-primary/20 rounded-2xl p-4 backdrop-blur z-50">
           <div className="flex items-center justify-between">
-            <div>
-              <div className="font-bold">{selectedDriver.vehicleType === "moto" ? "🛵" : "🚕"} {selectedDriver.name}</div>
-              <div className="text-xs text-gray-400">⭐ {selectedDriver.rating} • R$ {selectedDriver.pricePerKm}/km</div>
+            <div className="flex items-center gap-3">
+              <div>
+                <div className="font-bold">{selectedDriver.vehicle_type === "moto" ? "🛵" : "🚕"} {selectedDriver.name}</div>
+                <div className="text-xs text-gray-400">⭐ {selectedDriver.rating} • R$ {selectedDriver.price_per_km}/km</div>
+              </div>
+              <button onClick={() => toggleFavorite(selectedDriver.id)} className="text-lg">
+                {favorites.includes(selectedDriver.id) ? "⭐" : "☆"}
+              </button>
             </div>
-            <button className="px-5 py-2.5 bg-emerald-500 text-black rounded-xl font-bold cursor-pointer border-none hover:bg-emerald-400 text-sm">
+            <button
+              onClick={() => router.push(`/ride?driverId=${selectedDriver.id}&type=${selectedDriver.vehicle_type}`)}
+              className="px-5 py-2.5 bg-primary text-black rounded-xl font-bold cursor-pointer border-none hover:bg-primary-hover text-sm"
+            >
               Chamar
             </button>
           </div>
