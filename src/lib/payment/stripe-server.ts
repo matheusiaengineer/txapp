@@ -1,13 +1,22 @@
-import Stripe from "stripe";
+import Stripe from "stripe"
 
-let stripeInstance: Stripe | null = null;
+import { STRIPE_API_VERSION } from "./constants"
+
+let stripeInstance: Stripe | null = null
 
 export function getStripe(): Stripe {
   if (!stripeInstance) {
-    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: "2025-03-31.basil" as any,
+    const secretKey = process.env.STRIPE_SECRET_KEY
+    if (!secretKey) {
+      throw new Error("STRIPE_SECRET_KEY não configurada")
+    }
+    if (process.env.NODE_ENV === "production" && !secretKey.startsWith("sk_live_")) {
+      throw new Error("Produção requer chave live (sk_live_*)")
+    }
+    stripeInstance = new Stripe(secretKey, {
+      apiVersion: STRIPE_API_VERSION as any,
       typescript: true,
-    });
+    })
   }
-  return stripeInstance;
+  return stripeInstance
 }

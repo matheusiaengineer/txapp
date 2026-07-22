@@ -35,6 +35,10 @@ export default function PassengerDashboard() {
   const [dropoff, setDropoff] = useState("");
   const [showCategory, setShowCategory] = useState(true);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [breathRate, setBreathRate] = useState<number>(0);
+  const [surcharge, setSurcharge] = useState<number>(0);
+  const [acceptSurcharge, setAcceptSurcharge] = useState(false);
+  const [availableDrivers, setAvailableDrivers] = useState(0);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -43,22 +47,37 @@ export default function PassengerDashboard() {
     });
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        fetchRespiratoryRate(pos.coords.latitude, pos.coords.longitude);
+      },
       () => setLocation({ lat: -19.9167, lng: -43.9345 }),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
 
+  async function fetchRespiratoryRate(lat: number, lng: number) {
+    try {
+      const res = await fetch(`/api/pricing/respiratory?cityId=${lat}-${lng}`);
+      const data = await res.json();
+      if (data?.breath_rate !== undefined) {
+        setBreathRate(data.breath_rate);
+        setSurcharge(data.dynamic_incentive || 0);
+        setAvailableDrivers(data.available_drivers || 0);
+      }
+    } catch {}
+  }
+
   async function handleRequestRide() {
     if (!pickup || !dropoff || !user || !location) return;
-    router.push(`/ride?pickup=${encodeURIComponent(pickup)}&dropoff=${encodeURIComponent(dropoff)}&category=${category}&originLat=${location.lat}&originLng=${location.lng}`);
+    router.push(`/ride?pickup=${encodeURIComponent(pickup)}&dropoff=${encodeURIComponent(dropoff)}&category=${category}&originLat=${location.lat}&originLng=${location.lng}&surcharge=${acceptSurcharge ? surcharge : 0}`);
   }
 
   const handlePlaceSelect = useCallback((placeType: string) => {
     if (!location) return;
     setDropoff(placeType);
-    router.push(`/ride?pickup=${encodeURIComponent(pickup || "Localização atual")}&dropoff=${placeType}&category=${category}&originLat=${location.lat}&originLng=${location.lng}`);
-  }, [location, category, pickup, router]);
+    router.push(`/ride?pickup=${encodeURIComponent(pickup || "Localização atual")}&dropoff=${placeType}&category=${category}&originLat=${location.lat}&originLng=${location.lng}&surcharge=${acceptSurcharge ? surcharge : 0}`);
+  }, [location, category, pickup, surcharge, acceptSurcharge, router]);
 
   return (
     <main className="h-[100dvh] bg-background flex flex-col relative overflow-hidden"
@@ -153,6 +172,49 @@ export default function PassengerDashboard() {
               ))}
             </div>
           </div>
+
+          {/* Pulso da Cidade */}
+          {breathRate > 0 && (
+            <div className={`rounded-xl p-3 border transition-all ${
+              acceptSurcharge ? "border-primary bg-primary/10" : "border-card-border"
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm ${breathRate > 70 ? "text-warning" : "text-success"}`}>
+                    {breathRate > 70 ? "🌬️" : "✅"}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {availableDrivers} motorista{availableDrivers !== 1 ? "s" : ""} disponíve{availableDrivers !== 1 ? "is" : "l"}
+                  </span>
+                </div>
+                <div className="h-2 w-20 bg-card-bg-2 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${
+                    breathRate > 70 ? "bg-warning" : "bg-success"
+                  }`} style={{ width: `${Math.min(breathRate, 100)}%` }} />
+                </div>
+              </div>
+              {surcharge > 0 && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400">
+                      Cidade movimentada — adicionar <span className="text-primary font-bold">R$ {surcharge.toFixed(2)}</span> chama um motoboy de longe
+                    </p>
+                    <p className="text-[10px] text-gray-500">100% repassado ao motorista</p>
+                  </div>
+                  <button
+                    onClick={() => setAcceptSurcharge(!acceptSurcharge)}
+                    className={`w-10 h-6 rounded-full transition-all ${
+                      acceptSurcharge ? "bg-primary" : "bg-card-bg-2"
+                    } relative`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${
+                      acceptSurcharge ? "left-5" : "left-1"
+                    }`} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Solicitar */}
           <button

@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
             "default-src 'self'",
             `script-src ${scriptSrc}`,
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
-            "img-src 'self' data: blob: https://hqydwwfulatawjpottlf.supabase.co https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+            "img-src 'self' data: blob: https://hqydwwfulatawjpottlf.supabase.co https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://cdn-icons-png.flaticon.com https://unpkg.com",
             "font-src 'self' https://fonts.gstatic.com",
             "connect-src 'self' https://hqydwwfulatawjpottlf.supabase.co wss://hqydwwfulatawjpottlf.supabase.co https://usable-drake-68824.upstash.io https://nominatim.openstreetmap.org https://api.stripe.com",
             "frame-src 'self' https://js.stripe.com",

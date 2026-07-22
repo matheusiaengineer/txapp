@@ -1,20 +1,4 @@
-import Stripe from "stripe";
-
-let stripeClient: Stripe | null = null;
-
-function getStripe(): Stripe {
-  if (!stripeClient) {
-    const secretKey = process.env.STRIPE_SECRET_KEY;
-    if (!secretKey) {
-      throw new Error("Stripe secret key not configured");
-    }
-    stripeClient = new Stripe(secretKey, {
-      apiVersion: "2025-03-31.basil" as any,
-      typescript: true,
-    });
-  }
-  return stripeClient;
-}
+import { getStripe } from "./stripe-server"
 
 export class StripeService {
   async createPaymentIntent(amount: number, currency: string, metadata?: Record<string, string>) {
@@ -23,8 +7,8 @@ export class StripeService {
       currency: currency.toLowerCase(),
       payment_method_types: ["card"],
       metadata: metadata || {},
-    });
-    return { id: pi.id, clientSecret: pi.client_secret, amount, currency };
+    })
+    return { id: pi.id, clientSecret: pi.client_secret, amount, currency }
   }
 
   async createPixPayment(amount: number, description: string) {
@@ -33,14 +17,14 @@ export class StripeService {
       currency: "brl",
       payment_method_types: ["pix"],
       metadata: { description },
-    });
+    })
     return {
       id: pi.id,
       qrCode: pi.next_action?.pix_display_qr_code?.data || null,
       qrCodeUrl: pi.next_action?.pix_display_qr_code?.image_url_png || null,
       amount,
       expiresAt: new Date(Date.now() + 3600000).toISOString(),
-    };
+    }
   }
 
   async createCheckoutSession(items: { name: string; amount: number; quantity: number }[], currency: string, successUrl: string, cancelUrl: string) {
@@ -56,16 +40,16 @@ export class StripeService {
       mode: "payment",
       success_url: successUrl,
       cancel_url: cancelUrl,
-    });
-    return { id: session.id, url: session.url || successUrl };
+    })
+    return { id: session.id, url: session.url || successUrl }
   }
 
   async verifyWebhook(signature: string, body: string): Promise<{ type: string; data: any } | null> {
     try {
-      const event = getStripe().webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET || "");
-      return { type: event.type, data: event.data.object };
+      const event = getStripe().webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET || "")
+      return { type: event.type, data: event.data.object }
     } catch {
-      return null;
+      return null
     }
   }
 
@@ -77,8 +61,8 @@ export class StripeService {
       capabilities: {
         transfers: { requested: true },
       },
-    });
-    return { id: account.id, email, country, status: "pending" };
+    })
+    return { id: account.id, email, country, status: "pending" }
   }
 
   async createTransfer(destinationId: string, amount: number, currency: string) {
@@ -86,9 +70,9 @@ export class StripeService {
       amount: Math.round(amount * 100),
       currency: currency.toLowerCase(),
       destination: destinationId,
-    });
-    return { id: transfer.id, amount, currency, status: "completed" };
+    })
+    return { id: transfer.id, amount, currency, status: "completed" }
   }
 }
 
-export const stripeService = new StripeService();
+export const stripeService = new StripeService()

@@ -8,14 +8,14 @@ import { supabase } from "@/lib/supabase/browser";
 const NAV_CONFIG: Record<string, { label: string; icon: string; href: string }[]> = {
   passenger: [
     { label: "Início", icon: "🏠", href: "/dashboard/passenger" },
-    { label: "Histórico", icon: "📋", href: "/dashboard/passenger/history" },
+    { label: "Explorar", icon: "🌍", href: "/dashboard/passenger/explore" },
+    { label: "Pedidos", icon: "📦", href: "/dashboard/passenger/orders" },
     { label: "Carteira", icon: "💰", href: "/dashboard/passenger/wallet" },
-    { label: "Favoritos", icon: "❤️", href: "/dashboard/passenger/favorites" },
   ],
   driver: [
     { label: "Início", icon: "🏠", href: "/dashboard/driver" },
+    { label: "Corrida", icon: "🚗", href: "/dashboard/driver/active-trip" },
     { label: "Ganhos", icon: "📊", href: "/dashboard/driver/earnings" },
-    { label: "Mapa", icon: "🗺️", href: "/dashboard/driver/map" },
     { label: "Carteira", icon: "💰", href: "/dashboard/driver/wallet" },
   ],
 };

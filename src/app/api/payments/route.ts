@@ -44,3 +44,18 @@ const handler = async (req: NextRequest) => {
 };
 
 export const POST = withRateLimit(handler, 'payment');
+
+export async function GET() {
+  try {
+    const { createClient } = await import("@/lib/supabase/server")
+    const supabase = await createClient()
+    const { data: plans } = await supabase
+      .from("company_subscription_plans")
+      .select("*")
+      .eq("is_active", true)
+      .order("price_weekly", { ascending: true })
+    return NextResponse.json({ plans: plans || [] })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
