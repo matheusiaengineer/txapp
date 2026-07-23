@@ -1,31 +1,8 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "builder": "@vercel/next-on-edge",
-      "packages": ["**/*"],
-      "outputDir": ".next",
-      "maxLambdaSize": "10240",
-      "minimumLambdaSize": "0",
-      "startCommand": "node server.js",
-      "environment": {
-        "NODE_ENV": "production"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(auth|drivers|maps|drone|influencers)/:splat",
-      "dest": "/api/:splat"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/.next/server/index.ts"
-    }
-  ],
   "headers": [
     {
-      "source": "/api/(auth|drivers|maps|drone|influencers)/:splat",
+      "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
@@ -41,8 +18,5 @@
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://*.supabase.co;" }
       ]
     }
-  ],
-  "imageOptimization": {
-    "domains": ["images.unsplash.com", "vercel.storage", "raw.githubusercontent.com"]
-  }
+  ]
 }
