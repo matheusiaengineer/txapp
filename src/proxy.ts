@@ -21,7 +21,15 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // If Supabase is unreachable, allow the request through
+    // Protected routes will handle auth on the client side
+  }
+
   const pathname = request.nextUrl.pathname
 
   cookiesToForward.forEach(({ name, value, options }) =>
@@ -39,25 +47,39 @@ export async function proxy(request: NextRequest) {
 
   const authRoutes = ["/auth/login", "/auth/register", "/auth/forgot-password"]
   if (user && authRoutes.some(r => pathname.startsWith(r))) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .limit(1)
-      .single()
+    let role = "passenger"
+    let accountType = "passenger"
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, account_type")
+        .eq("id", user.id)
+        .limit(1)
+        .single()
+      if (profile?.role) role = profile.role
+      if (profile?.account_type) accountType = profile.account_type
+    } catch {
+      // If profiles table doesn't exist, default to passenger
+    }
 
-    const role = profile?.role || "passenger"
-    const roleRoutes: Record<string, string> = {
+      const roleRoutes: Record<string, string> = {
       passenger: "/dashboard/passenger",
-      driver: "/dashboard/driver",
-      company: "/dashboard/company",
-      transporter: "/dashboard/transporter",
+      driver_moto: "/dashboard/driver",
+      driver_car: "/dashboard/driver",
+      freight: "/dashboard/driver",
+      driver: "/dashboard/driver", // Legacy drivers
+      transporter: "/dashboard/transporter", // For compatibility
+      business: "/dashboard/company",
+      company: "/dashboard/company", // Legacy companies
       employee: "/dashboard/employee",
       admin: "/admin",
     }
+    
+    // Prefer account_type if set, otherwise use role
+    const targetRoute = roleRoutes[accountType] || roleRoutes[role] || "/dashboard/passenger"
 
     const url = request.nextUrl.clone()
-    url.pathname = roleRoutes[role] || "/dashboard/passenger"
+    url.pathname = targetRoute
     return NextResponse.redirect(url)
   }
 

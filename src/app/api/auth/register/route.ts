@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 
-const VALID_TYPES = ["passenger", "driver_moto", "driver_car", "business"] as const
+const VALID_TYPES = ["passenger", "driver_moto", "driver_car", "freight", "business"] as const
 
 function validateCpf(cpf: string): boolean {
   const clean = cpf.replace(/\D/g, "")
@@ -108,6 +108,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Erro ao criar conta" }, { status: 500 })
     }
 
+    const userRole = accountType === "business"
+      ? "company"
+      : accountType === "driver_moto" || accountType === "driver_car"
+      ? "driver"
+      : accountType === "freight"
+      ? "transporter"
+      : "passenger"
+
     const { error: profileError } = await supabase.from("profiles").upsert({
       id: authData.user.id,
       email,
@@ -118,12 +126,30 @@ export async function POST(req: NextRequest) {
       cpf_verified: false,
       account_type: accountType,
       device_fingerprint: deviceFingerprint,
-      role: accountType === "business" ? "company" : accountType === "driver_moto" || accountType === "driver_car" ? "driver" : "passenger",
+      role: userRole,
     })
 
     if (profileError) {
       await admin.auth.admin.deleteUser(authData.user.id)
       return NextResponse.json({ error: profileError.message }, { status: 500 })
+    }
+
+    if (userRole === "driver" || userRole === "transporter") {
+      const { error: driverProfileError } = await supabase.from("driver_profiles").upsert({
+        id: authData.user.id,
+        cpf: cleanCpf,
+        status: "pending",
+        current_live_status: "OFFLINE",
+        acceptance_rate: 100.00,
+        cancellation_rate: 0.00,
+        rating: 5.00,
+        total_trips: 0,
+        modalities: accountType === "driver_moto" ? ["moto"] : accountType === "driver_car" ? ["carro"] : ["freight"],
+      })
+      if (driverProfileError) {
+        await admin.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json({ error: driverProfileError.message }, { status: 500 })
+      }
     }
 
     await supabase.from("signup_attempts_log").insert({

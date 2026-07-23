@@ -3,15 +3,19 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/browser";
 
 const MapWithNoSSR = dynamic(() => import("@/components/map/LeafletMap"), { ssr: false });
 
 export default function DriverMapPage() {
+  const router = useRouter();
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser();
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) router.push("/auth/login");
+    });
     navigator.geolocation.getCurrentPosition(
       (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => setLocation({ lat: -19.9167, lng: -43.9345 }),

@@ -9,6 +9,7 @@ const ACCOUNT_TYPES = [
   { id: "passenger", label: "Passageiro", desc: "Solicito corridas e entregas", icon: "🧑‍💼", gradient: "from-primary/20 to-primary/5" },
   { id: "driver_moto", label: "Motoboy", desc: "Entrego de moto", icon: "🛵", gradient: "from-amber-500/20 to-amber-500/5" },
   { id: "driver_car", label: "Motorista", desc: "Transporto de carro", icon: "🚕", gradient: "from-blue-500/20 to-blue-500/5" },
+  { id: "freight", label: "Frete", desc: "Transporto de cargas", icon: "📦", gradient: "from-emerald-500/20 to-emerald-500/5" },
   { id: "business", label: "Empresa", desc: "Quero vender no TXAP", icon: "🏢", gradient: "from-purple-500/20 to-purple-500/5" },
 ]
 
@@ -72,7 +73,12 @@ export default function RegisterPage() {
         return
       }
 
-      router.push("/home")
+      setLoading(false)
+      const destination =
+        form.accountType === "business" ? "/dashboard/company" :
+        form.accountType === "driver_moto" || form.accountType === "driver_car" || form.accountType === "freight" ? "/dashboard/driver" :
+        "/dashboard/passenger"
+      router.push(destination)
     } catch (err: any) {
       setError(err.message)
       setLoading(false)
@@ -252,6 +258,25 @@ export default function RegisterPage() {
             Entrar
           </Link>
         </p>
+
+        {/* Depoimentos */}
+        <div className="mt-10 space-y-3">
+          <p className="text-center text-xs text-gray-600 font-medium uppercase tracking-wider">O que dizem</p>
+          <div className="txd-card p-4">
+            <p className="text-xs text-gray-300 leading-relaxed">&ldquo;Uso todo dia para ir ao trabalho. Rápido e os motoristas são muito profissionais.&rdquo;</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-sm">👍</span>
+              <span className="text-xs text-gray-500">Carlos, passageiro</span>
+            </div>
+          </div>
+          <div className="txd-card p-4">
+            <p className="text-xs text-gray-300 leading-relaxed">&ldquo;Comecei a motorista e já estou faturando bem. A plataforma é justa com os preços.&rdquo;</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-sm">🚀</span>
+              <span className="text-xs text-gray-500">Ana, motorista</span>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   )

@@ -1,6 +1,6 @@
 {
-  "name": "TXDAPP — Mobilidade Inteligente",
-  "short_name": "TXDAPP",
+  "name": "TXAP — Mobilidade Inteligente",
+  "short_name": "TXAP",
   "description": "Solicite corridas, entregas e fretes em uma única plataforma. Rápido, seguro e sem burocracia.",
   "start_url": "/?source=pwa",
   "display": "standalone",

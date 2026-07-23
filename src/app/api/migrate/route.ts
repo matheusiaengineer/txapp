@@ -99,7 +99,7 @@ export async function GET() {
     "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT false;",
     "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cpf VARCHAR(14) UNIQUE;",
     "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS cpf_verified BOOLEAN DEFAULT false;",
-    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS account_type VARCHAR(20) DEFAULT 'passenger' CHECK (account_type IN ('passenger', 'driver_moto', 'driver_car', 'business'));",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS account_type VARCHAR(20) DEFAULT 'passenger' CHECK (account_type IN ('passenger', 'driver_moto', 'driver_car', 'freight', 'business'));",
     "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT false;",
     "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS ban_reason TEXT;",
     "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ;",

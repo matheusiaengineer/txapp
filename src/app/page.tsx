@@ -3,6 +3,52 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 
+function LocationRequest() {
+  const [status, setStatus] = useState<"idle" | "granted" | "denied" | "unavailable">("idle")
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setStatus("unavailable")
+      return
+    }
+    navigator.permissions.query({ name: "geolocation" }).then((result) => {
+      if (result.state === "granted") {
+        setStatus("granted")
+      } else if (result.state === "denied") {
+        setStatus("denied")
+      }
+    }).catch(() => {})
+  }, [])
+
+  function requestLocation() {
+    navigator.geolocation.getCurrentPosition(
+      () => setStatus("granted"),
+      () => setStatus("denied"),
+      { enableHighAccuracy: true, timeout: 5000 }
+    )
+  }
+
+  if (status !== "idle" && status !== "denied") return null
+
+  return (
+    <div className="fixed bottom-24 left-4 right-4 z-50 max-w-sm mx-auto">
+      <div className="txd-card p-4 flex items-center gap-3 border-primary/20">
+        <span className="text-2xl">📍</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">Permitir localização</p>
+          <p className="text-xs text-gray-400">Para encontrar motoristas perto de você</p>
+        </div>
+        <button
+          onClick={requestLocation}
+          className="bg-primary text-black text-xs font-bold px-4 py-2 rounded-full shrink-0"
+        >
+          Permitir
+        </button>
+      </div>
+    </div>
+  )
+}
+
 interface Influencer {
   id: string
   instagram_handle: string
@@ -250,6 +296,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Location Permission */}
+      <LocationRequest />
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-10 px-4">

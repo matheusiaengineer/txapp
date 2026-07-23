@@ -53,11 +53,13 @@ export default function DriverDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
   const [driver, setDriver] = useState<any>(null)
+  const [accountType, setAccountType] = useState<string>("")
   const [online, setOnline] = useState(false)
   const [rides, setRides] = useState<any[]>([])
   const [incomingRequest, setIncomingRequest] = useState<any>(null)
   const [driverLat, setDriverLat] = useState<number | null>(null)
   const [driverLng, setDriverLng] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -69,19 +71,53 @@ export default function DriverDashboard() {
   }, [])
 
   async function loadDriver(userId: string) {
-    const { data } = await supabase.from("drivers").select("*").eq("id", userId).single()
-    setDriver(data)
-    if (data?.preco_por_km) setOnline(data.status === "online")
+    setLoading(true)
+    try {
+      const [profileRes, vehicleRes, pricingRes, accountRes] = await Promise.all([
+        supabase.from("driver_profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("vehicles").select("*").eq("driver_id", userId).maybeSingle(),
+        supabase.from("driver_pricing").select("*").eq("driver_id", userId).maybeSingle(),
+        supabase.from("profiles").select("account_type").eq("id", userId).maybeSingle(),
+      ]);
+
+      if (accountRes.data) {
+        setAccountType(accountRes.data.account_type || "")
+      }
+
+      if (profileRes.data) {
+        const driverData = {
+          ...profileRes.data,
+          cnh_numero: profileRes.data.cpf ? "Verified" : null,
+          tipo_veiculo: vehicleRes.data?.category || null,
+          placa: vehicleRes.data?.license_plate || null,
+          preco_por_km: pricingRes.data?.min_price_per_km || null,
+          status: profileRes.data.status, // approved, pending, rejected
+          is_freight: accountType === "freight", // Tag para identificar se é motorista de frete
+        };
+        setDriver(driverData)
+        setOnline(profileRes.data.current_live_status === "ONLINE")
+      } else {
+        setDriver(null)
+      }
+    } catch (err) {
+      console.error("Error loading driver:", err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function loadRides(userId: string) {
-    const { data } = await supabase
-      .from("rides")
-      .select("*")
-      .eq("motorista_id", userId)
-      .order("criada_em", { ascending: false })
-      .limit(5)
-    setRides(data || [])
+    try {
+      const { data } = await supabase
+        .from("trips")
+        .select("*")
+        .eq("driver_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(5)
+      setRides(data || [])
+    } catch (err) {
+      console.error("Error loading rides:", err)
+    }
   }
 
   // Real-time ride requests when online
@@ -129,8 +165,8 @@ export default function DriverDashboard() {
   }, [online])
 
   async function toggleOnline() {
-    const newStatus = online ? "offline" : "online"
-    await supabase.from("drivers").update({ status: newStatus }).eq("id", user.id)
+    const newStatus = online ? "OFFLINE" : "ONLINE"
+    await supabase.from("driver_profiles").update({ current_live_status: newStatus }).eq("id", user.id)
     setOnline(!online)
   }
 
@@ -145,15 +181,26 @@ export default function DriverDashboard() {
     setIncomingRequest(null)
   }, [])
 
-  const needsKyc = !driver?.cnh_numero
-  const needsPricing = !driver?.preco_por_km
+  // KYC States
+  const needsKyc = !driver;
+  const kycPending = driver && driver.status === "pending";
+  const kycRejected = driver && driver.status === "rejected";
+  const kycApproved = driver && driver.status === "approved";
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </main>
+    )
+  }
 
   return (
-    <main className="min-h-[100dvh] bg-background flex flex-col"
+    <main className="min-h-[100dvh] bg-background flex flex-col text-white"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-      <div className="px-4 py-3 flex items-center justify-between border-b border-card-border">
+      <div className="px-4 py-3 flex items-center justify-between border-b border-card-border bg-card-bg/40 backdrop-blur-md sticky top-0 z-50">
         <div>
-          <h1 className="text-lg font-bold text-white">Motorista</h1>
+          <h1 className="text-lg font-bold text-white">{accountType === "driver_moto" ? "Motoboy" : accountType === "driver_car" || accountType === "freight" ? "Motorista" : "Motorista"}</h1>
           <p className="text-xs text-gray-400">{user?.email}</p>
         </div>
         <Link href="/dashboard/driver/earnings" className="text-primary text-sm font-medium">Ganhos</Link>
@@ -161,60 +208,86 @@ export default function DriverDashboard() {
 
       <div className="flex-1 p-4 max-w-md mx-auto w-full space-y-4 overflow-y-auto">
         {needsKyc && (
-          <div className="txd-card p-4 border-warning/30 bg-warning/5">
-            <p className="text-sm font-medium text-warning mb-2">Complete seu cadastro</p>
-            <Link href="/dashboard/driver/kyc" className="text-sm bg-primary text-black font-bold px-4 py-2 rounded-full inline-block">
+          <div className="txd-card p-5 border-warning/30 bg-warning/5 rounded-2xl space-y-3">
+            <span className="text-3xl block">🪪</span>
+            <p className="text-sm font-bold text-warning">Complete o seu cadastro</p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Para começar a receber corridas, envie seus documentos e configure o seu veículo.
+            </p>
+            <Link href="/dashboard/driver/kyc" className="w-full text-center text-sm bg-primary text-black font-bold px-4 py-3.5 rounded-full inline-block transition-all hover:scale-[1.02] active:scale-[0.98]">
               Fazer cadastro
             </Link>
           </div>
         )}
 
-        {!needsKyc && (
-          <div className="txd-card p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-400">Status</p>
-              <p className={`text-lg font-bold ${online ? "text-primary" : "text-gray-500"}`}>
-                {online ? "🟢 Online" : "⚫ Offline"}
-              </p>
-              {online && <p className="text-xs text-primary mt-1">Ouvindo solicitações...</p>}
-            </div>
-            <button
-              onClick={toggleOnline}
-              className={`w-20 h-10 rounded-full transition-all flex items-center px-1 ${
-                online ? "bg-primary justify-end" : "bg-gray-600 justify-start"
-              }`}
-            >
-              <div className={`w-8 h-8 rounded-full ${online ? "bg-white" : "bg-gray-400"}`} />
-            </button>
+        {kycPending && (
+          <div className="txd-card p-5 border-blue-500/30 bg-blue-500/5 rounded-2xl space-y-3">
+            <span className="text-3xl block">⏳</span>
+            <p className="text-sm font-bold text-blue-400">Cadastro em análise</p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              A nossa equipe está analisando os seus documentos e dados do veículo. Você será notificado por aqui quando for aprovado.
+            </p>
+            <div className="text-[10px] uppercase font-bold text-blue-400/80 tracking-wider">Prazo: até 2 horas úteis</div>
           </div>
         )}
 
-        {!needsKyc && (
+        {kycRejected && (
+          <div className="txd-card p-5 border-error/30 bg-error/5 rounded-2xl space-y-3">
+            <span className="text-3xl block">⚠️</span>
+            <p className="text-sm font-bold text-error">Cadastro rejeitado</p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Algumas informações ou documentos não estavam em conformidade. Refaça o cadastro com fotos nítidas.
+            </p>
+            <Link href="/dashboard/driver/kyc" className="w-full text-center text-sm bg-error text-white font-bold px-4 py-3.5 rounded-full inline-block transition-all hover:scale-[1.02] active:scale-[0.98]">
+              Refazer cadastro
+            </Link>
+          </div>
+        )}
+
+        {kycApproved && (
           <>
-            <div className="txd-card p-4">
-              <p className="text-sm text-gray-400 mb-1">Seu preço</p>
-              <p className="text-2xl font-bold text-primary">R$ {driver?.preco_por_km || "—"}/km</p>
-              <Link href="/dashboard/driver/pricing" className="text-xs text-primary mt-1 inline-block">Alterar</Link>
+            <div className="txd-card p-4 flex items-center justify-between rounded-2xl border-card-border">
+              <div>
+                <p className="text-sm text-gray-400">Status de Trabalho</p>
+                <p className={`text-lg font-bold mt-0.5 ${online ? "text-primary" : "text-gray-500"}`}>
+                  {online ? "🟢 Online" : "⚫ Offline"}
+                </p>
+                {online && <p className="text-xs text-primary mt-1">Ouvindo solicitações de corridas...</p>}
+              </div>
+              <button
+                onClick={toggleOnline}
+                className={`w-20 h-10 rounded-full transition-all flex items-center px-1 ${
+                  online ? "bg-primary justify-end" : "bg-gray-600 justify-start"
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-full ${online ? "bg-white" : "bg-gray-400"}`} />
+              </button>
             </div>
 
-            <div className="txd-card p-4">
-              <p className="text-sm text-gray-400 mb-1">Veículo</p>
-              <p className="text-white font-medium capitalize">{driver?.tipo_veiculo || "—"}</p>
-              <p className="text-xs text-gray-500">{driver?.placa || "—"}</p>
+            <div className="txd-card p-4 rounded-2xl border-card-border">
+              <p className="text-sm text-gray-400 mb-1">Seu preço</p>
+              <p className="text-2xl font-bold text-primary">R$ {driver?.preco_por_km || "—"}/km</p>
+              <Link href="/dashboard/driver/pricing" className="text-xs text-primary mt-1 inline-block hover:underline">Alterar preço</Link>
+            </div>
+
+            <div className="txd-card p-4 rounded-2xl border-card-border">
+              <p className="text-sm text-gray-400 mb-1">Veículo cadastrado</p>
+              <p className="text-white font-semibold capitalize text-base">{driver?.tipo_veiculo || "—"}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{driver?.placa || "—"}</p>
             </div>
 
             <h3 className="text-sm font-semibold text-white mt-4">Últimas corridas</h3>
             {rides.length === 0 && (
-              <p className="text-sm text-gray-500">Nenhuma corrida ainda</p>
+              <p className="text-sm text-gray-500 py-4 text-center">Nenhuma corrida registrada</p>
             )}
             {rides.map((ride: any) => (
-              <div key={ride.id} className="txd-card p-3 flex justify-between items-center">
+              <div key={ride.id} className="txd-card p-4 flex justify-between items-center rounded-2xl border-card-border">
                 <div>
-                  <p className="text-sm text-white">R$ {ride.valor_total || "—"}</p>
-                  <p className="text-xs text-gray-400 capitalize">{ride.status}</p>
+                  <p className="text-sm font-bold text-white">R$ {ride.final_fare || ride.estimated_fare || "—"}</p>
+                  <p className="text-xs text-gray-400 capitalize mt-0.5">{ride.status.toLowerCase().replace(/_/g, " ")}</p>
                 </div>
                 <span className="text-xs text-gray-500">
-                  {new Date(ride.criada_em).toLocaleDateString()}
+                  {new Date(ride.created_at).toLocaleDateString()}
                 </span>
               </div>
             ))}
@@ -222,7 +295,7 @@ export default function DriverDashboard() {
         )}
       </div>
 
-      <nav className="border-t border-card-border px-4 py-2 flex justify-around">
+      <nav className="border-t border-card-border px-4 py-2 flex justify-around bg-card-bg/40 backdrop-blur-md sticky bottom-0 z-50">
         <Link href="/dashboard/driver" className="flex flex-col items-center text-primary text-xs gap-1">
           <span>🏠</span><span>Início</span>
         </Link>
@@ -236,6 +309,13 @@ export default function DriverDashboard() {
           <span>💰</span><span>Carteira</span>
         </Link>
       </nav>
+
+      <div className="fixed right-4 bottom-24 z-[1000]">
+        <Link href="/dashboard/driver/drone" className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-all cursor-pointer border-2 border-emerald-400/30">
+          <span className="text-xl">🚁</span>
+        </Link>
+        <div className="text-xs text-center mt-1 text-gray-400">Drone</div>
+      </div>
 
       {incomingRequest && (
         <RideRequestPopup

@@ -55,7 +55,7 @@ export default function HomePage() {
       await fetch(`/api/favorites/${driverId}`, { method: "DELETE" })
       setFavorites(prev => prev.filter(id => id !== driverId))
     } else {
-      await fetch("/api/favorites", {
+      await fetch(`/api/favorites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ favorite_type: "driver", driver_id: driverId }),
@@ -76,9 +76,53 @@ export default function HomePage() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <div className="text-error">❌ {error}</div>
-        <button onClick={getLocation} className="px-6 py-3 bg-primary text-black rounded-xl font-bold cursor-pointer hover:bg-primary-hover">
-          🔄 Tentar Novamente
-        </button>
+        
+        {state.showSettingsPrompt ? (
+          <div className="space-y-3 max-w-sm w-full">
+            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+              <h3 className="text-white font-semibold mb-2">📍 Como ativar a localização:</h3>
+              <div className="text-sm text-gray-300 space-y-2">
+                <p><strong>Safari (iOS/macOS):</strong> Configurações → Safari → Permitir Localização</p>
+                <p><strong>Chrome (Android):</strong> Menu 3 pontos → Site settings → Localização → Permitir</p>
+                <p><strong>Chrome (iOS):</strong> Settings → Safari → Allow Location</p>
+                <p><strong>Firefox:</strong> Menu 3 barras → Site settings → Permissão → Permitir</p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => {
+                // For mobile devices, try to open settings app
+                if (navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad')) {
+                  window.open('settings:', '_self')
+                } else {
+                  // For desktop, show an alternative way to access settings
+                  alert('Para ajustar as configurações de localização:\n\n Safari (iOS/macOS): Configurações → Safari → Permitir Localização\n Chrome/Edge/Firefox: Menu → Configurações → Privacidade e segurança → Permissões do site → Localização')
+                }
+                // Reset the prompt and try one more time
+                setState(prev => ({ ...prev, error: "Tentando novamente...", showSettingsPrompt: false }))
+                setTimeout(() => getLocation(false), 500)
+              }}
+              className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer hover:bg-emerald-400 transition-all"
+            >
+              ✅ Ativar Localizacao Agora
+            </button>
+            
+            <button 
+              onClick={() => {
+                // Skip and continue with limited functionality
+                alert('Sem a localização ativada, você pode navegar no mapa mas não encontrará motoristas próximos. Você pode tentar novamente mais tarde.')
+                setState(prev => ({ ...prev, error: null, showSettingsPrompt: false, loading: false }))
+              }}
+              className="px-6 py-3 bg-gray-600 text-white rounded-xl font-bold cursor-pointer hover:bg-gray-500 transition-all"
+            >
+              Continuar Sem Localizacao
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => getLocation(true)} className="px-6 py-3 bg-primary text-black rounded-xl font-bold cursor-pointer hover:bg-primary-hover transition-all">
+            🔄 Tentar Novamente
+          </button>
+        )}
       </div>
     )
   }

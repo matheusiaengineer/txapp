@@ -1,25 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="192" y2="192">
-      <stop offset="0%" stop-color="#0a0d12"/>
-      <stop offset="100%" stop-color="#11151c"/>
-    </linearGradient>
     <linearGradient id="g" x1="0" y1="0" x2="192" y2="192">
       <stop offset="0%" stop-color="#3ECB8E"/>
-      <stop offset="100%" stop-color="#2da874"/>
+      <stop offset="100%" stop-color="#00a884"/>
     </linearGradient>
   </defs>
-  <rect width="192" height="192" rx="36" fill="url(#bg)"/>
-  <rect x="8" y="8" width="176" height="176" rx="30" fill="none" stroke="url(#g)" stroke-width="4" opacity="0.3"/>
-  <g transform="translate(96,96)">
-    <rect x="-28" y="-16" width="56" height="38" rx="10" fill="url(#g)"/>
-    <rect x="-22" y="-10" width="20" height="14" rx="4" fill="#0a0d12"/>
-    <rect x="2" y="-10" width="20" height="14" rx="4" fill="#0a0d12"/>
-    <circle cx="-18" cy="24" r="6" fill="url(#g)"/>
-    <circle cx="18" cy="24" r="6" fill="url(#g)"/>
-    <line x1="-20" y1="8" x2="-10" y2="12" stroke="#0a0d12" stroke-width="1.5" stroke-linecap="round"/>
-    <line x1="10" y1="12" x2="20" y2="8" stroke="#0a0d12" stroke-width="1.5" stroke-linecap="round"/>
-    <circle cx="0" cy="-26" r="4" fill="url(#g)" opacity="0.8"/>
-    <line x1="0" y1="-22" x2="0" y2="-16" stroke="url(#g)" stroke-width="2" stroke-linecap="round"/>
-  </g>
+  <rect width="192" height="192" rx="36" fill="url(#g)"/>
+  <text x="96" y="126" font-family="system-ui,-apple-system,sans-serif" font-size="112" font-weight="900" fill="black" text-anchor="middle">T</text>
 </svg>

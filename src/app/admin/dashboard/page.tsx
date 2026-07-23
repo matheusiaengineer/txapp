@@ -19,6 +19,12 @@ export default function AdminDashboard() {
   const [banModal, setBanModal] = useState<any>(null)
   const [influencerModal, setInfluencerModal] = useState<any>(null)
 
+  // Verifications states
+  const [verifications, setVerifications] = useState<any[]>([])
+  const [verifStatus, setVerifStatus] = useState("pending")
+  const [verifLoading, setVerifLoading] = useState(false)
+  const [rejectVerifModal, setRejectVerifModal] = useState<any>(null)
+
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) { router.push("/auth/login"); return }
@@ -92,6 +98,62 @@ export default function AdminDashboard() {
     loadData()
   }
 
+  async function loadVerifications(status = verifStatus) {
+    setVerifLoading(true)
+    try {
+      const res = await fetch(`/api/admin/verification?status=${status}`)
+      const data = await res.json()
+      setVerifications(data.drivers || [])
+    } catch (err) {
+      console.error("Error loading verifications:", err)
+    } finally {
+      setVerifLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (tab === "verifications") {
+      loadVerifications(verifStatus)
+    }
+  }, [tab, verifStatus])
+
+  async function handleApproveDriver(driverId: string) {
+    if (!confirm("Tem certeza que deseja APROVAR este motorista?")) return
+    try {
+      const res = await fetch("/api/admin/verification", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driverId, action: "approve", reason: "Seus documentos foram aprovados! Você já pode começar a dirigir." }),
+      })
+      if (res.ok) {
+        loadVerifications(verifStatus)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function handleRejectDriver() {
+    if (!rejectVerifModal) return
+    try {
+      const res = await fetch("/api/admin/verification", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          driverId: rejectVerifModal.driverId, 
+          action: "reject", 
+          reason: rejectVerifModal.reason 
+        }),
+      })
+      if (res.ok) {
+        setRejectVerifModal(null)
+        loadVerifications(verifStatus)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center">
@@ -115,6 +177,7 @@ export default function AdminDashboard() {
       <div className="flex gap-2 px-4 py-3 border-b border-border overflow-x-auto">
         {[
           { id: "stats", label: "Dashboard" },
+          { id: "verifications", label: "Verificações" },
           { id: "influencers", label: "Influenciadores" },
           { id: "users", label: "Usuarios" },
           { id: "config", label: "Configuracoes" },
@@ -297,6 +360,146 @@ export default function AdminDashboard() {
                 {!c.editable && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">So Matheus16k</span>}
               </div>
             ))}
+          </div>
+        )}
+
+        {tab === "verifications" && (
+          <div className="space-y-4">
+            <div className="flex gap-2 border-b border-border pb-2 overflow-x-auto">
+              {[
+                { id: "pending", label: "Pendentes (Aguardando)" },
+                { id: "approved", label: "Aprovados" },
+                { id: "rejected", label: "Rejeitados" }
+              ].map(statusTab => (
+                <button
+                  key={statusTab.id}
+                  onClick={() => setVerifStatus(statusTab.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                    verifStatus === statusTab.id ? "bg-primary text-black" : "bg-card border border-border text-gray-400 hover:text-white"
+                  }`}
+                >
+                  {statusTab.label}
+                </button>
+              ))}
+            </div>
+
+            {verifLoading ? (
+              <div className="py-12 flex justify-center">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : verifications.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center bg-card border border-border rounded-xl">
+                Nenhuma solicitação nesta categoria.
+              </p>
+            ) : (
+              <div className="grid gap-4">
+                {verifications.map((d: any) => (
+                  <div key={d.id} className="bg-card border border-border rounded-xl p-5 space-y-4">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                      <div>
+                        <h4 className="font-bold text-base text-white">{d.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {d.email} {d.phone ? `| ${d.phone}` : ""}
+                        </p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                            CPF: {d.cpf}
+                          </span>
+                          <span className="text-[10px] bg-card-bg-2 border border-border px-2 py-0.5 rounded-full text-gray-400">
+                            Cidade: {d.city || "—"}/{d.state || "—"}
+                          </span>
+                          <span className="text-[10px] bg-card-bg-2 border border-border px-2 py-0.5 rounded-full text-gray-400">
+                            Cadastrado em: {new Date(d.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {verifStatus === "pending" && (
+                        <div className="flex gap-2 w-full md:w-auto">
+                          <button
+                            onClick={() => handleApproveDriver(d.id)}
+                            className="flex-1 md:flex-none px-4 py-2 bg-success text-black font-bold text-xs rounded-lg hover:bg-success/90 transition-colors"
+                          >
+                            ✓ Aprovar
+                          </button>
+                          <button
+                            onClick={() => setRejectVerifModal({ driverId: d.id, reason: "" })}
+                            className="flex-1 md:flex-none px-4 py-2 bg-error text-white font-bold text-xs rounded-lg hover:bg-error/90 transition-colors"
+                          >
+                            ✕ Rejeitar
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                      {d.documents && d.documents.map((doc: any) => (
+                        <div key={doc.id} className="bg-background border border-border rounded-lg p-3 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold uppercase text-gray-400">
+                              {doc.type === "cnh" ? "🪪 CNH (Documento)" : doc.type === "selfie" ? "🤳 Selfie do Motorista" : doc.type}
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${
+                              doc.status === "approved" ? "bg-success/15 text-success" : doc.status === "rejected" ? "bg-error/15 text-error" : "bg-warning/15 text-warning"
+                            }`}>
+                              {doc.status}
+                            </span>
+                          </div>
+                          
+                          <div className="aspect-video rounded-lg overflow-hidden border border-border bg-black/50 relative group">
+                            {doc.url ? (
+                              <img 
+                                src={doc.url} 
+                                alt={doc.type} 
+                                className="w-full h-full object-contain cursor-zoom-in hover:scale-[1.03] transition-transform"
+                                onClick={() => window.open(doc.url, "_blank")}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-xs text-gray-600">
+                                Arquivo não carregado
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {rejectVerifModal && (
+              <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+                <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl">
+                  <h3 className="font-bold text-lg text-error">Rejeitar Cadastro</h3>
+                  <p className="text-xs text-muted-foreground">ID do Motorista: {rejectVerifModal.driverId}</p>
+                  
+                  <textarea
+                    placeholder="Especifique o motivo da rejeição (será enviado por notificação ao motorista)..."
+                    required
+                    className="w-full border border-border rounded-xl bg-card-bg-2 px-3 py-2 text-sm text-white focus:outline-none focus:border-error min-h-[100px]"
+                    value={rejectVerifModal.reason}
+                    onChange={e => setRejectVerifModal((prev: any) => ({ ...prev, reason: e.target.value }))}
+                  />
+                  
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleRejectDriver} 
+                      disabled={!rejectVerifModal.reason} 
+                      className="flex-1 bg-error text-white py-2 rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+                    >
+                      Confirmar Rejeição
+                    </button>
+                    <button 
+                      onClick={() => setRejectVerifModal(null)} 
+                      className="flex-1 bg-card border border-border text-white py-2 rounded-lg text-sm transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

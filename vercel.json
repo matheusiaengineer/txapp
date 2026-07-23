@@ -1,8 +1,48 @@
 {
-  "crons": [
+  "version": 2,
+  "builds": [
     {
-      "path": "/api/cron/cleanup-heartbeats",
-      "schedule": "0 6 * * *"
+      "builder": "@vercel/next-on-edge",
+      "packages": ["**/*"],
+      "outputDir": ".next",
+      "maxLambdaSize": "10240",
+      "minimumLambdaSize": "0",
+      "startCommand": "node server.js",
+      "environment": {
+        "NODE_ENV": "production"
+      }
     }
-  ]
+  ],
+  "routes": [
+    {
+      "src": "/api/(auth|drivers|maps|drone|influencers)/:splat",
+      "dest": "/api/:splat"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/.next/server/index.ts"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(auth|drivers|maps|drone|influencers)/:splat",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "origin-when-cross-origin" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://*.supabase.co;" }
+      ]
+    }
+  ],
+  "imageOptimization": {
+    "domains": ["images.unsplash.com", "vercel.storage", "raw.githubusercontent.com"]
+  }
 }

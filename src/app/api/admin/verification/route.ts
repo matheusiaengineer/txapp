@@ -75,6 +75,16 @@ export async function GET(request: NextRequest) {
   const enriched = await Promise.all((drivers || []).map(async (d: any) => {
     const { data: p } = await supabase.from("profiles").select("full_name, email, phone").eq("id", d.id).single();
     const { data: docs } = await supabase.from("documents").select("*").eq("profile_id", d.id);
+    
+    // Generate signed URLs for private document files
+    const enrichedDocs = docs ? await Promise.all(docs.map(async (doc: any) => {
+      if (doc.url && !doc.url.startsWith("http")) {
+        const { data: signed } = await supabase.storage.from("documents").createSignedUrl(doc.url, 3600);
+        return { ...doc, url: signed?.signedUrl || doc.url };
+      }
+      return doc;
+    })) : [];
+
     return {
       id: d.id,
       name: p?.full_name || "Desconhecido",
@@ -85,7 +95,7 @@ export async function GET(request: NextRequest) {
       city: d.city,
       state: d.state,
       createdAt: d.created_at,
-      documents: docs || [],
+      documents: enrichedDocs,
     };
   }));
 

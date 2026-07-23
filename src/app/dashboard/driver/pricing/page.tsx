@@ -14,8 +14,12 @@ export default function DriverPricingPage() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) { router.push("/auth/login"); return; }
-      const { data: driver } = await supabase.from("drivers").select("preco_por_km").eq("id", data.user.id).single();
-      if (driver?.preco_por_km) setPreco(String(driver.preco_por_km));
+      const { data: pricing } = await supabase
+        .from("driver_pricing")
+        .select("min_price_per_km")
+        .eq("driver_id", data.user.id)
+        .maybeSingle();
+      if (pricing?.min_price_per_km) setPreco(String(pricing.min_price_per_km));
     });
   }, []);
 
@@ -23,7 +27,26 @@ export default function DriverPricingPage() {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from("drivers").upsert({ id: user.id, preco_por_km: parseFloat(preco) });
+
+    // Get vehicle category first to map service_type
+    const { data: vehicle } = await supabase
+      .from("vehicles")
+      .select("category")
+      .eq("driver_id", user.id)
+      .maybeSingle();
+
+    const serviceType = vehicle?.category || "carro";
+
+    await supabase.from("driver_pricing").upsert({
+      driver_id: user.id,
+      service_type: serviceType,
+      min_price_per_km: parseFloat(preco),
+      suggested_price_per_km: parseFloat(preco) * 1.2,
+      is_active: true,
+    }, {
+      onConflict: "driver_id,service_type"
+    });
+
     setLoading(false);
     setSaved(true);
     setTimeout(() => router.back(), 1000);

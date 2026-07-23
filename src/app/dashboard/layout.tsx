@@ -18,6 +18,9 @@ const NAV_CONFIG: Record<string, { label: string; icon: string; href: string }[]
     { label: "Ganhos", icon: "📊", href: "/dashboard/driver/earnings" },
     { label: "Carteira", icon: "💰", href: "/dashboard/driver/wallet" },
   ],
+  transporter: [
+    { label: "Início", icon: "🏠", href: "/dashboard/transporter" },
+  ],
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -27,7 +30,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     const seg = pathname.split("/")[2];
-    if (seg === "passenger" || seg === "driver") setRole(seg);
+    if (seg === "passenger" || seg === "driver" || seg === "transporter") setRole(seg);
   }, [pathname]);
 
   async function handleLogout() {

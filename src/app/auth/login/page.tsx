@@ -18,42 +18,59 @@ export default function LoginPage() {
     setLoading(true)
 
     const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password,
     })
 
     if (authError) {
+      console.error("[Login] signInWithPassword error:", authError.message)
       setError(authError.message)
       setLoading(false)
       return
     }
 
-    const { data: user } = await supabase.auth.getUser()
+    const { data: user, error: getUserError } = await supabase.auth.getUser()
+    if (getUserError) {
+      console.error("[Login] getUser error:", getUserError.message)
+      setError("Erro de sessão: " + getUserError.message)
+      setLoading(false)
+      return
+    }
     if (!user.user) {
+      console.error("[Login] getUser returned null user")
       setError("Erro ao carregar usuário")
       setLoading(false)
       return
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.user.id)
       .single()
 
+    if (profileError) {
+      console.warn("[Login] profile query error:", profileError.message)
+    }
+
     const role = profile?.role || "passenger"
+    console.log("[Login] success, role:", role)
     router.push(`/dashboard/${role}`)
   }
 
   async function handleGoogleLogin() {
     setLoading(true)
     setError(null)
-    await supabase.auth.signInWithOAuth({
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/api/auth/callback`,
       },
     })
+    if (oauthError) {
+      setError(oauthError.message)
+      setLoading(false)
+    }
   }
 
   return (
@@ -140,6 +157,25 @@ export default function LoginPage() {
             Criar conta
           </Link>
         </p>
+
+        {/* Depoimentos */}
+        <div className="mt-10 space-y-3">
+          <p className="text-center text-xs text-gray-600 font-medium uppercase tracking-wider">O que dizem</p>
+          <div className="txd-card p-4">
+            <p className="text-xs text-gray-300 leading-relaxed">&ldquo;Uso todo dia para ir ao trabalho. Rápido e os motoristas são muito profissionais.&rdquo;</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-sm">👍</span>
+              <span className="text-xs text-gray-500">Carlos, passageiro</span>
+            </div>
+          </div>
+          <div className="txd-card p-4">
+            <p className="text-xs text-gray-300 leading-relaxed">&ldquo;Comecei a motorista e já estou faturando bem. A plataforma é justa com os preços.&rdquo;</p>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-sm">🚀</span>
+              <span className="text-xs text-gray-500">Ana, motorista</span>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   )
