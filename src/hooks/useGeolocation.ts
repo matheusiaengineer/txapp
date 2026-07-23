@@ -109,7 +109,11 @@ export function useGeolocation() {
     ? [state.latitude, state.longitude]
     : null
 
+  const dismissError = useCallback(() => {
+    setState(prev => ({ ...prev, error: null, showSettingsPrompt: false, loading: false }))
+  }, [])
+
   useEffect(() => { getLocation() }, [getLocation])
 
-  return { ...state, getLocation, coords }
+  return { ...state, getLocation, coords, dismissError }
 }

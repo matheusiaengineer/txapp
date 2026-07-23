@@ -23,7 +23,7 @@ const QUICK_ACTIONS = [
 
 export default function HomePage() {
   const router = useRouter()
-  const { coords, loading, error, getLocation } = useGeolocation()
+  const { coords, loading, error, getLocation, showSettingsPrompt, dismissError } = useGeolocation()
   const [selectedDriver, setSelectedDriver] = useState<any>(null)
   const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([])
   const [driversLoading, setDriversLoading] = useState(false)
@@ -77,7 +77,7 @@ export default function HomePage() {
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <div className="text-error">❌ {error}</div>
         
-        {state.showSettingsPrompt ? (
+        {showSettingsPrompt ? (
           <div className="space-y-3 max-w-sm w-full">
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
               <h3 className="text-white font-semibold mb-2">📍 Como ativar a localização:</h3>
@@ -99,7 +99,6 @@ export default function HomePage() {
                   alert('Para ajustar as configurações de localização:\n\n Safari (iOS/macOS): Configurações → Safari → Permitir Localização\n Chrome/Edge/Firefox: Menu → Configurações → Privacidade e segurança → Permissões do site → Localização')
                 }
                 // Reset the prompt and try one more time
-                setState(prev => ({ ...prev, error: "Tentando novamente...", showSettingsPrompt: false }))
                 setTimeout(() => getLocation(false), 500)
               }}
               className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold cursor-pointer hover:bg-emerald-400 transition-all"
@@ -111,7 +110,7 @@ export default function HomePage() {
               onClick={() => {
                 // Skip and continue with limited functionality
                 alert('Sem a localização ativada, você pode navegar no mapa mas não encontrará motoristas próximos. Você pode tentar novamente mais tarde.')
-                setState(prev => ({ ...prev, error: null, showSettingsPrompt: false, loading: false }))
+                dismissError()
               }}
               className="px-6 py-3 bg-gray-600 text-white rounded-xl font-bold cursor-pointer hover:bg-gray-500 transition-all"
             >
