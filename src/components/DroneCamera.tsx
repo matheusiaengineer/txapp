@@ -124,10 +124,7 @@ export default function DroneCamera({ userLocation, onCapture }: DroneCameraProp
 
         <button
           onClick={isRecording ? stopRecording : startRecording}
-          className={`w-16 h-16 rounded-full shadow-lg transition-all ${isRecording
-            ? "bg-red-500 animate-pulse"
-            : "bg-emerald-500 hover:bg-emerald-400"
-          } text-white font-bold`}
+          className={"w-16 h-16 rounded-full shadow-lg transition-all " + (isRecording ? "bg-red-500 animate-pulse" : "bg-emerald-500 hover:bg-emerald-400") + " text-white font-bold"}
           title={isRecording ? "Stop recording" : "Start 360 recording"}
         >
           {isRecording ? "⏹️" : "🎥"}

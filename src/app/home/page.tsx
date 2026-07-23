@@ -160,7 +160,7 @@ export default function HomePage() {
           <button
             key={action.label}
             onClick={() => router.push("/ride?type=" + action.type)}
-            className={`flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-gradient-to-br ${action.color} text-white text-xs font-semibold cursor-pointer border-none hover:scale-[1.02] transition-transform`}
+            className={"flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl bg-gradient-to-br " + action.color + " text-white text-xs font-semibold cursor-pointer border-none hover:scale-[1.02] transition-transform"}
           >
             <span className="text-xl">{action.icon}</span>
             <span>{action.label}</span>
