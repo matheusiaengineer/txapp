@@ -1,3 +1,6 @@
+import { NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
+
 export async function GET(request: URL) {
   try {
     const { searchParams } = new URL(request.url)
@@ -5,18 +8,10 @@ export async function GET(request: URL) {
     const limit = searchParams.get("limit") || "10"
     const offset = searchParams.get("offset") || "0"
 
+    const supabase = await createClient()
     let query = supabase
       .from("drone_captures")
-      .select("`
-      id: id
-      location: location
-      heading: heading
-      altitude: altitude
-      images: images
-      capture_type: capture_type
-      user_id: user_id
-      created_at: created_at
-    `)
+      .select("id, location, heading, altitude, images, capture_type, user_id, created_at", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1)
 

@@ -105,14 +105,11 @@ export function useGeolocation() {
     }
   }, [state.latitude, state.longitude, state.loading])
 
-  return { ...state, getLocation, coords }
-}
-
-  useEffect(() => { getLocation() }, [getLocation])
-
   const coords: [number, number] | null = state.latitude && state.longitude
     ? [state.latitude, state.longitude]
     : null
+
+  useEffect(() => { getLocation() }, [getLocation])
 
   return { ...state, getLocation, coords }
 }

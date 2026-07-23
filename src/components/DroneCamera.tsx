@@ -69,8 +69,8 @@ export default function DroneCamera({ userLocation, onCapture }: DroneCameraProp
           style={{ 
             left: '50%', 
             top: '50%', 
-            transform: `translate(-50%, -50%) rotate(${currentHeading}deg)`, 
-            marginTop: `${altitude * 0.3}px`
+            transform: "translate(-50%, -50%) rotate(" + currentHeading + "deg)", 
+            marginTop: (altitude * 0.3) + "px"
           }}
         >
           <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-600 rounded-full shadow-lg animate-pulse">
