@@ -39,7 +39,7 @@ export default function DroneCamera({ userLocation, onCapture }: DroneCameraProp
   const simulateImageCapture = () => {
     const newImage: DroneImage = {
       id: Date.now().toString(),
-      url: `/api/placeholder?360&heading=${currentHeading}&location=${userLocation[0]},${userLocation[1]}&
+      url: "/api/placeholder?360&heading=" + currentHeading + "&location=" + userLocation[0] + "," + userLocation[1],
       type: "360",
       location: userLocation,
       timestamp: Date.now(),

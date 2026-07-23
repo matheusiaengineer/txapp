@@ -55,7 +55,7 @@ export default function HomePage() {
       await fetch(`/api/favorites/${driverId}`, { method: "DELETE" })
       setFavorites(prev => prev.filter(id => id !== driverId))
     } else {
-      await fetch(`/api/favorites", {
+      await fetch("/api/favorites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ favorite_type: "driver", driver_id: driverId }),
