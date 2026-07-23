@@ -20,7 +20,7 @@ export default function DroneImagePage() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <div className="text-error">❌ {error}</div>
-        <button onClick={getLocation} className="px-6 py-3 bg-primary text-black rounded-xl font-bold cursor-pointer hover:bg-primary-hover">
+        <button onClick={() => getLocation(false)} className="px-6 py-3 bg-primary text-black rounded-xl font-bold cursor-pointer hover:bg-primary-hover">
           🔄 Tentar Novamente
         </button>
       </div>
@@ -31,7 +31,7 @@ export default function DroneImagePage() {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
         <div className="text-white">❌ Localização não disponível</div>
-        <button onClick={getLocation} className="px-6 py-3 bg-primary text-black rounded-xl font-bold cursor-pointer hover:bg-primary-hover">
+        <button onClick={() => getLocation(false)} className="px-6 py-3 bg-primary text-black rounded-xl font-bold cursor-pointer hover:bg-primary-hover">
           📍 Obter Localização
         </button>
       </div>
