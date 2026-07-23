@@ -140,7 +140,7 @@ export default function DroneCamera({ userLocation, onCapture }: DroneCameraProp
               <div key={img.id} className="w-16 h-16 rounded-lg overflow-hidden border-2 border-emerald-500/50 shrink-0">
                 <img
                   src={img.url}
-                  alt={`360° view ${img.id}`}
+                  alt={"360° view " + img.id}
                   className="w-full h-full object-cover"
                 />
               </div>

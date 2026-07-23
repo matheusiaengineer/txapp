@@ -196,7 +196,7 @@ export default function HomePage() {
               </button>
             </div>
             <button
-              onClick={() => router.push(`/ride?driverId=${selectedDriver.id}&type=${selectedDriver.vehicle_type}`)}
+              onClick={() => router.push("/ride?driverId=" + selectedDriver.id + "&type=" + selectedDriver.vehicle_type)}
               className="px-5 py-2.5 bg-primary text-black rounded-xl font-bold cursor-pointer border-none hover:bg-primary-hover text-sm"
             >
               Chamar
