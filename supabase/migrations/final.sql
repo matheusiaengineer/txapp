@@ -1942,13 +1942,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_balance_snapshot_profile ON wallet_
 -- =============================================================================
 
 DO $$
-DECLARE admin_id UUID; admin_email TEXT := COALESCE(current_setting('app.admin_email', true), 'matheus16k@gmail.com');
+DECLARE admin_id UUID; admin_auth_id UUID; admin_email TEXT := COALESCE(current_setting('app.admin_email', true), 'matheus16k@gmail.com');
 BEGIN
   SELECT id INTO admin_id FROM profiles WHERE email = admin_email;
-  IF admin_id IS NULL THEN
-    INSERT INTO profiles (email, full_name, role, account_type, phone_verified, cpf_verified) VALUES (admin_email, 'Matheus16k', 'admin', 'business', true, true);
-  ELSE
+  IF admin_id IS NOT NULL THEN
     UPDATE profiles SET role = 'admin' WHERE id = admin_id AND role != 'admin';
+  ELSE
+    SELECT id INTO admin_auth_id FROM auth.users WHERE email = admin_email;
+    IF admin_auth_id IS NOT NULL THEN
+      INSERT INTO profiles (id, email, full_name, role, account_type, phone_verified, cpf_verified) VALUES (admin_auth_id, admin_email, 'Matheus16k', 'admin', 'business', true, true);
+    END IF;
   END IF;
 END $$;
 
