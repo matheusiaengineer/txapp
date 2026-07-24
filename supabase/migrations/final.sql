@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS public.ratings (
 -- =============================================================================
 -- 5. TRIGGER: updated_at nos profiles
 -- =============================================================================
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 CREATE TRIGGER update_profiles_updated_at
     BEFORE UPDATE ON public.profiles
     FOR EACH ROW
