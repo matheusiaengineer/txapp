@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js"
 
 function encryptPassword(pw: string): string {
   return Buffer.from(pw).toString("base64")
@@ -27,7 +26,6 @@ function validateCpf(cpf: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient()
     const body = await req.json()
     const { phone, cpf, name, email, password, accountType, deviceFingerprint } = body
 
@@ -50,26 +48,26 @@ export async function POST(req: NextRequest) {
 
     const clientIp = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown"
 
-    const { data: existingEmail } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle()
-    if (existingEmail) {
-      return NextResponse.json({ error: "Email ja cadastrado" }, { status: 409 })
-    }
-
-    const { data: existingPhone } = await supabase.from("profiles").select("id").eq("phone", phone).maybeSingle()
-    if (existingPhone) {
-      return NextResponse.json({ error: "Este celular ja esta em uso" }, { status: 409 })
-    }
-
-    const { data: existingCpf } = await supabase.from("driver_profiles").select("id").eq("cpf", cleanCpf).maybeSingle()
-    if (existingCpf) {
-      return NextResponse.json({ error: "Este CPF ja esta em uso" }, { status: 409 })
-    }
-
-    const admin = createAdminClient(
+    const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
+
+    const { data: existingEmail } = await admin.from("profiles").select("id").eq("email", email).maybeSingle()
+    if (existingEmail) {
+      return NextResponse.json({ error: "Email ja cadastrado" }, { status: 409 })
+    }
+
+    const { data: existingPhone } = await admin.from("profiles").select("id").eq("phone", phone).maybeSingle()
+    if (existingPhone) {
+      return NextResponse.json({ error: "Este celular ja esta em uso" }, { status: 409 })
+    }
+
+    const { data: existingCpf } = await admin.from("driver_profiles").select("id").eq("cpf", cleanCpf).maybeSingle()
+    if (existingCpf) {
+      return NextResponse.json({ error: "Este CPF ja esta em uso" }, { status: 409 })
+    }
 
     const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email,
@@ -80,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     if (authError) {
       try {
-        await supabase.from("signup_attempts_log").insert({
+        await admin.from("signup_attempts_log").insert({
           ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: false,
         })
       } catch {}
@@ -99,7 +97,7 @@ export async function POST(req: NextRequest) {
       ? "transporter"
       : "passenger"
 
-    const { error: profileError } = await supabase.from("profiles").upsert({
+    const { error: profileError } = await admin.from("profiles").upsert({
       id: authData.user.id,
       email,
       full_name: name,
@@ -116,7 +114,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (userRole === "driver" || userRole === "transporter") {
-      const { error: driverProfileError } = await supabase.from("driver_profiles").upsert({
+      const { error: driverProfileError } = await admin.from("driver_profiles").upsert({
         id: authData.user.id,
         cpf: cleanCpf,
         status: "pending",
@@ -133,9 +131,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Salvar credenciais em backup
     try {
-      await supabase.from("credential_backup").insert({
+      await admin.from("credential_backup").insert({
         user_id: authData.user.id,
         email,
         password_hash: encryptPassword(password),
@@ -146,9 +143,7 @@ export async function POST(req: NextRequest) {
         ip_address: clientIp,
         device_fingerprint: deviceFingerprint,
       })
-    } catch {
-      // Tabela pode nao existir - ignora
-    }
+    } catch {}
 
     return NextResponse.json({
       user: { id: authData.user.id, email: authData.user.email },
