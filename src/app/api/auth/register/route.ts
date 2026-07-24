@@ -50,42 +50,9 @@ export async function POST(req: NextRequest) {
 
     const clientIp = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown"
 
-    const { data: existingPhone } = await supabase.from("profiles").select("id, is_banned").eq("phone", phone).maybeSingle()
-    if (existingPhone) {
-      if (existingPhone.is_banned) {
-        return NextResponse.json({ error: "Este celular esta bloqueado permanentemente" }, { status: 403 })
-      }
-      return NextResponse.json({ error: "Este celular ja esta em uso" }, { status: 409 })
-    }
-
-    const { data: existingCpf } = await supabase.from("profiles").select("id, is_banned").eq("cpf", cleanCpf).maybeSingle()
-    if (existingCpf) {
-      if (existingCpf.is_banned) {
-        return NextResponse.json({ error: "Este CPF esta bloqueado permanentemente" }, { status: 403 })
-      }
-      return NextResponse.json({ error: "Este CPF ja esta em uso" }, { status: 409 })
-    }
-
-    if (deviceFingerprint) {
-      const { data: bannedDevice } = await supabase.from("banned_devices").select("id").eq("device_fingerprint", deviceFingerprint).maybeSingle()
-      if (bannedDevice) {
-        return NextResponse.json({ error: "Dispositivo bloqueado" }, { status: 403 })
-      }
-    }
-
     const { data: existingEmail } = await supabase.from("profiles").select("id").eq("email", email).maybeSingle()
     if (existingEmail) {
       return NextResponse.json({ error: "Email ja cadastrado" }, { status: 409 })
-    }
-
-    const { data: signups, error: signupError } = await supabase
-      .from("signup_attempts_log")
-      .select("id")
-      .eq("ip_address", clientIp)
-      .gte("attempted_at", new Date(Date.now() - 3600000).toISOString())
-
-    if (!signupError && signups && signups.length >= 3) {
-      return NextResponse.json({ error: "Muitas tentativas. Tente novamente em 1 hora." }, { status: 429 })
     }
 
     const admin = createAdminClient(
@@ -98,13 +65,15 @@ export async function POST(req: NextRequest) {
       email,
       password,
       email_confirm: true,
-      user_metadata: { full_name: name, account_type: accountType, phone },
+      user_metadata: { full_name: name, account_type: accountType, phone, cpf: cleanCpf },
     })
 
     if (authError) {
-      await supabase.from("signup_attempts_log").insert({
-        ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: false,
-      })
+      try {
+        await supabase.from("signup_attempts_log").insert({
+          ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: false,
+        })
+      } catch {}
       return NextResponse.json({ error: authError.message }, { status: 400 })
     }
 
@@ -125,12 +94,10 @@ export async function POST(req: NextRequest) {
       email,
       full_name: name,
       phone,
-      cpf: cleanCpf,
-      phone_verified: false,
-      cpf_verified: false,
-      account_type: accountType,
-      device_fingerprint: deviceFingerprint,
       role: userRole,
+      country: "BR",
+      language: "pt-BR",
+      accepted_terms: true,
     })
 
     if (profileError) {
@@ -138,29 +105,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: profileError.message }, { status: 500 })
     }
 
-    if (userRole === "driver" || userRole === "transporter") {
-      const { error: driverProfileError } = await supabase.from("driver_profiles").upsert({
-        id: authData.user.id,
-        cpf: cleanCpf,
-        status: "pending",
-        current_live_status: "OFFLINE",
-        acceptance_rate: 100.00,
-        cancellation_rate: 0.00,
-        rating: 5.00,
-        total_trips: 0,
-        modalities: accountType === "driver_moto" ? ["moto"] : accountType === "driver_car" ? ["carro"] : ["freight"],
-      })
-      if (driverProfileError) {
-        await admin.auth.admin.deleteUser(authData.user.id)
-        return NextResponse.json({ error: driverProfileError.message }, { status: 500 })
-      }
-    }
-
-    await supabase.from("signup_attempts_log").insert({
-      ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: true,
-    })
-
-    // Salvar credenciais em backup (ignorar erro se tabela nao existir)
+    // Salvar credenciais em backup (cria tabela se nao existir via SQL direto)
     try {
       await supabase.from("credential_backup").insert({
         user_id: authData.user.id,
@@ -174,8 +119,7 @@ export async function POST(req: NextRequest) {
         device_fingerprint: deviceFingerprint,
       })
     } catch {
-      // Tabela pode nao existir - log apenas
-      console.warn("[CREDENTIAL_BACKUP] Nao foi possivel salvar backup de credenciais")
+      // Tabela pode nao existir - ignora
     }
 
     return NextResponse.json({
