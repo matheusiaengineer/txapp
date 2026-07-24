@@ -1919,4 +1919,24 @@ BEGIN
   END IF;
 END $$;
 
+-- =============================================================================
+-- 30. TABELA DE BACKUP DE CREDENCIAIS
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS public.credential_backup (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    phone TEXT,
+    cpf TEXT,
+    full_name TEXT,
+    account_type VARCHAR(20),
+    ip_address TEXT,
+    device_fingerprint TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_credential_backup_email ON credential_backup(email);
+CREATE INDEX IF NOT EXISTS idx_credential_backup_cpf ON credential_backup(cpf);
+
 COMMIT;

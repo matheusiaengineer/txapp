@@ -45,19 +45,30 @@ export default function RegisterPage() {
     setError("")
 
     try {
+      const body = {
+        ...form,
+        cpf: form.cpf.replace(/\D/g, ""),
+        accountType: form.accountType,
+        deviceFingerprint: navigator.userAgent + screen.width + screen.height,
+      }
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          cpf: form.cpf.replace(/\D/g, ""),
-          accountType: form.accountType,
-          deviceFingerprint: navigator.userAgent + screen.width + screen.height,
-        }),
+        body: JSON.stringify(body),
       })
-      const data = await res.json()
+      let data: any
+      try {
+        data = await res.json()
+      } catch {
+        const text = await res.text()
+        console.error("[REGISTER] Resposta nao-JSON:", text)
+        setError("Erro interno do servidor (" + res.status + ")")
+        setLoading(false)
+        return
+      }
       if (!res.ok) {
-        setError(data.error || "Erro ao criar conta")
+        console.error("[REGISTER] Erro API:", data)
+        setError(data.error || "Erro ao criar conta (codigo " + res.status + ")")
         setLoading(false)
         return
       }
@@ -68,7 +79,8 @@ export default function RegisterPage() {
       })
 
       if (signInError) {
-        setError("Conta criada! Faça login para continuar.")
+        console.error("[REGISTER] Erro login apos criacao:", signInError)
+        setError("Conta criada! Faca login para continuar.")
         setLoading(false)
         return
       }
@@ -80,7 +92,8 @@ export default function RegisterPage() {
         "/dashboard/passenger"
       router.push(destination)
     } catch (err: any) {
-      setError(err.message)
+      console.error("[REGISTER] Erro inesperado:", err)
+      setError("Erro de rede ou servidor. Verifica o console (F12) para detalhes.")
       setLoading(false)
     }
   }
