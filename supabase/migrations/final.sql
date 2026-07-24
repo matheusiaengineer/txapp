@@ -1531,15 +1531,51 @@ CREATE INDEX IF NOT EXISTS idx_ratings_rater ON public.ratings (rater_id, create
 -- =============================================================================
 -- 28. REALTIME PUBLICATION
 -- =============================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.driver_heartbeats;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.trip_messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.rides;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.wallets;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.drivers_online;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.messages;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.trip_offers;
-ALTER PUBLICATION supabase_realtime ADD TABLE IF NOT EXISTS public.wallet_transactions;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.driver_heartbeats;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.trip_messages;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.rides;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.wallets;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.drivers_online;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.trip_offers;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.wallet_transactions;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- =============================================================================
 -- 29. TRIGGERS ADICIONAIS
