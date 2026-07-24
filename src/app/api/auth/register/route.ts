@@ -55,6 +55,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email ja cadastrado" }, { status: 409 })
     }
 
+    const { data: existingPhone } = await supabase.from("profiles").select("id").eq("phone", phone).maybeSingle()
+    if (existingPhone) {
+      return NextResponse.json({ error: "Este celular ja esta em uso" }, { status: 409 })
+    }
+
+    const { data: existingCpf } = await supabase.from("driver_profiles").select("id").eq("cpf", cleanCpf).maybeSingle()
+    if (existingCpf) {
+      return NextResponse.json({ error: "Este CPF ja esta em uso" }, { status: 409 })
+    }
+
     const admin = createAdminClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -105,7 +115,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: profileError.message }, { status: 500 })
     }
 
-    // Salvar credenciais em backup (cria tabela se nao existir via SQL direto)
+    if (userRole === "driver" || userRole === "transporter") {
+      const { error: driverProfileError } = await supabase.from("driver_profiles").upsert({
+        id: authData.user.id,
+        cpf: cleanCpf,
+        status: "pending",
+        current_live_status: "OFFLINE",
+        acceptance_rate: 100.00,
+        cancellation_rate: 0.00,
+        rating: 5.00,
+        total_trips: 0,
+        modalities: accountType === "driver_moto" ? ["moto"] : accountType === "driver_car" ? ["carro"] : ["freight"],
+      })
+      if (driverProfileError) {
+        await admin.auth.admin.deleteUser(authData.user.id)
+        return NextResponse.json({ error: driverProfileError.message }, { status: 500 })
+      }
+    }
+
+    // Salvar credenciais em backup
     try {
       await supabase.from("credential_backup").insert({
         user_id: authData.user.id,
