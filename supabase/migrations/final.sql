@@ -222,8 +222,8 @@ CREATE TABLE IF NOT EXISTS public.vehicle_categories (
 -- Categorias padrão
 INSERT INTO public.vehicle_categories (name, display_name, max_passengers) VALUES ('car', 'Carro Popular', 4) ON CONFLICT (name) DO NOTHING;
 INSERT INTO public.vehicle_categories (name, display_name, max_passengers, max_load_weight_kg) VALUES ('moto', 'Moto', 1, 20) ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3) VALUES ('van', 'Van de Carga', 0, 1500, 10) ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3, requires_special_license) VALUES ('truck', 'Caminhão', 0, 8000, 40, TRUE) ON CONFLICT (name) DO NOTHING;
+INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3) VALUES ('van', 'Van de Carga', 1500, 10) ON CONFLICT (name) DO NOTHING;
+INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3, requires_special_license) VALUES ('truck', 'Caminhão', 8000, 40, TRUE) ON CONFLICT (name) DO NOTHING;
 
 -- 7.5 driver_heartbeats
 CREATE TABLE IF NOT EXISTS public.driver_heartbeats (
@@ -1547,11 +1547,7 @@ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE public.trip_messages;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.rides;
-EXCEPTION WHEN duplicate_object THEN NULL;
-END $$;
+
 DO $$
 BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE public.wallets;
