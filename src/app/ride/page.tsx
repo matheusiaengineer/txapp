@@ -38,6 +38,26 @@ function RideContent() {
   const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([])
   const [selectedDriver, setSelectedDriver] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [routeCoords, setRouteCoords] = useState<Array<[number, number]>>([])
+
+  async function fetchRoute(origin: [number, number], dest: [number, number]) {
+    try {
+      const res = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${origin[1]},${origin[0]};${dest[1]},${dest[0]}?geometries=geojson&overview=full`
+      )
+      const data = await res.json()
+      if (data.code === "Ok" && data.routes?.[0]?.geometry?.coordinates) {
+        setRouteCoords(data.routes[0].geometry.coordinates.map((c: number[]) => [c[1], c[0]]))
+      }
+    } catch (err) {
+      console.warn("[RIDE] Erro ao buscar rota:", err)
+    }
+  }
+
+  function handleSetDestination(lat: number, lng: number, address: string) {
+    setDestination({ lat, lng, address })
+    if (coords && lat !== 0 && lng !== 0) fetchRoute(coords, [lat, lng])
+  }
 
   useEffect(() => {
     if (!coords || step !== "driver") return
@@ -101,7 +121,8 @@ function RideContent() {
             userLocation={coords || [-23.5505, -46.6333]}
             nearbyDrivers={step === "driver" ? nearbyDrivers : []}
             destination={destination ? [destination.lat, destination.lng] : undefined}
-            onMapClick={step === "location" ? (lat, lng) => setDestination({ lat, lng, address: "Endereço selecionado" }) : undefined}
+            route={routeCoords.length > 0 ? routeCoords : undefined}
+            onMapClick={step === "location" ? (lat, lng) => handleSetDestination(lat, lng, "Endereço selecionado") : undefined}
             onDriverClick={step === "driver" ? setSelectedDriver : undefined}
           />
         </Suspense>
@@ -116,8 +137,8 @@ function RideContent() {
               className="w-full bg-card-bg-2 border border-card-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-primary focus:outline-none"
             />
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-              {[{ icon: "🏠", label: "Casa" }, { icon: "💼", label: "Trabalho" }, { icon: "❤️", label: "Namorada" }, { icon: "⭐", label: "Favoritos" }].map(p => (
-                <button key={p.label} className="flex-shrink-0 bg-card-bg-2 border border-card-border rounded-lg px-4 py-2 text-sm flex items-center gap-2">
+              {[{ icon: "🏠", label: "Casa", address: "Rua Principal, 100 - Poté/MG" }, { icon: "💼", label: "Trabalho", address: "Av. Getúlio Vargas, 200 - Poté/MG" }, { icon: "❤️", label: "Namorada", address: "Rua das Flores, 50 - Poté/MG" }, { icon: "⭐", label: "Favoritos", address: "" }].map(p => (
+                <button key={p.label} onClick={() => p.address && handleSetDestination(0, 0, p.address)} className="flex-shrink-0 bg-card-bg-2 border border-card-border rounded-lg px-4 py-2 text-sm flex items-center gap-2 hover:bg-card-bg transition-colors">
                   <span>{p.icon}</span>
                   <span>{p.label}</span>
                 </button>

@@ -13,10 +13,10 @@ export default function DriverWalletPage() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) { router.push("/auth/login"); return; }
-      const { data: w } = await supabase.from("wallet").select("*").eq("user_id", data.user.id).single();
+      const { data: w } = await supabase.from("wallets").select("*").eq("profile_id", data.user.id).single();
       setWallet(w);
-      const { data: t } = await supabase.from("transactions").select("*")
-        .eq("motorista_id", data.user.id).order("criada_em", { ascending: false }).limit(10);
+      const { data: t } = await supabase.from("wallet_transactions").select("*")
+        .eq("profile_id", data.user.id).order("created_at", { ascending: false }).limit(10);
       setTransactions(t || []);
     });
   }, []);
@@ -28,17 +28,17 @@ export default function DriverWalletPage() {
       <h1 className="text-2xl font-bold text-white mb-6">Carteira</h1>
       <div className="txd-card p-6 text-center mb-6">
         <p className="text-sm text-gray-400">Saldo disponível</p>
-        <p className="text-4xl font-bold text-primary">R$ {wallet?.saldo?.toFixed(2) || "0,00"}</p>
+        <p className="text-4xl font-bold text-primary">R$ {wallet?.balance?.toFixed(2) || "0,00"}</p>
       </div>
       <h2 className="text-sm font-semibold text-white mb-3">Transações</h2>
       {transactions.length === 0 && <p className="text-sm text-gray-500">Nenhuma transação</p>}
       {transactions.map((t: any) => (
         <div key={t.id} className="txd-card p-3 flex justify-between items-center mb-2">
           <div>
-            <p className="text-sm text-white">R$ {t.valor_motorista?.toFixed(2)}</p>
-            <p className="text-xs text-gray-400">{t.status}</p>
+            <p className="text-sm text-white">R$ {(t.amount || 0).toFixed(2)}</p>
+            <p className="text-xs text-gray-400">{t.description || t.status}</p>
           </div>
-          <span className="text-xs text-gray-500">{new Date(t.criada_em).toLocaleDateString()}</span>
+          <span className="text-xs text-gray-500">{new Date(t.created_at).toLocaleDateString()}</span>
         </div>
       ))}
     </main>

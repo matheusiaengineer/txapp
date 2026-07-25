@@ -257,14 +257,27 @@ input, select, textarea, button {
   50% { transform: translateY(12px); opacity: 0.3; }
 }
 
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes txpulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.02); }
+}
+
 /* =========================================================================
    ANIMATION UTILITY CLASSES
    ========================================================================= */
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
-.animate-float { animation: txd-float 3s ease-in-out infinite; }
+.animate-float { animation: txd-float 3s ease-in-out infinite; will-change: transform; }
+.animate-scrollDot { animation: scrollDot 2s ease-in-out infinite; }
 .animate-slide-up { animation: slide-up 0.4s ease-out; }
 .animate-scale-in { animation: scale-in 0.3s ease-out; }
-.animate-txd-float { animation: txd-float 4s ease-in-out infinite; }
+.animate-txd-float { animation: txd-float 4s ease-in-out infinite; will-change: transform; }
+.animate-bounce-custom { animation: bounce 2s ease-in-out infinite; will-change: transform; }
+.animate-txpulse { animation: txpulse 2s ease-in-out infinite; }
 .animate-txd-pulse-glow { animation: txd-pulse-glow 2s ease-in-out infinite; }
 
 /* Reduced motion */

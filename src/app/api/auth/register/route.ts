@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-
-function encryptPassword(pw: string): string {
-  return Buffer.from(pw).toString("base64")
-}
+import { withRateLimit } from "@/lib/api-middleware"
 
 const VALID_TYPES = ["passenger", "driver_moto", "driver_car", "freight", "business"] as const
 
@@ -24,7 +21,7 @@ function validateCpf(cpf: string): boolean {
   return true
 }
 
-export async function POST(req: NextRequest) {
+const handler = async (req: NextRequest) => {
   try {
     const body = await req.json()
     const { phone, cpf, name, email, password, accountType, deviceFingerprint } = body
@@ -64,8 +61,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Este celular ja esta em uso" }, { status: 409 })
     }
 
-    const { data: existingCpf } = await admin.from("driver_profiles").select("id").eq("cpf", cleanCpf).maybeSingle()
-    if (existingCpf) {
+    const { data: existingCpfProfile } = await admin.from("profiles").select("id").eq("cpf", cleanCpf).maybeSingle()
+    if (existingCpfProfile) {
+      return NextResponse.json({ error: "Este CPF ja esta em uso" }, { status: 409 })
+    }
+
+    const { data: existingCpfDriver } = await admin.from("driver_profiles").select("id").eq("cpf", cleanCpf).maybeSingle()
+    if (existingCpfDriver) {
       return NextResponse.json({ error: "Este CPF ja esta em uso" }, { status: 409 })
     }
 
@@ -102,7 +104,9 @@ export async function POST(req: NextRequest) {
       email,
       full_name: name,
       phone,
+      cpf: cleanCpf,
       role: userRole,
+      account_type: accountType,
       country: "BR",
       language: "pt-BR",
       accepted_terms: true,
@@ -132,16 +136,8 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      await admin.from("credential_backup").insert({
-        user_id: authData.user.id,
-        email,
-        password_hash: encryptPassword(password),
-        phone,
-        cpf: cleanCpf,
-        full_name: name,
-        account_type: accountType,
-        ip_address: clientIp,
-        device_fingerprint: deviceFingerprint,
+      await admin.from("signup_attempts_log").insert({
+        ip_address: clientIp, phone, cpf: cleanCpf, device_fingerprint: deviceFingerprint, success: true,
       })
     } catch {}
 
@@ -154,3 +150,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
+
+export const POST = withRateLimit(handler, 'auth')

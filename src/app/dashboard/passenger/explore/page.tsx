@@ -160,7 +160,7 @@ export default function ExplorePage() {
               {allPlaces.map((place: any) => (
                 <Link
                   key={`${place.type}-${place.id}`}
-                  href={place.type === "company" ? `/dashboard/passenger/explore/${place.id}` : "#"}
+                  href={place.type === "company" ? `/dashboard/passenger/explore/${place.id}` : `/dashboard/passenger/explore/${place.id}`}
                   className="flex items-center gap-3 p-3 rounded-xl hover:bg-card-bg-2 transition-colors"
                 >
                   <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-lg shrink-0 relative">

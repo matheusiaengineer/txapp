@@ -1,16 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabase/browser"
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success] = useState(searchParams.get("conta") === "criada")
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -115,6 +117,12 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {success && (
+            <div className="flex items-center gap-2 text-success text-sm bg-success/10 border border-success/20 px-4 py-3 rounded-2xl">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span>Conta criada! Faca login para continuar.</span>
+            </div>
+          )}
           {error && (
             <div className="flex items-center gap-2 text-error text-sm bg-error/10 border border-error/20 px-4 py-3 rounded-2xl">
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -178,5 +186,24 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-[100dvh] flex flex-col bg-background">
+        <div className="flex-1 flex flex-col justify-center px-6 max-w-sm mx-auto w-full">
+          <div className="text-center mb-10">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-[#00a884] flex items-center justify-center mx-auto mb-5 shadow-lg shadow-primary/20">
+              <span className="text-black font-bold text-2xl">T</span>
+            </div>
+            <h1 className="text-2xl font-bold text-white">Entrar no TXAP</h1>
+          </div>
+        </div>
+      </main>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

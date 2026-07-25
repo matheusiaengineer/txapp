@@ -212,9 +212,9 @@ export default function Home() {
           </div>
         </div>
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2" style={{animation: "bounce 2s infinite"}}>
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce-custom">
           <div className="w-6 h-10 rounded-full border-2 border-gray-700 flex items-start justify-center p-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-gray-400" style={{animation: "scrollDot 2s infinite"}} />
+            <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-scrollDot" />
           </div>
         </div>
       </section>
@@ -310,9 +310,9 @@ export default function Home() {
             <span className="text-sm text-gray-500">TXAP</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-gray-600">
-            <span>Termos de Uso</span>
-            <span>Privacidade</span>
-            <span>Ajuda</span>
+            <Link href="/terms" className="hover:text-gray-400 transition-colors">Termos de Uso</Link>
+            <Link href="/privacy" className="hover:text-gray-400 transition-colors">Privacidade</Link>
+            <button onClick={() => alert("🆕 Central de ajuda disponível em breve")} className="hover:text-gray-400 transition-colors">Ajuda</button>
           </div>
           <p className="text-xs text-gray-600">© 2026 TXAP. Todos os direitos reservados.</p>
         </div>

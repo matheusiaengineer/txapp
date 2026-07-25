@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/browser"
 
@@ -17,6 +17,15 @@ export default function AdminDashboard() {
   const [config, setConfig] = useState<any>({})
 
   const [banModal, setBanModal] = useState<any>(null)
+  const [userFilter, setUserFilter] = useState("Todos")
+  const filteredUsers = useMemo(() => {
+    if (userFilter === "Todos") return users
+    if (userFilter === "Passageiros") return users.filter(u => u.role === "passenger")
+    if (userFilter === "Motoristas") return users.filter(u => u.role === "driver" || u.role === "transporter")
+    if (userFilter === "Empresas") return users.filter(u => u.role === "company")
+    if (userFilter === "Banidos") return users.filter(u => u.is_banned)
+    return users
+  }, [users, userFilter])
   const [influencerModal, setInfluencerModal] = useState<any>(null)
 
   // Verifications states
@@ -287,15 +296,13 @@ export default function AdminDashboard() {
           <div className="space-y-4">
             <div className="flex gap-2 overflow-x-auto pb-2">
               {["Todos", "Passageiros", "Motoristas", "Empresas", "Banidos"].map(f => (
-                <button key={f} className="px-3 py-1.5 rounded-full text-xs border border-border bg-card whitespace-nowrap">{f}</button>
+                <button key={f} onClick={() => setUserFilter(f)} className={`px-3 py-1.5 rounded-full text-xs border whitespace-nowrap transition-colors ${userFilter === f ? "bg-primary text-black border-primary" : "border-border bg-card"}`}>{f}</button>
               ))}
             </div>
 
-            {users.length === 0 && (
+            {filteredUsers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">Nenhum usuario encontrado</p>
-            )}
-
-            {users.map((u: any) => (
+            ) : filteredUsers.map((u: any) => (
               <div key={u.id} className={`bg-card border rounded-xl p-4 ${u.is_banned ? "border-red-500/50 bg-red-500/5" : "border-border"}`}>
                 <div className="flex items-center justify-between">
                   <div>

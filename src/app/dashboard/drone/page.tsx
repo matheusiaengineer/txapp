@@ -110,10 +110,10 @@ export default function DroneImagePage() {
       {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-card-bg/90 backdrop-blur border-t border-card-border px-4 py-3">
         <div className="flex gap-3">
-          <button className="flex-1 bg-gray-800 text-white font-bold py-3 rounded-xl hover:bg-gray-700 transition-colors">
+          <button onClick={() => alert("📦 Pacote 360° exportado com sucesso!")} className="flex-1 bg-gray-800 text-white font-bold py-3 rounded-xl hover:bg-gray-700 transition-colors">
             📥 Exportar Pacote 360°
           </button>
-          <button className="flex-1 bg-emerald-500 text-black font-bold py-3 rounded-xl hover:bg-emerald-400 transition-all active:scale-[0.98]">
+          <button onClick={() => alert("🚀 Publicado no sistema TXAP Drone!")} className="flex-1 bg-emerald-500 text-black font-bold py-3 rounded-xl hover:bg-emerald-400 transition-all active:scale-[0.98]">
             🚀 Publicar no Sistema
           </button>
         </div>

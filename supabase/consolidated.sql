@@ -1,14 +1,14 @@
 -- =============================================================================
--- TXAP — MIGRAÇÃO COMPLETA DO BANCO DE DADOS
--- Data: Julho 2026
--- Instrução: Rode UMA VEZ no SQL Editor do Supabase
--- Seguro para re-executar (idempotente)
+-- TXAP - PRODUCTION MIGRATION (CLEAN)
+-- Auto-generated: 2026-07-25
+-- Run ONCE on Supabase SQL Editor (idempotent)
+-- No demo data, no hardcoded UUIDs, no credential_backup
 -- =============================================================================
 
 BEGIN;
 
 -- =============================================================================
--- 1. EXTENSÕES
+-- 1. EXTENSIONS
 -- =============================================================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "cube";
@@ -16,7 +16,7 @@ CREATE EXTENSION IF NOT EXISTS "earthdistance";
 CREATE EXTENSION IF NOT EXISTS "postgis";
 
 -- =============================================================================
--- 2. TIPOS ENUM
+-- 2. TYPES ENUM
 -- =============================================================================
 DO $$ BEGIN CREATE TYPE user_role AS ENUM ('passenger', 'driver', 'company', 'transporter', 'admin', 'driver_moto', 'driver_car', 'freight', 'business', 'employee'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE driver_status AS ENUM ('pending', 'approved', 'rejected'); EXCEPTION WHEN duplicate_object THEN null; END $$;
@@ -29,18 +29,11 @@ DO $$ BEGIN CREATE TYPE driver_live_status AS ENUM ('OFFLINE', 'ONLINE', 'AVAILA
 DO $$ BEGIN CREATE TYPE trip_status AS ENUM ('REQUEST_CREATED', 'SEARCHING_DRIVER', 'DRIVER_NOTIFIED', 'DRIVER_ACCEPTED', 'GOING_TO_PICKUP', 'ARRIVED', 'PASSENGER_ON_BOARD', 'IN_PROGRESS', 'FINISHING', 'COMPLETED', 'PAYMENT_PENDING', 'PAYMENT_CONFIRMED', 'FINISHED', 'CANCELLED', 'NO_DRIVER_FOUND', 'TIMEOUT', 'EXPIRED', 'REJECTED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE freight_load_status AS ENUM ('open', 'in_progress', 'completed', 'cancelled'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE freight_bid_status AS ENUM ('pending', 'accepted', 'rejected', 'withdrawn'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-
--- Adicionar valores a enums existentes
-ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'employee';
-ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'cnh_selfie';
-ALTER TYPE document_type ADD VALUE IF NOT EXISTS 'crlv';
-ALTER TYPE trip_status ADD VALUE IF NOT EXISTS 'SIMULATED';
-
 DO $$ BEGIN CREATE TYPE service_category AS ENUM ('delivery', 'supermarket', 'pharmacy', 'restaurant', 'water', 'gas', 'mechanic', 'electrician', 'plumber', 'cleaning', 'petshop', 'other'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE order_status AS ENUM ('pending', 'confirmed', 'preparing', 'in_delivery', 'delivered', 'cancelled'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- =============================================================================
--- 3. FUNÇÃO UTILITÁRIA: updated_at
+-- 3. UTILITY FUNCTION
 -- =============================================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -51,16 +44,17 @@ END;
 $$ language 'plpgsql';
 
 -- =============================================================================
--- 4. TABELAS BASE
+-- 4. BASE TABLES
 -- =============================================================================
-
--- 4.1 profiles
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
     full_name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     phone TEXT,
     role user_role DEFAULT 'passenger',
+    account_type TEXT DEFAULT 'personal',
+    phone_verified BOOLEAN DEFAULT FALSE,
+    cpf_verified BOOLEAN DEFAULT FALSE,
     country TEXT DEFAULT 'BR',
     language TEXT DEFAULT 'pt-BR',
     accepted_terms BOOLEAN DEFAULT FALSE,
@@ -68,7 +62,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4.2 driver_profiles
 CREATE TABLE IF NOT EXISTS public.driver_profiles (
     id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
     cpf TEXT UNIQUE NOT NULL,
@@ -81,7 +74,6 @@ CREATE TABLE IF NOT EXISTS public.driver_profiles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4.3 vehicles
 CREATE TABLE IF NOT EXISTS public.vehicles (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     driver_id UUID REFERENCES public.driver_profiles(id) ON DELETE CASCADE,
@@ -94,7 +86,6 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4.4 companies
 CREATE TABLE IF NOT EXISTS public.companies (
     id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
     corporate_name TEXT NOT NULL,
@@ -106,7 +97,6 @@ CREATE TABLE IF NOT EXISTS public.companies (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4.5 addresses
 CREATE TABLE IF NOT EXISTS public.addresses (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     profile_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -117,7 +107,6 @@ CREATE TABLE IF NOT EXISTS public.addresses (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4.6 documents
 CREATE TABLE IF NOT EXISTS public.documents (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     profile_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -127,7 +116,6 @@ CREATE TABLE IF NOT EXISTS public.documents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4.7 ratings
 CREATE TABLE IF NOT EXISTS public.ratings (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     rater_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
@@ -139,31 +127,21 @@ CREATE TABLE IF NOT EXISTS public.ratings (
 );
 
 -- =============================================================================
--- 5. TRIGGER: updated_at nos profiles
+-- 5. STORAGE BUCKETS
 -- =============================================================================
-DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
-CREATE TRIGGER update_profiles_updated_at
-    BEFORE UPDATE ON public.profiles
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (name) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('drivers', 'drivers', false) ON CONFLICT (name) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('documents', 'documents', false) ON CONFLICT (name) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('companies', 'companies', false) ON CONFLICT (name) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('vehicles', 'vehicles', false) ON CONFLICT (name) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('chat_files', 'chat_files', true) ON CONFLICT (name) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('kyc_docs', 'kyc_docs', false) ON CONFLICT (name) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('company_freights', 'company_freights', false) ON CONFLICT (name) DO NOTHING;
 
 -- =============================================================================
--- 6. STORAGE BUCKETS
--- =============================================================================
-INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('drivers', 'drivers', false) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('documents', 'documents', false) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('companies', 'companies', false) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('vehicles', 'vehicles', false) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('chat_files', 'chat_files', true) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('kyc_docs', 'kyc_docs', false) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('company_freights', 'company_freights', false) ON CONFLICT (id) DO NOTHING;
-
--- =============================================================================
--- 7. TABELAS DO MOTOR DE MOBILIDADE
+-- 6. MOBILITY ENGINE TABLES
 -- =============================================================================
 
--- 7.1 cities
 CREATE TABLE IF NOT EXISTS public.cities (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     name TEXT NOT NULL,
@@ -176,7 +154,6 @@ CREATE TABLE IF NOT EXISTS public.cities (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 7.2 pricing_rules
 CREATE TABLE IF NOT EXISTS public.pricing_rules (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     city_id UUID REFERENCES public.cities(id) ON DELETE CASCADE,
@@ -189,23 +166,10 @@ CREATE TABLE IF NOT EXISTS public.pricing_rules (
     surge_multiplier DECIMAL(5,2) DEFAULT 1.00,
     max_dispatch_radius_km DECIMAL(10,2) DEFAULT 5.0,
     search_expansion_interval_sec INTEGER DEFAULT 15,
+    UNIQUE (city_id, vehicle_category_id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 7.3 road_events
-CREATE TABLE IF NOT EXISTS public.road_events (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    city_id UUID REFERENCES public.cities(id),
-    type road_event_type NOT NULL,
-    description TEXT,
-    lat DOUBLE PRECISION NOT NULL,
-    lng DOUBLE PRECISION NOT NULL,
-    reported_by UUID REFERENCES public.profiles(id),
-    expires_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- 7.4 vehicle_categories
 CREATE TABLE IF NOT EXISTS public.vehicle_categories (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
@@ -219,13 +183,13 @@ CREATE TABLE IF NOT EXISTS public.vehicle_categories (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Categorias padrão
+CREATE UNIQUE INDEX IF NOT EXISTS vehicle_categories_name_idx ON public.vehicle_categories(name);
+
 INSERT INTO public.vehicle_categories (name, display_name, max_passengers) VALUES ('car', 'Carro Popular', 4) ON CONFLICT (name) DO NOTHING;
 INSERT INTO public.vehicle_categories (name, display_name, max_passengers, max_load_weight_kg) VALUES ('moto', 'Moto', 1, 20) ON CONFLICT (name) DO NOTHING;
 INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3) VALUES ('van', 'Van de Carga', 1500, 10) ON CONFLICT (name) DO NOTHING;
 INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3, requires_special_license) VALUES ('truck', 'Caminhão', 8000, 40, TRUE) ON CONFLICT (name) DO NOTHING;
 
--- 7.5 driver_heartbeats
 CREATE TABLE IF NOT EXISTS public.driver_heartbeats (
     driver_id UUID REFERENCES public.driver_profiles(id) ON DELETE CASCADE PRIMARY KEY,
     lat DOUBLE PRECISION NOT NULL,
@@ -238,7 +202,6 @@ CREATE TABLE IF NOT EXISTS public.driver_heartbeats (
     last_updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 7.6 tracking_history
 CREATE TABLE IF NOT EXISTS public.tracking_history (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     driver_id UUID REFERENCES public.driver_profiles(id) ON DELETE CASCADE,
@@ -250,7 +213,6 @@ CREATE TABLE IF NOT EXISTS public.tracking_history (
     recorded_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 7.7 trips
 CREATE TABLE IF NOT EXISTS public.trips (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     passenger_id UUID REFERENCES public.profiles(id) NOT NULL,
@@ -275,7 +237,6 @@ CREATE TABLE IF NOT EXISTS public.trips (
     cancelled_at TIMESTAMP WITH TIME ZONE
 );
 
--- 7.8 trip_offers
 CREATE TABLE IF NOT EXISTS public.trip_offers (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     trip_id UUID REFERENCES public.trips(id) ON DELETE CASCADE NOT NULL,
@@ -287,10 +248,9 @@ CREATE TABLE IF NOT EXISTS public.trip_offers (
 );
 
 -- =============================================================================
--- 8. FREIGHT MARKETPLACE
+-- 7. FREIGHT MARKETPLACE
 -- =============================================================================
 
--- 8.1 freight_loads
 CREATE TABLE IF NOT EXISTS public.freight_loads (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     customer_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -315,7 +275,6 @@ CREATE TABLE IF NOT EXISTS public.freight_loads (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 8.2 freight_bids
 CREATE TABLE IF NOT EXISTS public.freight_bids (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     load_id UUID REFERENCES public.freight_loads(id) ON DELETE CASCADE NOT NULL,
@@ -329,10 +288,9 @@ CREATE TABLE IF NOT EXISTS public.freight_bids (
 );
 
 -- =============================================================================
--- 9. TABELAS ADICIONAIS (biometric, employee, campaigns, etc)
+-- 8. ADDITIONAL PRODUCTION TABLES
 -- =============================================================================
 
--- 9.1 biometric_credentials
 CREATE TABLE IF NOT EXISTS public.biometric_credentials (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
@@ -344,7 +302,6 @@ CREATE TABLE IF NOT EXISTS public.biometric_credentials (
     last_used_at TIMESTAMP WITH TIME ZONE
 );
 
--- 9.2 employee_profiles
 CREATE TABLE IF NOT EXISTS public.employee_profiles (
     id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
     company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE NOT NULL,
@@ -356,10 +313,9 @@ CREATE TABLE IF NOT EXISTS public.employee_profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 9.3 campaigns
 CREATE TABLE IF NOT EXISTS public.campaigns (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE NOT NULL,
+    company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     segment TEXT NOT NULL,
     channel TEXT NOT NULL,
@@ -371,7 +327,6 @@ CREATE TABLE IF NOT EXISTS public.campaigns (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 9.4 company_clients
 CREATE TABLE IF NOT EXISTS public.company_clients (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE NOT NULL,
@@ -387,10 +342,6 @@ CREATE TABLE IF NOT EXISTS public.company_clients (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
--- =============================================================================
--- 10. LOADS, BIDS, WALLETS, FREIGHT_TRACKING
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.loads (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -452,9 +403,7 @@ CREATE TABLE IF NOT EXISTS public.wallets (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- =============================================================================
--- 11. NOTIFICAÇÕES, MENSAGENS, CHAT
--- =============================================================================
+CREATE UNIQUE INDEX IF NOT EXISTS wallets_profile_id_idx ON public.wallets(profile_id);
 
 CREATE TABLE IF NOT EXISTS public.notifications (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -463,7 +412,7 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     title TEXT NOT NULL,
     body TEXT NOT NULL DEFAULT '',
     data JSONB DEFAULT '{}'::jsonb,
-    read BOOLEAN DEFAULT false NOT NULL,
+    read BOOLEAN DEFAULT FALSE NOT NULL,
     action_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -490,10 +439,6 @@ CREATE TABLE IF NOT EXISTS public.messages (
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT now()
 );
-
--- =============================================================================
--- 12. WALLET TRANSACTIONS
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.wallet_transactions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -522,10 +467,6 @@ CREATE TABLE IF NOT EXISTS public.wallet_transactions (
     hard_delete_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '30 days',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
-
--- =============================================================================
--- 13. DRIVER PRICING E NEGOTIATIONS
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.driver_pricing (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -563,7 +504,7 @@ CREATE TABLE IF NOT EXISTS public.negotiations (
 );
 
 -- =============================================================================
--- 14. AUDIT, ERROR LOGS, COVERAGE, VERIFICATION
+-- 9. AUDIT, ERROR LOGS, COVERAGE, VERIFICATION
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.audit_logs (
@@ -591,8 +532,11 @@ CREATE TABLE IF NOT EXISTS public.coverage_areas (
     state TEXT NOT NULL,
     boundary GEOGRAPHY(POLYGON) NOT NULL,
     is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (city, state)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS coverage_areas_city_state_idx ON public.coverage_areas(city, state);
 
 CREATE TABLE IF NOT EXISTS public.verifications (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -609,7 +553,7 @@ CREATE TABLE IF NOT EXISTS public.verifications (
 );
 
 -- =============================================================================
--- 15. PAYMENT METHODS, SUPPORT TICKETS
+-- 10. PAYMENT METHODS, SUPPORT TICKETS
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.payment_methods (
@@ -639,7 +583,7 @@ CREATE TABLE IF NOT EXISTS public.support_tickets (
 );
 
 -- =============================================================================
--- 16. APP CONFIG, SAVED LOCATIONS, DRIVERS ONLINE, COUPONS, WITHDRAWALS
+-- 11. APP CONFIG, SAVED LOCATIONS, DRIVERS ONLINE, COUPONS, WITHDRAWALS
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.app_config (
@@ -653,20 +597,22 @@ CREATE TABLE IF NOT EXISTS public.app_config (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS app_config_key_idx ON public.app_config(key);
+
 INSERT INTO public.app_config (key, value, description) VALUES
-('global.price_per_km', '{"default": 2500, "min": 1500, "max": 5000}'::jsonb, 'Preço por km em centavos'),
-('global.platform_fee_percent', '{"default": 15, "min": 5, "max": 35}'::jsonb, 'Taxa da plataforma'),
-('global.search_radius_km', '{"default": 10, "min": 3, "max": 50}'::jsonb, 'Raio de busca de motoristas'),
-('global.min_fare', '{"default": 700}'::jsonb, 'Tarifa mínima em centavos'),
-('global.cancellation_fee', '{"default": 500}'::jsonb, 'Taxa de cancelamento'),
-('global.waiting_time_min', '{"default": 5}'::jsonb, 'Tempo de espera'),
-('global.night_multiplier', '{"default": 1.3}'::jsonb, 'Multiplicador noturno'),
-('global.night_start', '{"default": "22:00"}'::jsonb, 'Início noturno'),
-('global.night_end', '{"default": "06:00"}'::jsonb, 'Fim noturno'),
-('global.surge_enabled', '{"default": true}'::jsonb, 'Tarifa dinâmica'),
-('global.max_surge_multiplier', '{"default": 2.5}'::jsonb, 'Máximo tarifa dinâmica'),
-('global.min_withdrawal', '{"default": 5000}'::jsonb, 'Saque mínimo em centavos'),
-('global.referral_bonus', '{"default": 2000}'::jsonb, 'Bônus indicação em centavos')
+    ('global.price_per_km', '{"default": 2500, "min": 1500, "max": 5000}'::jsonb, 'Preço por km em centavos'),
+    ('global.platform_fee_percent', '{"default": 15, "min": 5, "max": 35}'::jsonb, 'Taxa da plataforma'),
+    ('global.search_radius_km', '{"default": 10, "min": 3, "max": 50}'::jsonb, 'Raio de busca de motoristas'),
+    ('global.min_fare', '{"default": 700}'::jsonb, 'Tarifa mínima em centavos'),
+    ('global.cancellation_fee', '{"default": 500}'::jsonb, 'Taxa de cancelamento'),
+    ('global.waiting_time_min', '{"default": 5}'::jsonb, 'Tempo de espera'),
+    ('global.night_multiplier', '{"default": 1.3}'::jsonb, 'Multiplicador noturno'),
+    ('global.night_start', '{"default": "22:00"}'::jsonb, 'Início noturno'),
+    ('global.night_end', '{"default": "06:00"}'::jsonb, 'Fim noturno'),
+    ('global.surge_enabled', '{"default": true}'::jsonb, 'Tarifa dinâmica'),
+    ('global.max_surge_multiplier', '{"default": 2.5}'::jsonb, 'Máximo tarifa dinâmica'),
+    ('global.min_withdrawal', '{"default": 5000}'::jsonb, 'Saque mínimo em centavos'),
+    ('global.referral_bonus', '{"default": 2000}'::jsonb, 'Bônus indicação em centavos')
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS public.saved_locations (
@@ -680,8 +626,11 @@ CREATE TABLE IF NOT EXISTS public.saved_locations (
     complement TEXT,
     is_favorite BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE (user_id, name)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS saved_locations_user_name_idx ON public.saved_locations(user_id, name);
 
 CREATE TABLE IF NOT EXISTS public.drivers_online (
     driver_id UUID REFERENCES public.driver_profiles(id) ON DELETE CASCADE PRIMARY KEY,
@@ -729,7 +678,7 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
 );
 
 -- =============================================================================
--- 17. COMPANY: PRODUCTS, ORDERS, SERVICES, PROFESSIONALS
+-- 12. COMPANY: PRODUCTS, ORDERS, SERVICES, PROFESSIONALS
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.company_services (
@@ -797,7 +746,7 @@ CREATE TABLE IF NOT EXISTS public.professional_directory (
 );
 
 -- =============================================================================
--- 18. GENESIS PROTOCOL: CITY LAUNCHES, MISSIONS, GUARANTEES, SNAPSHOTS
+-- 13. GENESIS PROTOCOL (city launches, missions, guarantees, snapshots)
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.city_launches (
@@ -860,7 +809,7 @@ CREATE TABLE IF NOT EXISTS public.driver_guarantees (
 );
 
 -- =============================================================================
--- 19. PIX COLUMNS EM TRIPS + COMPANY SUBSCRIPTIONS
+-- 14. PIX COLUMNS ON TRIPS + COMPANY SUBSCRIPTIONS
 -- =============================================================================
 
 DO $$ BEGIN
@@ -882,7 +831,7 @@ END $$;
 
 CREATE TABLE IF NOT EXISTS public.company_subscription_plans (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    name TEXT NOT NULL,
+    name TEXT UNIQUE NOT NULL,
     price_weekly DECIMAL(10,2) NOT NULL,
     description TEXT,
     features JSONB DEFAULT '[]'::jsonb,
@@ -892,6 +841,14 @@ CREATE TABLE IF NOT EXISTS public.company_subscription_plans (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS company_subscription_plans_name_idx ON public.company_subscription_plans(name);
+
+INSERT INTO public.company_subscription_plans (name, price_weekly, description, features, max_products, is_featured, priority_score) VALUES
+    ('Gratis', 0, 'Listagem basica no diretorio', '["Aparece na busca", "1 foto"]', 3, FALSE, 0),
+    ('Destaque', 300, 'Aparece primeiro para todos', '["Aparece no topo", "Badge Destaque", "Ate 20 produtos", "Relatorio semanal", "Suporte prioritario"]', 20, TRUE, 50),
+    ('Premium', 500, 'Tudo do Destaque + entrega TXAP', '["Tudo do Destaque", "Entrega integrada", "Sem taxa por entrega", "Gestao de pedidos", "Ate 50 produtos", "Relatorio completo"]', 50, TRUE, 100)
+ON CONFLICT (name) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS public.company_subscriptions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -932,14 +889,8 @@ CREATE TABLE IF NOT EXISTS public.company_invoices (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-INSERT INTO public.company_subscription_plans (name, price_weekly, description, features, max_products, is_featured, priority_score) VALUES
-('Gratis', 0, 'Listagem basica no diretorio', '["Aparece na busca", "1 foto"]', 3, FALSE, 0),
-('Destaque', 300, 'Aparece primeiro para todos', '["Aparece no topo", "Badge Destaque", "Ate 20 produtos", "Relatorio semanal", "Suporte prioritario"]', 20, TRUE, 50),
-('Premium', 500, 'Tudo do Destaque + entrega TXAP', '["Tudo do Destaque", "Entrega integrada", "Sem taxa por entrega", "Gestao de pedidos", "Ate 50 produtos", "Relatorio completo"]', 50, TRUE, 100)
-ON CONFLICT DO NOTHING;
-
 -- =============================================================================
--- 20. SEGURANÇA: COLUNAS PROFILES, BANNED DEVICES, SIGNUP LOG, ETC
+-- 15. SECURITY: PROFILE COLUMNS, BANNED DEVICES, SIGNUP LOG
 -- =============================================================================
 
 DO $$ BEGIN
@@ -976,7 +927,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN null;
 END $$;
 
--- Driver profiles extras
 DO $$ BEGIN
     ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS current_live_status driver_live_status DEFAULT 'OFFLINE';
     ALTER TABLE public.driver_profiles ADD COLUMN IF NOT EXISTS acceptance_rate DECIMAL(5,2) DEFAULT 100.00;
@@ -989,7 +939,6 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN null;
 END $$;
 
--- Companies extras
 DO $$ BEGIN
     ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
     ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
@@ -1008,10 +957,6 @@ DO $$ BEGIN
     ALTER TABLE public.companies ADD COLUMN IF NOT EXISTS priority_score INTEGER DEFAULT 0;
 EXCEPTION WHEN duplicate_column THEN null;
 END $$;
-
--- =============================================================================
--- 21. BANNED DEVICES E SIGNUP LOG
--- =============================================================================
 
 CREATE TABLE IF NOT EXISTS banned_devices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1033,7 +978,7 @@ CREATE TABLE IF NOT EXISTS signup_attempts_log (
 );
 
 -- =============================================================================
--- 22. FAVORITES, INFLUENCERS, GLOBAL CONFIG
+-- 16. FAVORITES, INFLUENCERS, GLOBAL CONFIG
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS favorites (
@@ -1070,6 +1015,29 @@ CREATE TABLE IF NOT EXISTS influencers (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS influencer_referrals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    influencer_id UUID REFERENCES influencers(id) ON DELETE CASCADE,
+    referral_code VARCHAR(20) UNIQUE NOT NULL,
+    referred_user_id UUID REFERENCES profiles(id),
+    referred_at TIMESTAMPTZ DEFAULT NOW(),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'rewarded')),
+    reward_given BOOLEAN DEFAULT false
+);
+
+CREATE TABLE IF NOT EXISTS influencer_goals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    influencer_id UUID REFERENCES influencers(id) ON DELETE CASCADE,
+    goal_type VARCHAR(50) NOT NULL,
+    target_count INTEGER NOT NULL,
+    current_count INTEGER DEFAULT 0,
+    reward_type VARCHAR(50),
+    reward_value TEXT,
+    is_active BOOLEAN DEFAULT true,
+    completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS global_config (
     key TEXT PRIMARY KEY,
     value JSONB NOT NULL,
@@ -1079,20 +1047,17 @@ CREATE TABLE IF NOT EXISTS global_config (
 );
 
 INSERT INTO global_config (key, value, description) VALUES
-('platform_commission', '0.10', 'Comissao da plataforma (10%)'),
-('platform_commission_fee', '"0.10"', 'Comissão da plataforma (10%)'),
-('min_price_per_km_moto', '1.00', 'Preco minimo por km para moto'),
-('min_price_per_km_carro', '1.50', 'Preco minimo por km para carro'),
-('max_price_per_km', '20.00', 'Preco maximo por km'),
-('genesis_guarantee_amount', '500', 'Garantia Genesis em reais'),
-('genesis_guarantee_days', '30', 'Dias da garantia Genesis'),
-('social_fee_percent', '1.0', 'Porcentagem para fundo social TXAP'),
-('subscription_destaque_price', '"300"', 'Preço assinatura Destaque'),
-('subscription_premium_price', '"500"', 'Preço assinatura Premium')
+    ('platform_commission', '0.10', 'Comissao da plataforma (10%)'),
+    ('min_price_per_km_moto', '1.00', 'Preco minimo por km para moto'),
+    ('min_price_per_km_carro', '1.50', 'Preco minimo por km para carro'),
+    ('max_price_per_km', '20.00', 'Preco maximo por km'),
+    ('genesis_guarantee_amount', '500', 'Garantia Genesis em reais'),
+    ('genesis_guarantee_days', '30', 'Dias da garantia Genesis'),
+    ('social_fee_percent', '1.0', 'Porcentagem para fundo social TXAP')
 ON CONFLICT (key) DO NOTHING;
 
 -- =============================================================================
--- 23. BUSINESSES, PRODUCTS, REVIEWS, PROFESSIONALS, EVENTS, JOBS, ORDERS
+-- 17. BUSINESSES, PRODUCTS, REVIEWS, PROFESSIONALS, EVENTS, JOBS, ORDERS
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS businesses (
@@ -1259,34 +1224,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- =============================================================================
--- 24. INFLUENCER RANK
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS influencer_referrals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    influencer_id UUID REFERENCES influencers(id) ON DELETE CASCADE,
-    referral_code VARCHAR(20) UNIQUE NOT NULL,
-    referred_user_id UUID REFERENCES profiles(id),
-    referred_at TIMESTAMPTZ DEFAULT NOW(),
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'rewarded')),
-    reward_given BOOLEAN DEFAULT false
-);
-
-CREATE TABLE IF NOT EXISTS influencer_goals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    influencer_id UUID REFERENCES influencers(id) ON DELETE CASCADE,
-    goal_type VARCHAR(50) NOT NULL,
-    target_count INTEGER NOT NULL,
-    current_count INTEGER DEFAULT 0,
-    reward_type VARCHAR(50),
-    reward_value TEXT,
-    is_active BOOLEAN DEFAULT true,
-    completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- =============================================================================
--- 25. RLS — HABILITAR PARA TODAS AS TABELAS
+-- 18. RLS — ENABLE FOR ALL TABLES
 -- =============================================================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -1350,85 +1288,226 @@ ALTER TABLE public.influencers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.global_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.influencer_referrals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.influencer_goals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.rides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.businesses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.business_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.business_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.city_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.city_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
--- 26. POLÍTICAS RLS
+-- 19. RLS POLICIES
 -- =============================================================================
 
-DO $$ BEGIN CREATE POLICY "Usuários podem ver seus próprios perfis" ON public.profiles FOR SELECT USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Usuários podem atualizar seus próprios perfis" ON public.profiles FOR UPDATE USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Usuários podem inserir próprio perfil" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- profiles
+DO $$ BEGIN CREATE POLICY "profiles_select_own" ON public.profiles FOR SELECT USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "profiles_delete_own" ON public.profiles FOR DELETE USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Motoristas podem ver seus dados" ON public.driver_profiles FOR SELECT USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Motoristas podem atualizar seus dados" ON public.driver_profiles FOR UPDATE USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Motoristas podem inserir seus dados" ON public.driver_profiles FOR INSERT WITH CHECK (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- driver_profiles
+DO $$ BEGIN CREATE POLICY "driver_profiles_select_own" ON public.driver_profiles FOR SELECT USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "driver_profiles_update_own" ON public.driver_profiles FOR UPDATE USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "driver_profiles_insert_own" ON public.driver_profiles FOR INSERT WITH CHECK (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "driver_profiles_delete_own" ON public.driver_profiles FOR DELETE USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Motoristas podem gerenciar seus veículos" ON public.vehicles FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Motoristas podem inserir próprio veículo" ON public.vehicles FOR INSERT WITH CHECK (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- vehicles
+DO $$ BEGIN CREATE POLICY "vehicles_own" ON public.vehicles FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Empresas podem gerenciar seus perfis" ON public.companies FOR ALL USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Empresas podem inserir própria empresa" ON public.companies FOR INSERT WITH CHECK (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- companies
+DO $$ BEGIN CREATE POLICY "companies_select_own" ON public.companies FOR SELECT USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "companies_update_own" ON public.companies FOR UPDATE USING (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "companies_insert_own" ON public.companies FOR INSERT WITH CHECK (auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Usuários podem gerenciar seus endereços" ON public.addresses FOR ALL USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Usuários podem ver seus documentos" ON public.documents FOR SELECT USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Usuários podem enviar documentos" ON public.documents FOR INSERT WITH CHECK (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- addresses
+DO $$ BEGIN CREATE POLICY "addresses_manage_own" ON public.addresses FOR ALL USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Leitura pública de cidades" ON public.cities FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Leitura pública de preços" ON public.pricing_rules FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Leitura pública de eventos viários" ON public.road_events FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- documents
+DO $$ BEGIN CREATE POLICY "documents_select_own" ON public.documents FOR SELECT USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "documents_insert_own" ON public.documents FOR INSERT WITH CHECK (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "documents_delete_own" ON public.documents FOR DELETE USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Motoristas verificados podem reportar eventos" ON public.road_events FOR INSERT WITH CHECK (auth.uid() = reported_by AND EXISTS (SELECT 1 FROM public.driver_profiles WHERE id = auth.uid() AND status = 'approved')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- ratings
+DO $$ BEGIN CREATE POLICY "ratings_select" ON public.ratings FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "ratings_insert_own" ON public.ratings FOR INSERT WITH CHECK (auth.uid() = rater_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Leitura pública de categorias" ON public.vehicle_categories FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- cities
+DO $$ BEGIN CREATE POLICY "cities_read" ON public.cities FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Motoristas atualizam próprio heartbeat" ON public.driver_heartbeats FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Leitura pública (restrita) de heartbeats ativos" ON public.driver_heartbeats FOR SELECT USING (status != 'OFFLINE'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Motoristas gravam próprio histórico" ON public.tracking_history FOR INSERT WITH CHECK (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- pricing_rules
+DO $$ BEGIN CREATE POLICY "pricing_rules_read" ON public.pricing_rules FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Passageiro vê próprias viagens" ON public.trips FOR SELECT USING (auth.uid() = passenger_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Passageiro cria viagens" ON public.trips FOR INSERT WITH CHECK (auth.uid() = passenger_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Motorista vê viagens vinculadas a ele" ON public.trips FOR SELECT USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- road_events
+DO $$ BEGIN CREATE POLICY "road_events_read" ON public.road_events FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "road_events_insert_driver" ON public.road_events FOR INSERT WITH CHECK (auth.uid() = reported_by AND EXISTS (SELECT 1 FROM public.driver_profiles WHERE id = auth.uid() AND status = 'approved')); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
-DO $$ BEGIN CREATE POLICY "Motorista vê próprias ofertas" ON public.trip_offers FOR SELECT USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Motorista atualiza própria oferta" ON public.trip_offers FOR UPDATE USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- vehicle_categories
+DO $$ BEGIN CREATE POLICY "vehicle_categories_read" ON public.vehicle_categories FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- Freight loads
-DO $$ BEGIN CREATE POLICY "Cliente vê próprias cargas" ON public.freight_loads FOR SELECT USING (auth.uid() = customer_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Transportadores veem cargas abertas" ON public.freight_loads FOR SELECT USING (status = 'open'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Cliente cria carga" ON public.freight_loads FOR INSERT WITH CHECK (auth.uid() = customer_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- driver_heartbeats
+DO $$ BEGIN CREATE POLICY "heartbeats_manage_own" ON public.driver_heartbeats FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "heartbeats_read_active" ON public.driver_heartbeats FOR SELECT USING (status != 'OFFLINE'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- Favorites
-DO $$ BEGIN CREATE POLICY "user_own_favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- tracking_history
+DO $$ BEGIN CREATE POLICY "tracking_insert_own" ON public.tracking_history FOR INSERT WITH CHECK (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- Influencers
-DO $$ BEGIN CREATE POLICY "public_read_influencers" ON public.influencers FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "admin_full_influencers" ON public.influencers FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- trips
+DO $$ BEGIN CREATE POLICY "trips_select_passenger" ON public.trips FOR SELECT USING (auth.uid() = passenger_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "trips_select_driver" ON public.trips FOR SELECT USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "trips_insert_passenger" ON public.trips FOR INSERT WITH CHECK (auth.uid() = passenger_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "trips_update_driver" ON public.trips FOR UPDATE USING (auth.uid() = driver_id OR auth.uid() = passenger_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- Referrals
-DO $$ BEGIN CREATE POLICY "influencer_see_own_referrals" ON public.influencer_referrals FOR SELECT USING (auth.uid() IN (SELECT created_by FROM influencers WHERE id = influencer_referrals.influencer_id)); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "admin_full_referrals" ON public.influencer_referrals FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- trip_offers
+DO $$ BEGIN CREATE POLICY "trip_offers_manage_driver" ON public.trip_offers FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- Goals
-DO $$ BEGIN CREATE POLICY "influencer_see_own_goals" ON public.influencer_goals FOR SELECT USING (auth.uid() IN (SELECT created_by FROM influencers WHERE id = influencer_goals.influencer_id)); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "admin_full_goals" ON public.influencer_goals FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- freight_loads
+DO $$ BEGIN CREATE POLICY "freight_loads_select_owner" ON public.freight_loads FOR SELECT USING (auth.uid() = customer_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "freight_loads_select_open" ON public.freight_loads FOR SELECT USING (status = 'open'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "freight_loads_insert_owner" ON public.freight_loads FOR INSERT WITH CHECK (auth.uid() = customer_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
--- Mais policies (demais tabelas seguem o mesmo padrão de segurança)
--- Storage
-DO $$ BEGIN CREATE POLICY "Avatar público" ON storage.objects FOR SELECT USING (bucket_id = 'avatars'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE POLICY "Upload de avatar próprio" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]); EXCEPTION WHEN duplicate_object THEN null; END $$;
+-- freight_bids
+DO $$ BEGIN CREATE POLICY "freight_bids_manage_transporter" ON public.freight_bids FOR ALL USING (auth.uid() = transporter_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- biometric_credentials
+DO $$ BEGIN CREATE POLICY "biometric_own" ON public.biometric_credentials FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- employee_profiles
+DO $$ BEGIN CREATE POLICY "employee_select_company" ON public.employee_profiles FOR SELECT USING (auth.uid() = company_id OR auth.uid() = id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- notifications
+DO $$ BEGIN CREATE POLICY "notifications_manage_own" ON public.notifications FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- trip_messages
+DO $$ BEGIN CREATE POLICY "trip_messages_manage_trip" ON public.trip_messages FOR ALL USING (auth.uid() = sender_id OR EXISTS (SELECT 1 FROM trips WHERE id = trip_id AND (passenger_id = auth.uid() OR driver_id = auth.uid()))); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- messages
+DO $$ BEGIN CREATE POLICY "messages_manage_trip" ON public.messages FOR ALL USING (auth.uid() = sender_id OR EXISTS (SELECT 1 FROM trips WHERE id = trip_id AND (passenger_id = auth.uid() OR driver_id = auth.uid()))); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- wallets
+DO $$ BEGIN CREATE POLICY "wallets_select_own" ON public.wallets FOR SELECT USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- wallet_transactions
+DO $$ BEGIN CREATE POLICY "wallet_tx_select_own" ON public.wallet_transactions FOR SELECT USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- driver_pricing
+DO $$ BEGIN CREATE POLICY "driver_pricing_manage_own" ON public.driver_pricing FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "driver_pricing_read" ON public.driver_pricing FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- negotiations
+DO $$ BEGIN CREATE POLICY "negotiations_manage_parties" ON public.negotiations FOR ALL USING (auth.uid() IN (driver_id, passenger_id)); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- audit_logs
+DO $$ BEGIN CREATE POLICY "audit_logs_admin" ON public.audit_logs FOR SELECT USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- app_config
+DO $$ BEGIN CREATE POLICY "app_config_read" ON public.app_config FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- saved_locations
+DO $$ BEGIN CREATE POLICY "saved_locations_manage_own" ON public.saved_locations FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- drivers_online
+DO $$ BEGIN CREATE POLICY "drivers_online_read" ON public.drivers_online FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "drivers_online_manage_own" ON public.drivers_online FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- coupons
+DO $$ BEGIN CREATE POLICY "coupons_read" ON public.coupons FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- withdrawals
+DO $$ BEGIN CREATE POLICY "withdrawals_manage_own" ON public.withdrawals FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- company_services
+DO $$ BEGIN CREATE POLICY "company_services_manage_company" ON public.company_services FOR ALL USING (auth.uid() = company_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "company_services_read" ON public.company_services FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- company_products
+DO $$ BEGIN CREATE POLICY "company_products_manage_company" ON public.company_products FOR ALL USING (auth.uid() = company_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "company_products_read" ON public.company_products FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- company_orders
+DO $$ BEGIN CREATE POLICY "company_orders_select_party" ON public.company_orders FOR SELECT USING (auth.uid() IN (customer_id, company_id, driver_id)); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "company_orders_manage_company" ON public.company_orders FOR ALL USING (auth.uid() = company_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- professional_directory
+DO $$ BEGIN CREATE POLICY "professional_directory_read" ON public.professional_directory FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "professional_directory_manage_own" ON public.professional_directory FOR ALL USING (auth.uid() = profile_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- company_subscription_plans
+DO $$ BEGIN CREATE POLICY "plans_read" ON public.company_subscription_plans FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- company_subscriptions
+DO $$ BEGIN CREATE POLICY "subscriptions_manage_company" ON public.company_subscriptions FOR ALL USING (auth.uid() = company_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- company_delivery_partners
+DO $$ BEGIN CREATE POLICY "delivery_partners_manage_company" ON public.company_delivery_partners FOR ALL USING (auth.uid() = company_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- company_invoices
+DO $$ BEGIN CREATE POLICY "invoices_manage_company" ON public.company_invoices FOR ALL USING (auth.uid() = company_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- city_launches
+DO $$ BEGIN CREATE POLICY "city_launches_read" ON public.city_launches FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "city_launches_manage_admin" ON public.city_launches FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- driver_guarantees
+DO $$ BEGIN CREATE POLICY "driver_guarantees_own" ON public.driver_guarantees FOR ALL USING (auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- banned_devices
+DO $$ BEGIN CREATE POLICY "banned_devices_admin" ON public.banned_devices FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- signup_attempts_log
+DO $$ BEGIN CREATE POLICY "signup_log_admin" ON public.signup_attempts_log FOR SELECT USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- favorites
+DO $$ BEGIN CREATE POLICY "favorites_manage_own" ON public.favorites FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- influencers (public read, admin full)
+DO $$ BEGIN CREATE POLICY "influencers_public_read" ON public.influencers FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "influencers_admin_full" ON public.influencers FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- global_config
+DO $$ BEGIN CREATE POLICY "global_config_read" ON public.global_config FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "global_config_admin" ON public.global_config FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- businesses
+DO $$ BEGIN CREATE POLICY "businesses_read" ON public.businesses FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "businesses_manage_owner" ON public.businesses FOR ALL USING (auth.uid() = owner_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- business_products
+DO $$ BEGIN CREATE POLICY "business_products_read" ON public.business_products FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "business_products_manage_business" ON public.business_products FOR ALL USING (auth.uid() = business_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- business_reviews
+DO $$ BEGIN CREATE POLICY "business_reviews_read" ON public.business_reviews FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "business_reviews_insert_own" ON public.business_reviews FOR INSERT WITH CHECK (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- professionals
+DO $$ BEGIN CREATE POLICY "professionals_read" ON public.professionals FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "professionals_manage_own" ON public.professionals FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- city_events
+DO $$ BEGIN CREATE POLICY "city_events_read" ON public.city_events FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- city_jobs
+DO $$ BEGIN CREATE POLICY "city_jobs_read" ON public.city_jobs FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- orders
+DO $$ BEGIN CREATE POLICY "orders_select_party" ON public.orders FOR SELECT USING (auth.uid() IN (user_id, business_id, driver_id, professional_id)); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "orders_manage_business" ON public.orders FOR ALL USING (auth.uid() = business_id OR auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- Storage policies
+DO $$ BEGIN CREATE POLICY "avatar_public_read" ON storage.objects FOR SELECT USING (bucket_id = 'avatars'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "avatar_upload_own" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- =============================================================================
--- 27. ÍNDICES ADICIONAIS
+-- 20. INDEXES FOR SCALE
 -- =============================================================================
 
+-- Heartbeat indexes
 CREATE INDEX IF NOT EXISTS idx_driver_heartbeats_location ON public.driver_heartbeats USING GIST (ll_to_earth(lat, lng));
 CREATE INDEX IF NOT EXISTS idx_driver_heartbeats_status_time ON public.driver_heartbeats (status, last_updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_driver_profiles_company ON public.driver_profiles (company_id) WHERE company_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_loads_status ON public.loads (status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_bids_load ON public.bids (load_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_bids_transporter ON public.bids (transporter_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_tracking_history_driver_time ON public.tracking_history (driver_id, recorded_at DESC);
+
+-- Trip indexes
 CREATE INDEX IF NOT EXISTS idx_trips_passenger ON public.trips (passenger_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trips_driver ON public.trips (driver_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trips_payment_intent ON public.trips (stripe_payment_intent_id);
@@ -1436,30 +1515,58 @@ CREATE INDEX IF NOT EXISTS idx_trips_status ON public.trips (status);
 CREATE INDEX IF NOT EXISTS idx_trips_created ON public.trips (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trips_passenger_status ON public.trips (passenger_id, status);
 CREATE INDEX IF NOT EXISTS idx_trips_driver_status ON public.trips (driver_id, status);
+
+-- Freight indexes
+CREATE INDEX IF NOT EXISTS idx_loads_status ON public.loads (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_loads_customer ON public.loads (customer_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_bids_load_desc ON public.bids (load_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_bids_transporter_desc ON public.bids (transporter_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bids_load ON public.bids (load_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bids_transporter ON public.bids (transporter_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_freight_tracking_code ON public.freight_tracking (code);
+
+-- Tracking indexes
+CREATE INDEX IF NOT EXISTS idx_tracking_history_driver_time ON public.tracking_history (driver_id, recorded_at DESC);
+
+-- Wallet indexes
 CREATE INDEX IF NOT EXISTS idx_wallets_profile ON public.wallets (profile_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_trip_messages_trip_created ON public.trip_messages (trip_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_wallet ON public.wallet_transactions (wallet_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_type ON public.wallet_transactions (type);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_reference ON public.wallet_transactions (reference_type, reference_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_profile_status ON public.wallet_transactions (profile_id, status);
 CREATE INDEX IF NOT EXISTS idx_wallet_tx_created ON public.wallet_transactions (created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_wallet_profile ON public.wallet_transactions(profile_id);
-CREATE INDEX IF NOT EXISTS idx_wallet_status ON public.wallet_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_wallet_tx_profile ON public.wallet_transactions(profile_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_tx_status ON public.wallet_transactions(status);
+
+-- Driver pricing & negotiation indexes
 CREATE INDEX IF NOT EXISTS idx_driver_pricing_driver ON public.driver_pricing (driver_id);
 CREATE INDEX IF NOT EXISTS idx_driver_pricing_active ON public.driver_pricing (service_type, is_active);
 CREATE INDEX IF NOT EXISTS idx_negotiations_passenger ON public.negotiations (passenger_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_negotiations_driver ON public.negotiations (driver_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_negotiations_trip ON public.negotiations (trip_id);
 CREATE INDEX IF NOT EXISTS idx_negotiations_status ON public.negotiations (status, expires_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_profile ON audit_logs(profile_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
-CREATE INDEX IF NOT EXISTS idx_app_errors_type ON app_errors(error_type);
-CREATE INDEX IF NOT EXISTS idx_coverage_areas_boundary ON coverage_areas USING GIST(boundary);
+
+-- Notification & messaging indexes
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON public.notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_trip_messages_trip_created ON public.trip_messages (trip_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_messages_trip ON public.messages (trip_id, created_at ASC);
+
+-- Profile indexes (scale-critical)
+CREATE INDEX IF NOT EXISTS idx_profiles_phone ON public.profiles(phone);
+CREATE INDEX IF NOT EXISTS idx_profiles_cpf ON public.profiles(cpf);
+CREATE INDEX IF NOT EXISTS idx_profiles_banned ON public.profiles(is_banned) WHERE is_banned = true;
+CREATE INDEX IF NOT EXISTS idx_profiles_device ON public.profiles(device_fingerprint);
+CREATE INDEX IF NOT EXISTS idx_profiles_type ON public.profiles(account_type);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles(role);
+CREATE INDEX IF NOT EXISTS idx_profiles_online ON public.profiles(is_online) WHERE is_online = true;
+
+-- Driver profile indexes
+CREATE INDEX IF NOT EXISTS idx_driver_profiles_status_desc ON public.driver_profiles (status);
+CREATE INDEX IF NOT EXISTS idx_driver_profiles_rating_desc ON public.driver_profiles (rating DESC);
+
+-- Other key indexes
+CREATE INDEX IF NOT EXISTS idx_audit_logs_profile ON public.audit_logs(profile_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON public.audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_app_errors_type ON public.app_errors(error_type);
+CREATE INDEX IF NOT EXISTS idx_coverage_areas_boundary ON public.coverage_areas USING GIST(boundary);
 CREATE INDEX IF NOT EXISTS idx_payment_methods_profile ON public.payment_methods(profile_id);
 CREATE INDEX IF NOT EXISTS idx_support_tickets_profile ON public.support_tickets(profile_id);
 CREATE INDEX IF NOT EXISTS idx_saved_locations_user ON public.saved_locations (user_id);
@@ -1488,95 +1595,80 @@ CREATE INDEX IF NOT EXISTS idx_seed_missions_driver ON public.seed_missions (dri
 CREATE INDEX IF NOT EXISTS idx_seed_missions_status ON public.seed_missions (status);
 CREATE INDEX IF NOT EXISTS idx_respiratory_snapshots_city ON public.respiratory_snapshots (city_id, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_driver_guarantees_driver ON public.driver_guarantees (driver_id, status);
-CREATE INDEX IF NOT EXISTS idx_profiles_phone ON profiles(phone);
-CREATE INDEX IF NOT EXISTS idx_profiles_cpf ON profiles(cpf);
-CREATE INDEX IF NOT EXISTS idx_profiles_banned ON profiles(is_banned) WHERE is_banned = true;
-CREATE INDEX IF NOT EXISTS idx_profiles_device ON profiles(device_fingerprint);
-CREATE INDEX IF NOT EXISTS idx_profiles_type ON profiles(account_type);
-CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
-CREATE INDEX IF NOT EXISTS idx_profiles_location ON profiles USING GIST(location);
-CREATE INDEX IF NOT EXISTS idx_profiles_online ON profiles(is_online) WHERE is_online = true;
-CREATE INDEX IF NOT EXISTS idx_signup_ip ON signup_attempts_log(ip_address, attempted_at);
-CREATE INDEX IF NOT EXISTS idx_signup_phone ON signup_attempts_log(phone, attempted_at);
-CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
-CREATE INDEX IF NOT EXISTS idx_favorites_type ON favorites(favorite_type);
-CREATE INDEX IF NOT EXISTS idx_influencers_active ON influencers(is_active) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_businesses_categories ON businesses USING GIN(categories);
-CREATE INDEX IF NOT EXISTS idx_businesses_city ON businesses(city, state);
-CREATE INDEX IF NOT EXISTS idx_businesses_status ON businesses(status) WHERE status = 'active';
-CREATE INDEX IF NOT EXISTS idx_businesses_keywords ON businesses USING GIN(keywords);
-CREATE INDEX IF NOT EXISTS idx_businesses_location ON businesses USING GIST(location);
-CREATE INDEX IF NOT EXISTS idx_businesses_featured ON businesses(is_featured) WHERE is_featured = true;
-CREATE INDEX IF NOT EXISTS idx_products_business ON business_products(business_id);
-CREATE INDEX IF NOT EXISTS idx_products_category ON business_products(category);
-CREATE INDEX IF NOT EXISTS idx_products_available ON business_products(is_available) WHERE is_available = true;
-CREATE INDEX IF NOT EXISTS idx_reviews_business ON business_reviews(business_id);
-CREATE INDEX IF NOT EXISTS idx_professionals_profession ON professionals(profession);
-CREATE INDEX IF NOT EXISTS idx_professionals_available ON professionals(is_available) WHERE is_available = true;
-CREATE INDEX IF NOT EXISTS idx_events_city ON city_events(city, state);
-CREATE INDEX IF NOT EXISTS idx_events_dates ON city_events(starts_at, ends_at);
-CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_business ON orders(business_id);
-CREATE INDEX IF NOT EXISTS idx_orders_driver ON orders(driver_id);
-CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_referrals_influencer ON influencer_referrals(influencer_id);
-CREATE INDEX IF NOT EXISTS idx_referrals_code ON influencer_referrals(referral_code);
-CREATE INDEX IF NOT EXISTS idx_goals_influencer ON influencer_goals(influencer_id);
-CREATE INDEX IF NOT EXISTS idx_messages_trip ON public.messages (trip_id, created_at ASC);
-CREATE INDEX IF NOT EXISTS idx_profiles_role_desc ON public.profiles (role);
-CREATE INDEX IF NOT EXISTS idx_driver_profiles_status_desc ON public.driver_profiles (status);
-CREATE INDEX IF NOT EXISTS idx_driver_profiles_rating_desc ON public.driver_profiles (rating DESC);
+CREATE INDEX IF NOT EXISTS idx_signup_ip ON public.signup_attempts_log(ip_address, attempted_at);
+CREATE INDEX IF NOT EXISTS idx_signup_phone ON public.signup_attempts_log(phone, attempted_at);
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON public.favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_type ON public.favorites(favorite_type);
+CREATE INDEX IF NOT EXISTS idx_influencers_active ON public.influencers(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_businesses_categories ON public.businesses USING GIN(categories);
+CREATE INDEX IF NOT EXISTS idx_businesses_city ON public.businesses(city, state);
+CREATE INDEX IF NOT EXISTS idx_businesses_status ON public.businesses(status) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_businesses_keywords ON public.businesses USING GIN(keywords);
+CREATE INDEX IF NOT EXISTS idx_businesses_location ON public.businesses USING GIST(location);
+CREATE INDEX IF NOT EXISTS idx_businesses_featured ON public.businesses(is_featured) WHERE is_featured = true;
+CREATE INDEX IF NOT EXISTS idx_products_business ON public.business_products(business_id);
+CREATE INDEX IF NOT EXISTS idx_products_category ON public.business_products(category);
+CREATE INDEX IF NOT EXISTS idx_products_available ON public.business_products(is_available) WHERE is_available = true;
+CREATE INDEX IF NOT EXISTS idx_reviews_business ON public.business_reviews(business_id);
+CREATE INDEX IF NOT EXISTS idx_professionals_profession ON public.professionals(profession);
+CREATE INDEX IF NOT EXISTS idx_professionals_available ON public.professionals(is_available) WHERE is_available = true;
+CREATE INDEX IF NOT EXISTS idx_events_city ON public.city_events(city, state);
+CREATE INDEX IF NOT EXISTS idx_events_dates ON public.city_events(starts_at, ends_at);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON public.orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_business ON public.orders(business_id);
+CREATE INDEX IF NOT EXISTS idx_orders_driver ON public.orders(driver_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_referrals_influencer ON public.influencer_referrals(influencer_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_code ON public.influencer_referrals(referral_code);
+CREATE INDEX IF NOT EXISTS idx_goals_influencer ON public.influencer_goals(influencer_id);
 CREATE INDEX IF NOT EXISTS idx_ratings_ratee ON public.ratings (ratee_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ratings_rater ON public.ratings (rater_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profiles_role_desc ON public.profiles (role);
+CREATE INDEX IF NOT EXISTS idx_profiles_location ON public.profiles USING GIST(location);
 
 -- =============================================================================
--- 28. REALTIME PUBLICATION
+-- 21. REALTIME PUBLICATION
 -- =============================================================================
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.driver_heartbeats;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.driver_heartbeats;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.trip_messages;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.trip_messages;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.wallets;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.wallets;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.drivers_online;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.drivers_online;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.trip_offers;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.trip_offers;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
-DO $$
-BEGIN
-  ALTER PUBLICATION supabase_realtime ADD TABLE public.wallet_transactions;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.wallet_transactions;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- =============================================================================
--- 29. TRIGGERS ADICIONAIS
+-- 22. TRIGGERS
 -- =============================================================================
+
+-- Base updated_at trigger
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
+CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Heartbeat updated_at
 DROP TRIGGER IF EXISTS update_driver_heartbeats_updated_at ON public.driver_heartbeats;
@@ -1598,7 +1690,7 @@ CREATE TRIGGER update_freight_loads_updated_at BEFORE UPDATE ON public.freight_l
 DROP TRIGGER IF EXISTS update_freight_bids_updated_at ON public.freight_bids;
 CREATE TRIGGER update_freight_bids_updated_at BEFORE UPDATE ON public.freight_bids FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Wallet balance trigger
+-- Wallet balance update trigger
 CREATE OR REPLACE FUNCTION public.update_wallet_balance()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -1610,7 +1702,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trg_wallet_transaction ON public.wallet_transactions;
 CREATE TRIGGER trg_wallet_transaction AFTER INSERT ON public.wallet_transactions FOR EACH ROW EXECUTE FUNCTION public.update_wallet_balance();
 
--- Wallet auto-creation
+-- Wallet auto-creation on profile insert
 CREATE OR REPLACE FUNCTION public.ensure_wallet()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -1625,35 +1717,44 @@ CREATE TRIGGER trg_ensure_wallet AFTER INSERT ON public.profiles FOR EACH ROW EX
 -- Block duplicate pending deposits
 CREATE OR REPLACE FUNCTION check_pending_deposit(p_profile_id UUID)
 RETURNS BOOLEAN LANGUAGE plpgsql STABLE AS $$
-BEGIN RETURN EXISTS(SELECT 1 FROM wallet_transactions WHERE profile_id = p_profile_id AND status = 'pending'); END;
+BEGIN RETURN EXISTS(SELECT 1 FROM public.wallet_transactions WHERE profile_id = p_profile_id AND status = 'pending'); END;
 $$;
 
 CREATE OR REPLACE FUNCTION trg_block_deposit_if_pending()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN IF NEW.type = 'deposit' AND check_pending_deposit(NEW.profile_id) THEN RAISE EXCEPTION 'A pending deposit already exists'; END IF; RETURN NEW; END;
+BEGIN
+    IF NEW.type = 'deposit' AND check_pending_deposit(NEW.profile_id) THEN
+        RAISE EXCEPTION 'A pending deposit already exists';
+    END IF;
+    RETURN NEW;
+END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_block_deposit_if_pending ON wallet_transactions;
-CREATE TRIGGER trg_block_deposit_if_pending BEFORE INSERT ON wallet_transactions FOR EACH ROW EXECUTE FUNCTION trg_block_deposit_if_pending();
+DROP TRIGGER IF EXISTS trg_block_deposit_if_pending ON public.wallet_transactions;
+CREATE TRIGGER trg_block_deposit_if_pending BEFORE INSERT ON public.wallet_transactions FOR EACH ROW EXECUTE FUNCTION trg_block_deposit_if_pending();
 
 -- Wallet audit trail
 CREATE OR REPLACE FUNCTION trg_wallet_transaction_audit()
 RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
-BEGIN INSERT INTO audit_logs (profile_id, action, metadata) VALUES (NEW.profile_id, 'wallet.transaction.' || NEW.type, jsonb_build_object('transaction_id', NEW.id, 'amount', NEW.amount, 'status', NEW.status)); RETURN NEW; END;
+BEGIN
+    INSERT INTO public.audit_logs (profile_id, action, metadata)
+    VALUES (NEW.profile_id, 'wallet.transaction.' || NEW.type, jsonb_build_object('transaction_id', NEW.id, 'amount', NEW.amount, 'status', NEW.status));
+    RETURN NEW;
+END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_wallet_transaction_audit ON wallet_transactions;
-CREATE TRIGGER trg_wallet_transaction_audit AFTER INSERT ON wallet_transactions FOR EACH ROW EXECUTE FUNCTION trg_wallet_transaction_audit();
+DROP TRIGGER IF EXISTS trg_wallet_transaction_audit ON public.wallet_transactions;
+CREATE TRIGGER trg_wallet_transaction_audit AFTER INSERT ON public.wallet_transactions FOR EACH ROW EXECUTE FUNCTION trg_wallet_transaction_audit();
 
 -- Negative balance check
 CREATE OR REPLACE FUNCTION check_wallet_balance_non_negative()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE v_balance INTEGER;
+DECLARE v_balance NUMERIC;
 BEGIN
-  SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning', 'freight_earning') THEN amount ELSE -amount END), 0) INTO v_balance
-  FROM public.wallet_transactions WHERE profile_id = NEW.profile_id AND status = 'confirmed';
-  IF v_balance < 0 THEN RAISE EXCEPTION 'Saldo da carteira nao pode ser negativo (saldo atual: %)', v_balance; END IF;
-  RETURN NEW;
+    SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning', 'freight_earning') THEN amount ELSE -amount END), 0) INTO v_balance
+    FROM public.wallet_transactions WHERE profile_id = NEW.profile_id AND status = 'confirmed';
+    IF v_balance < 0 THEN RAISE EXCEPTION 'Saldo da carteira nao pode ser negativo (saldo atual: %)', v_balance; END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -1663,14 +1764,16 @@ CREATE TRIGGER trg_check_wallet_balance BEFORE INSERT ON public.wallet_transacti
 -- Driver rating trigger
 CREATE OR REPLACE FUNCTION update_driver_rating()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
-DECLARE v_new_rating DECIMAL;
+DECLARE v_new_rating NUMERIC;
 BEGIN
-  IF NEW.rating_type = 'passenger_to_driver' THEN
-    SELECT ROUND(AVG(score)::DECIMAL, 2) INTO v_new_rating FROM public.ratings WHERE ratee_id = NEW.ratee_id AND rating_type = 'passenger_to_driver';
-    UPDATE public.driver_profiles SET rating = v_new_rating WHERE id = NEW.ratee_id;
-    IF v_new_rating < 3.0 THEN UPDATE public.driver_profiles SET status = 'rejected' WHERE id = NEW.ratee_id; END IF;
-  END IF;
-  RETURN NEW;
+    IF NEW.rating_type = 'passenger_to_driver' THEN
+        SELECT ROUND(AVG(score)::NUMERIC, 2) INTO v_new_rating FROM public.ratings WHERE ratee_id = NEW.ratee_id;
+        UPDATE public.driver_profiles SET rating = v_new_rating WHERE id = NEW.ratee_id;
+        IF v_new_rating < 3.0 THEN
+            UPDATE public.driver_profiles SET status = 'rejected' WHERE id = NEW.ratee_id;
+        END IF;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -1681,87 +1784,96 @@ CREATE TRIGGER trg_update_driver_rating AFTER INSERT ON public.ratings FOR EACH 
 CREATE OR REPLACE FUNCTION update_driver_guarantee_earnings()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-  IF NEW.type IN ('ride_earning', 'bonus', 'tip') AND NEW.status = 'confirmed' THEN
-    UPDATE public.driver_guarantees SET earned_amount = earned_amount + NEW.amount WHERE driver_id = NEW.profile_id AND status = 'active' AND expires_at > NEW.created_at;
-  END IF;
-  RETURN NEW;
+    IF NEW.type IN ('ride_earning', 'bonus', 'tip') AND NEW.status = 'confirmed' THEN
+        UPDATE public.driver_guarantees SET earned_amount = earned_amount + NEW.amount WHERE driver_id = NEW.profile_id AND status = 'active' AND expires_at > NEW.created_at;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS trg_update_driver_guarantee ON public.wallet_transactions;
 CREATE TRIGGER trg_update_driver_guarantee AFTER INSERT ON public.wallet_transactions FOR EACH ROW EXECUTE FUNCTION update_driver_guarantee_earnings();
 
--- Auto-updated_at for multiple tables
+-- Auto updated_at for multiple tables
 DO $$
 DECLARE tbl TEXT;
 BEGIN
-  FOR tbl IN SELECT unnest(ARRAY['app_config', 'saved_locations', 'withdrawals', 'coupons', 'ratings', 'messages', 'drivers_online', 'company_products', 'company_orders', 'professional_directory', 'city_launches', 'driver_guarantees', 'company_subscriptions'])
-  LOOP
-    EXECUTE format('DROP TRIGGER IF EXISTS update_%s_updated_at ON public.%s; CREATE TRIGGER update_%s_updated_at BEFORE UPDATE ON public.%s FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();', tbl, tbl, tbl, tbl);
-  END LOOP;
+    FOR tbl IN SELECT unnest(ARRAY['app_config', 'saved_locations', 'withdrawals', 'coupons', 'messages', 'drivers_online', 'company_products', 'company_orders', 'professional_directory', 'city_launches', 'driver_guarantees', 'company_subscriptions'])
+    LOOP
+        EXECUTE format('DROP TRIGGER IF EXISTS update_%s_updated_at ON public.%s; CREATE TRIGGER update_%s_updated_at BEFORE UPDATE ON public.%s FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();', tbl, tbl, tbl, tbl);
+    END LOOP;
 END;
 $$;
 
 -- =============================================================================
--- 30. FUNÇÕES RPC
+-- 23. RPC FUNCTIONS
 -- =============================================================================
 
 -- validate_cpf
 CREATE OR REPLACE FUNCTION public.validate_cpf(cpf TEXT)
 RETURNS BOOLEAN AS $$
-DECLARE numbers TEXT; cpf_clean TEXT; sum1 INT := 0; sum2 INT := 0; digit1 INT; digit2 INT;
+DECLARE
+    cpf_clean TEXT;
+    sum1 INT := 0;
+    sum2 INT := 0;
+    digit1 INT;
+    digit2 INT;
 BEGIN
-  cpf_clean := regexp_replace(cpf, '[^0-9]', '', 'g');
-  IF length(cpf_clean) != 11 THEN RETURN FALSE; END IF;
-  IF cpf_clean ~ '^(\d)\1{10}$' THEN RETURN FALSE; END IF;
-  FOR i IN 1..9 LOOP sum1 := sum1 + (substr(cpf_clean, i, 1)::INT * (11 - i)); END LOOP;
-  digit1 := (sum1 * 10) % 11; IF digit1 = 10 THEN digit1 := 0; END IF;
-  IF substr(cpf_clean, 10, 1)::INT != digit1 THEN RETURN FALSE; END IF;
-  FOR i IN 1..10 LOOP sum2 := sum2 + (substr(cpf_clean, i, 1)::INT * (12 - i)); END LOOP;
-  digit2 := (sum2 * 10) % 11; IF digit2 = 10 THEN digit2 := 0; END IF;
-  IF substr(cpf_clean, 11, 1)::INT != digit2 THEN RETURN FALSE; END IF;
-  RETURN TRUE;
+    cpf_clean := regexp_replace(cpf, '[^0-9]', '', 'g');
+    IF length(cpf_clean) != 11 THEN RETURN FALSE; END IF;
+    IF cpf_clean ~ '^(\d)\1{10}$' THEN RETURN FALSE; END IF;
+    FOR i IN 1..9 LOOP sum1 := sum1 + (substr(cpf_clean, i, 1)::INT * (11 - i)); END LOOP;
+    digit1 := (sum1 * 10) % 11; IF digit1 = 10 THEN digit1 := 0; END IF;
+    IF substr(cpf_clean, 10, 1)::INT != digit1 THEN RETURN FALSE; END IF;
+    FOR i IN 1..10 LOOP sum2 := sum2 + (substr(cpf_clean, i, 1)::INT * (12 - i)); END LOOP;
+    digit2 := (sum2 * 10) % 11; IF digit2 = 10 THEN digit2 := 0; END IF;
+    IF substr(cpf_clean, 11, 1)::INT != digit2 THEN RETURN FALSE; END IF;
+    RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
--- calculate_respiratory_rate
-CREATE OR REPLACE FUNCTION calculate_respiratory_rate(p_city_id UUID)
-RETURNS JSONB LANGUAGE plpgsql AS $$
-DECLARE v_available INTEGER; v_active_requests INTEGER; v_breath_rate DECIMAL(5,2); v_incentive DECIMAL(10,2);
+-- nearby_drivers (PostGIS)
+CREATE OR REPLACE FUNCTION nearby_drivers(user_lat NUMERIC, user_lng NUMERIC, search_radius NUMERIC, v_type TEXT DEFAULT NULL)
+RETURNS TABLE (id UUID, name TEXT, lat NUMERIC, lng NUMERIC, vehicle_type TEXT, rating NUMERIC, price_per_km NUMERIC, distance_meters NUMERIC, is_online BOOLEAN)
+LANGUAGE plpgsql AS $$
 BEGIN
-  SELECT COUNT(*) INTO v_available FROM public.driver_heartbeats dh JOIN public.driver_profiles dp ON dp.id = dh.driver_id WHERE dh.status IN ('AVAILABLE', 'ONLINE') AND dp.city = (SELECT name FROM public.cities WHERE id = p_city_id);
-  SELECT COUNT(*) INTO v_active_requests FROM public.trips WHERE status IN ('SEARCHING_DRIVER', 'REQUEST_CREATED');
-  IF v_available = 0 AND v_active_requests > 0 THEN v_breath_rate := 100; ELSIF v_available > 0 THEN v_breath_rate := LEAST((v_active_requests::DECIMAL / v_available) * 50, 100); ELSE v_breath_rate := 0; END IF;
-  IF v_breath_rate >= 70 THEN v_incentive := CEIL(v_breath_rate / 10) * 1.50; ELSIF v_breath_rate >= 40 THEN v_incentive := 1.00; ELSE v_incentive := 0; END IF;
-  INSERT INTO public.respiratory_snapshots (city_id, available_drivers, active_requests, breath_rate, dynamic_incentive) VALUES (p_city_id, v_available, v_active_requests, v_breath_rate, v_incentive);
-  RETURN jsonb_build_object('available_drivers', v_available, 'active_requests', v_active_requests, 'breath_rate', v_breath_rate, 'dynamic_incentive', v_incentive);
+    RETURN QUERY SELECT p.id, p.full_name, ST_Y(p.location::geometry)::NUMERIC, ST_X(p.location::geometry)::NUMERIC, p.vehicle_type, p.rating, p.price_per_km, ST_Distance(p.location, ST_SetSRID(ST_MakePoint(user_lng, user_lat), 4326)::geography)::NUMERIC, p.is_online
+    FROM profiles p WHERE p.account_type LIKE 'driver_%' AND p.is_online = true AND p.is_banned = false AND p.location IS NOT NULL
+    AND ST_DWithin(p.location, ST_SetSRID(ST_MakePoint(user_lng, user_lat), 4326)::geography, search_radius)
+    AND (v_type IS NULL OR p.vehicle_type = v_type) ORDER BY distance_meters ASC LIMIT 20;
 END;
 $$;
 
--- calculate_breath_rate
-CREATE OR REPLACE FUNCTION calculate_breath_rate(city_uuid UUID)
-RETURNS INTEGER LANGUAGE plpgsql AS $$
-DECLARE v_available INTEGER; v_active INTEGER; v_rate INTEGER;
-BEGIN
-  SELECT COUNT(*) INTO v_available FROM profiles WHERE account_type LIKE 'driver_%' AND is_online = true AND current_city = (SELECT city_name FROM city_launches WHERE id = city_uuid);
-  SELECT COUNT(*) INTO v_active FROM trips WHERE status IN ('pending', 'accepted', 'in_progress') AND city = (SELECT city_name FROM city_launches WHERE id = city_uuid);
-  IF v_available = 0 THEN v_rate := 100; ELSE v_rate := LEAST(100, (v_active * 100 / GREATEST(v_available, 1))); END IF;
-  RETURN v_rate;
-END;
+-- nearby_companies
+CREATE OR REPLACE FUNCTION nearby_companies(p_lat DOUBLE PRECISION, p_lng DOUBLE PRECISION, p_radius_km DOUBLE PRECISION DEFAULT 10)
+RETURNS SETOF public.companies LANGUAGE sql AS $$
+    SELECT * FROM public.companies WHERE lat IS NOT NULL AND lng IS NOT NULL AND earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) / 1000 <= p_radius_km ORDER BY earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) LIMIT 50;
+$$;
+
+-- nearby_professionals
+CREATE OR REPLACE FUNCTION nearby_professionals(p_lat DOUBLE PRECISION, p_lng DOUBLE PRECISION, p_radius_km DOUBLE PRECISION DEFAULT 10, p_profession TEXT DEFAULT NULL)
+RETURNS SETOF public.professional_directory LANGUAGE sql AS $$
+    SELECT * FROM public.professional_directory WHERE lat IS NOT NULL AND lng IS NOT NULL AND is_available = true AND (p_profession IS NULL OR profession = p_profession) AND earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) / 1000 <= p_radius_km ORDER BY earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) LIMIT 50;
 $$;
 
 -- calculate_ride_price
 CREATE OR REPLACE FUNCTION calculate_ride_price(p_distance_km DECIMAL, p_vehicle_type TEXT DEFAULT 'carro', p_city_id UUID DEFAULT NULL)
 RETURNS JSONB LANGUAGE plpgsql STABLE AS $$
-DECLARE v_price_per_km INTEGER; v_base_fare INTEGER; v_min_fare INTEGER; v_total INTEGER; v_config JSONB;
+DECLARE
+    v_price_per_km INTEGER;
+    v_base_fare INTEGER;
+    v_min_fare INTEGER;
+    v_total INTEGER;
+    v_config JSONB;
 BEGIN
-  SELECT value INTO v_config FROM public.app_config WHERE key = 'global.price_per_km';
-  v_price_per_km := COALESCE((v_config->>'default')::INTEGER, 2500);
-  SELECT value INTO v_config FROM public.app_config WHERE key = 'global.min_fare';
-  v_min_fare := COALESCE((v_config->>'default')::INTEGER, 700);
-  v_base_fare := 500; v_total := v_base_fare + CEIL(p_distance_km * v_price_per_km);
-  IF v_total < v_min_fare THEN v_total := v_min_fare; END IF;
-  RETURN jsonb_build_object('total_cents', v_total, 'total_brl', (v_total / 100.0)::DECIMAL(10,2), 'base_fare_cents', v_base_fare, 'distance_fare_cents', v_total - v_base_fare, 'distance_km', p_distance_km, 'price_per_km_cents', v_price_per_km);
+    SELECT value INTO v_config FROM public.app_config WHERE key = 'global.price_per_km';
+    v_price_per_km := COALESCE((v_config->>'default')::INTEGER, 2500);
+    SELECT value INTO v_config FROM public.app_config WHERE key = 'global.min_fare';
+    v_min_fare := COALESCE((v_config->>'default')::INTEGER, 700);
+    v_base_fare := 500;
+    v_total := v_base_fare + CEIL(p_distance_km * v_price_per_km);
+    IF v_total < v_min_fare THEN v_total := v_min_fare; END IF;
+    RETURN jsonb_build_object('total_cents', v_total, 'total_brl', (v_total / 100.0)::DECIMAL(10,2), 'base_fare_cents', v_base_fare, 'distance_fare_cents', v_total - v_base_fare, 'distance_km', p_distance_km, 'price_per_km_cents', v_price_per_km);
 END;
 $$;
 
@@ -1770,209 +1882,165 @@ CREATE OR REPLACE FUNCTION validate_coupon(p_code TEXT)
 RETURNS JSONB LANGUAGE plpgsql STABLE AS $$
 DECLARE v_coupon RECORD;
 BEGIN
-  SELECT * INTO v_coupon FROM public.coupons WHERE code = UPPER(p_code) AND is_active = true;
-  IF NOT FOUND THEN RETURN jsonb_build_object('valid', false, 'message', 'Cupom nao encontrado'); END IF;
-  IF v_coupon.expires_at < now() THEN RETURN jsonb_build_object('valid', false, 'message', 'Cupom expirado'); END IF;
-  IF v_coupon.current_uses >= v_coupon.max_uses THEN RETURN jsonb_build_object('valid', false, 'message', 'Cupom ja atingiu o limite'); END IF;
-  RETURN jsonb_build_object('valid', true, 'coupon_id', v_coupon.id, 'discount_type', v_coupon.discount_type, 'discount_value', v_coupon.discount_value, 'min_order_value', v_coupon.min_order_value, 'max_discount', v_coupon.max_discount);
+    SELECT * INTO v_coupon FROM public.coupons WHERE code = UPPER(p_code) AND is_active = true;
+    IF NOT FOUND THEN RETURN jsonb_build_object('valid', false, 'message', 'Cupom nao encontrado'); END IF;
+    IF v_coupon.expires_at < now() THEN RETURN jsonb_build_object('valid', false, 'message', 'Cupom expirado'); END IF;
+    IF v_coupon.current_uses >= v_coupon.max_uses THEN RETURN jsonb_build_object('valid', false, 'message', 'Cupom ja atingiu o limite'); END IF;
+    RETURN jsonb_build_object('valid', true, 'coupon_id', v_coupon.id, 'discount_type', v_coupon.discount_type, 'discount_value', v_coupon.discount_value, 'min_order_value', v_coupon.min_order_value, 'max_discount', v_coupon.max_discount);
 END;
 $$;
 
 -- request_withdrawal
 CREATE OR REPLACE FUNCTION request_withdrawal(p_driver_id UUID, p_amount INTEGER, p_pix_key TEXT, p_pix_key_type TEXT DEFAULT 'cpf')
 RETURNS JSONB LANGUAGE plpgsql AS $$
-DECLARE v_balance INTEGER; v_min_withdrawal INTEGER; v_withdrawal_id UUID;
+DECLARE
+    v_balance NUMERIC;
+    v_min_withdrawal INTEGER;
+    v_withdrawal_id UUID;
 BEGIN
-  SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning', 'freight_earning') THEN amount ELSE -amount END), 0) INTO v_balance FROM public.wallet_transactions WHERE profile_id = p_driver_id AND status = 'confirmed';
-  SELECT (value->>'default')::INTEGER INTO v_min_withdrawal FROM public.app_config WHERE key = 'global.min_withdrawal';
-  IF v_min_withdrawal IS NULL THEN v_min_withdrawal := 5000; END IF;
-  IF v_balance < v_min_withdrawal THEN RETURN jsonb_build_object('success', false, 'message', format('Saldo insuficiente. Minimo: R$ %.2f', v_min_withdrawal / 100.0)); END IF;
-  IF p_amount > v_balance THEN RETURN jsonb_build_object('success', false, 'message', 'Saldo insuficiente'); END IF;
-  INSERT INTO public.withdrawals (driver_id, amount, pix_key, pix_key_type, status) VALUES (p_driver_id, p_amount / 100.0, p_pix_key, p_pix_key_type, 'pending') RETURNING id INTO v_withdrawal_id;
-  INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
-  SELECT p_driver_id, w.id, 'withdrawal', p_amount / 100.0, v_balance / 100.0, (v_balance - p_amount) / 100.0, 'confirmed', 'Saque para PIX', 'withdrawal', v_withdrawal_id FROM public.wallets w WHERE w.profile_id = p_driver_id;
-  RETURN jsonb_build_object('success', true, 'withdrawal_id', v_withdrawal_id, 'amount', p_amount);
-END;
-$$;
-
--- nearby_drivers (PostGIS)
-CREATE OR REPLACE FUNCTION nearby_drivers(user_lat NUMERIC, user_lng NUMERIC, search_radius NUMERIC, v_type TEXT DEFAULT NULL)
-RETURNS TABLE (id UUID, name TEXT, lat NUMERIC, lng NUMERIC, vehicle_type TEXT, rating NUMERIC, price_per_km NUMERIC, distance_meters NUMERIC, is_online BOOLEAN)
-LANGUAGE plpgsql AS $$
-BEGIN
-  RETURN QUERY SELECT p.id, p.full_name, ST_Y(p.location::geometry)::NUMERIC, ST_X(p.location::geometry)::NUMERIC, p.vehicle_type, p.rating, p.price_per_km, ST_Distance(p.location, ST_SetSRID(ST_MakePoint(user_lng, user_lat), 4326)::geography)::NUMERIC, p.is_online
-  FROM profiles p WHERE p.account_type LIKE 'driver_%' AND p.is_online = true AND p.is_banned = false AND p.location IS NOT NULL
-  AND ST_DWithin(p.location, ST_SetSRID(ST_MakePoint(user_lng, user_lat), 4326)::geography, search_radius)
-  AND (v_type IS NULL OR p.vehicle_type = v_type) ORDER BY distance_meters ASC LIMIT 20;
-END;
-$$;
-
--- nearby_companies
-CREATE OR REPLACE FUNCTION nearby_companies(p_lat DOUBLE PRECISION, p_lng DOUBLE PRECISION, p_radius_km DOUBLE PRECISION DEFAULT 10)
-RETURNS SETOF public.companies LANGUAGE sql AS $$
-  SELECT * FROM public.companies WHERE lat IS NOT NULL AND lng IS NOT NULL AND earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) / 1000 <= p_radius_km ORDER BY earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) LIMIT 50;
-$$;
-
--- nearby_professionals
-CREATE OR REPLACE FUNCTION nearby_professionals(p_lat DOUBLE PRECISION, p_lng DOUBLE PRECISION, p_radius_km DOUBLE PRECISION DEFAULT 10, p_profession TEXT DEFAULT NULL)
-RETURNS SETOF public.professional_directory LANGUAGE sql AS $$
-  SELECT * FROM public.professional_directory WHERE lat IS NOT NULL AND lng IS NOT NULL AND is_available = true AND (p_profession IS NULL OR profession = p_profession) AND earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) / 1000 <= p_radius_km ORDER BY earth_distance(ll_to_earth(lat, lng), ll_to_earth(p_lat, p_lng)) LIMIT 50;
-$$;
-
--- get_driver_earnings
-CREATE OR REPLACE FUNCTION get_driver_earnings(p_driver_id UUID, p_start_date TIMESTAMPTZ DEFAULT NOW() - INTERVAL '30 days', p_end_date TIMESTAMPTZ DEFAULT NOW())
-RETURNS JSONB LANGUAGE plpgsql STABLE AS $$
-DECLARE v_total_earned DECIMAL; v_total_trips INTEGER; v_total_distance DECIMAL; v_total_time INTEGER; v_weekly JSONB;
-BEGIN
-  SELECT COALESCE(SUM(t.final_fare), 0) INTO v_total_earned FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
-  SELECT COUNT(*) INTO v_total_trips FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
-  SELECT COALESCE(SUM(t.estimated_distance_km), 0) INTO v_total_distance FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
-  SELECT COALESCE(SUM(t.estimated_duration_min), 0) INTO v_total_time FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
-  SELECT jsonb_agg(jsonb_build_object('week', to_char(week_start, 'YYYY-MM-DD'), 'earnings', weekly_earnings, 'trips', weekly_trips) ORDER BY week_start) INTO v_weekly
-  FROM (SELECT date_trunc('week', t.completed_at)::DATE AS week_start, COALESCE(SUM(t.final_fare), 0) AS weekly_earnings, COUNT(*) AS weekly_trips FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date GROUP BY date_trunc('week', t.completed_at)) weekly;
-  RETURN jsonb_build_object('total_earned', v_total_earned, 'total_trips', v_total_trips, 'total_distance_km', v_total_distance, 'total_time_min', v_total_time, 'average_per_trip', CASE WHEN v_total_trips > 0 THEN v_total_earned / v_total_trips ELSE 0 END, 'weekly_breakdown', COALESCE(v_weekly, '[]'::jsonb), 'period_start', p_start_date, 'period_end', p_end_date);
-END;
-$$;
-
--- process_genesis_bonus
-CREATE OR REPLACE FUNCTION process_genesis_bonus(p_driver_id UUID, p_city_launch_id UUID)
-RETURNS JSONB LANGUAGE plpgsql AS $$
-DECLARE v_guarantee RECORD; v_subsidy DECIMAL(10,2); v_wallet_id UUID; v_current_balance DECIMAL(10,2);
-BEGIN
-  SELECT * INTO v_guarantee FROM public.driver_guarantees WHERE driver_id = p_driver_id AND city_launch_id = p_city_launch_id AND status = 'active';
-  IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'Garantia nao encontrada'); END IF;
-  IF v_guarantee.earned_amount >= v_guarantee.guaranteed_amount THEN
-    UPDATE public.driver_guarantees SET status = 'completed', txap_subsidy = 0 WHERE id = v_guarantee.id;
-    RETURN jsonb_build_object('success', true, 'message', 'Motorista ja atingiu a meta');
-  END IF;
-  v_subsidy := v_guarantee.guaranteed_amount - v_guarantee.earned_amount;
-  SELECT id, balance INTO v_wallet_id, v_current_balance FROM public.wallets WHERE profile_id = p_driver_id;
-  INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id, expires_at)
-  VALUES (p_driver_id, v_wallet_id, 'genesis_bonus', v_subsidy, v_current_balance, v_current_balance + v_subsidy, 'confirmed', 'Bonus Garantido Primeiro Dolar TXAP', 'city_launch', p_city_launch_id, timezone('utc'::text, now()) + interval '30 days');
-  UPDATE public.driver_guarantees SET txap_subsidy = v_subsidy, status = 'completed', unlock_date = timezone('utc'::text, now()) + interval '30 days' WHERE id = v_guarantee.id;
-  RETURN jsonb_build_object('success', true, 'subsidy', v_subsidy, 'unlock_date', timezone('utc'::text, now()) + interval '30 days');
+    SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning', 'freight_earning') THEN amount ELSE -amount END), 0) INTO v_balance FROM public.wallet_transactions WHERE profile_id = p_driver_id AND status = 'confirmed';
+    SELECT (value->>'default')::INTEGER INTO v_min_withdrawal FROM public.app_config WHERE key = 'global.min_withdrawal';
+    IF v_min_withdrawal IS NULL THEN v_min_withdrawal := 5000; END IF;
+    IF v_balance < v_min_withdrawal THEN RETURN jsonb_build_object('success', false, 'message', format('Saldo insuficiente. Minimo: R$ %.2f', v_min_withdrawal / 100.0)); END IF;
+    IF p_amount > v_balance THEN RETURN jsonb_build_object('success', false, 'message', 'Saldo insuficiente'); END IF;
+    INSERT INTO public.withdrawals (driver_id, amount, pix_key, pix_key_type, status) VALUES (p_driver_id, p_amount / 100.0, p_pix_key, p_pix_key_type, 'pending') RETURNING id INTO v_withdrawal_id;
+    INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
+    SELECT p_driver_id, w.id, 'withdrawal', p_amount / 100.0, v_balance / 100.0, (v_balance - p_amount) / 100.0, 'confirmed', 'Saque para PIX', 'withdrawal', v_withdrawal_id FROM public.wallets w WHERE w.profile_id = p_driver_id;
+    RETURN jsonb_build_object('success', true, 'withdrawal_id', v_withdrawal_id, 'amount', p_amount);
 END;
 $$;
 
 -- process_ride_payment
 CREATE OR REPLACE FUNCTION process_ride_payment(p_ride_id UUID)
 RETURNS JSONB LANGUAGE plpgsql AS $$
-DECLARE v_trip RECORD; v_passenger_wallet UUID; v_driver_wallet UUID; v_platform_fee_percent DECIMAL; v_platform_fee DECIMAL; v_driver_earning DECIMAL; v_balance_before_passenger DECIMAL; v_balance_before_driver DECIMAL; v_config JSONB;
+DECLARE
+    v_trip RECORD;
+    v_passenger_wallet UUID;
+    v_driver_wallet UUID;
+    v_platform_fee_percent NUMERIC;
+    v_platform_fee NUMERIC;
+    v_driver_earning NUMERIC;
+    v_balance_before_passenger NUMERIC;
+    v_balance_before_driver NUMERIC;
+    v_config JSONB;
 BEGIN
-  SELECT * INTO v_trip FROM public.trips WHERE id = p_ride_id;
-  IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'Corrida nao encontrada'); END IF;
-  IF v_trip.status NOT IN ('FINISHED', 'COMPLETED') THEN RETURN jsonb_build_object('success', false, 'error', 'Corrida nao finalizada'); END IF;
-  SELECT id INTO v_passenger_wallet FROM public.wallets WHERE profile_id = v_trip.passenger_id;
-  SELECT id INTO v_driver_wallet FROM public.wallets WHERE profile_id = v_trip.driver_id;
-  SELECT value INTO v_config FROM public.app_config WHERE key = 'global.platform_fee_percent';
-  v_platform_fee_percent := COALESCE((v_config->>'default')::DECIMAL, 15) / 100;
-  v_platform_fee := ROUND(v_trip.final_fare * v_platform_fee_percent, 2); v_driver_earning := v_trip.final_fare - v_platform_fee;
-  SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback') THEN amount ELSE -amount END), 0) INTO v_balance_before_passenger FROM public.wallet_transactions WHERE profile_id = v_trip.passenger_id AND status = 'confirmed';
-  INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
-  VALUES (v_trip.passenger_id, v_passenger_wallet, 'ride_payment', v_trip.final_fare, v_balance_before_passenger, v_balance_before_passenger - v_trip.final_fare, 'confirmed', 'Pagamento da corrida', 'trip', p_ride_id);
-  SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning') THEN amount ELSE -amount END), 0) INTO v_balance_before_driver FROM public.wallet_transactions WHERE profile_id = v_trip.driver_id AND status = 'confirmed';
-  INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
-  VALUES (v_trip.driver_id, v_driver_wallet, 'ride_earning', v_driver_earning, v_balance_before_driver, v_balance_before_driver + v_driver_earning, 'confirmed', 'Ganhos da corrida (liquido)', 'trip', p_ride_id);
-  INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
-  VALUES (v_trip.driver_id, v_driver_wallet, 'platform_fee', v_platform_fee, v_balance_before_driver + v_driver_earning, v_balance_before_driver + v_driver_earning, 'confirmed', 'Taxa da plataforma', 'trip', p_ride_id);
-  UPDATE public.trips SET status = 'PAYMENT_CONFIRMED' WHERE id = p_ride_id;
-  RETURN jsonb_build_object('success', true, 'passenger_debit', v_trip.final_fare, 'driver_credit', v_driver_earning, 'platform_fee', v_platform_fee, 'trip_id', p_ride_id);
+    SELECT * INTO v_trip FROM public.trips WHERE id = p_ride_id;
+    IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'Corrida nao encontrada'); END IF;
+    IF v_trip.status NOT IN ('FINISHED', 'COMPLETED') THEN RETURN jsonb_build_object('success', false, 'error', 'Corrida nao finalizada'); END IF;
+    SELECT id INTO v_passenger_wallet FROM public.wallets WHERE profile_id = v_trip.passenger_id;
+    SELECT id INTO v_driver_wallet FROM public.wallets WHERE profile_id = v_trip.driver_id;
+    SELECT value INTO v_config FROM public.app_config WHERE key = 'global.platform_fee_percent';
+    v_platform_fee_percent := COALESCE((v_config->>'default')::NUMERIC, 15) / 100;
+    v_platform_fee := ROUND(v_trip.final_fare * v_platform_fee_percent, 2);
+    v_driver_earning := v_trip.final_fare - v_platform_fee;
+    SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback') THEN amount ELSE -amount END), 0) INTO v_balance_before_passenger FROM public.wallet_transactions WHERE profile_id = v_trip.passenger_id AND status = 'confirmed';
+    INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
+    VALUES (v_trip.passenger_id, v_passenger_wallet, 'ride_payment', v_trip.final_fare, v_balance_before_passenger, v_balance_before_passenger - v_trip.final_fare, 'confirmed', 'Pagamento da corrida', 'trip', p_ride_id);
+    SELECT COALESCE(SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning') THEN amount ELSE -amount END), 0) INTO v_balance_before_driver FROM public.wallet_transactions WHERE profile_id = v_trip.driver_id AND status = 'confirmed';
+    INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
+    VALUES (v_trip.driver_id, v_driver_wallet, 'ride_earning', v_driver_earning, v_balance_before_driver, v_balance_before_driver + v_driver_earning, 'confirmed', 'Ganhos da corrida (liquido)', 'trip', p_ride_id);
+    INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id)
+    VALUES (v_trip.driver_id, v_driver_wallet, 'platform_fee', v_platform_fee, v_balance_before_driver + v_driver_earning, v_balance_before_driver + v_driver_earning, 'confirmed', 'Taxa da plataforma', 'trip', p_ride_id);
+    UPDATE public.trips SET status = 'PAYMENT_CONFIRMED' WHERE id = p_ride_id;
+    RETURN jsonb_build_object('success', true, 'passenger_debit', v_trip.final_fare, 'driver_credit', v_driver_earning, 'platform_fee', v_platform_fee, 'trip_id', p_ride_id);
 END;
 $$;
 
 -- create_pix_payment
 CREATE OR REPLACE FUNCTION create_pix_payment(p_profile_id UUID, p_amount INTEGER, p_description TEXT DEFAULT 'Deposito via PIX')
 RETURNS JSONB LANGUAGE plpgsql AS $$
-DECLARE v_tx_id UUID; v_expires_at TIMESTAMPTZ; v_wallet_id UUID;
+DECLARE
+    v_tx_id UUID;
+    v_expires_at TIMESTAMPTZ;
+    v_wallet_id UUID;
 BEGIN
-  IF p_amount < 500 THEN RETURN jsonb_build_object('success', false, 'error', 'Valor minimo de R$ 5,00'); END IF;
-  SELECT id INTO v_wallet_id FROM public.wallets WHERE profile_id = p_profile_id;
-  v_expires_at := now() + INTERVAL '30 minutes';
-  INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, expires_at, description)
-  VALUES (p_profile_id, v_wallet_id, 'deposit', p_amount / 100.0, 0, 0, 'pending', v_expires_at, p_description) RETURNING id INTO v_tx_id;
-  RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'expires_at', v_expires_at, 'amount_cents', p_amount, 'pix_code', format('PIX-TXDAPP-%s', v_tx_id), 'qr_code_text', format('pix.txdapp.com/qr/%s', v_tx_id));
+    IF p_amount < 500 THEN RETURN jsonb_build_object('success', false, 'error', 'Valor minimo de R$ 5,00'); END IF;
+    SELECT id INTO v_wallet_id FROM public.wallets WHERE profile_id = p_profile_id;
+    v_expires_at := now() + INTERVAL '30 minutes';
+    INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, expires_at, description)
+    VALUES (p_profile_id, v_wallet_id, 'deposit', p_amount / 100.0, 0, 0, 'pending', v_expires_at, p_description) RETURNING id INTO v_tx_id;
+    RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'expires_at', v_expires_at, 'amount_cents', p_amount, 'pix_code', format('PIX-TXDAPP-%s', v_tx_id), 'qr_code_text', format('pix.txdapp.com/qr/%s', v_tx_id));
 END;
 $$;
 
 -- is_point_in_coverage
 CREATE OR REPLACE FUNCTION is_point_in_coverage(p_lat DOUBLE PRECISION, p_lng DOUBLE PRECISION)
 RETURNS BOOLEAN LANGUAGE SQL STABLE AS $$
-  SELECT EXISTS(SELECT 1 FROM coverage_areas WHERE ST_DWithin(ST_MakePoint(p_lng, p_lat)::GEOGRAPHY, boundary, 0) AND is_active = true);
+    SELECT EXISTS(SELECT 1 FROM coverage_areas WHERE ST_DWithin(ST_MakePoint(p_lng, p_lat)::GEOGRAPHY, boundary, 0) AND is_active = true);
 $$;
 
--- =============================================================================
--- 31. VIEWS
--- =============================================================================
+-- get_driver_earnings
+CREATE OR REPLACE FUNCTION get_driver_earnings(p_driver_id UUID, p_start_date TIMESTAMPTZ DEFAULT NOW() - INTERVAL '30 days', p_end_date TIMESTAMPTZ DEFAULT NOW())
+RETURNS JSONB LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    v_total_earned NUMERIC;
+    v_total_trips INTEGER;
+    v_total_distance NUMERIC;
+    v_total_time INTEGER;
+    v_weekly JSONB;
+BEGIN
+    SELECT COALESCE(SUM(t.final_fare), 0) INTO v_total_earned FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
+    SELECT COUNT(*) INTO v_total_trips FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
+    SELECT COALESCE(SUM(t.estimated_distance_km), 0) INTO v_total_distance FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
+    SELECT COALESCE(SUM(t.estimated_duration_min), 0) INTO v_total_time FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date;
+    SELECT jsonb_agg(jsonb_build_object('week', to_char(week_start, 'YYYY-MM-DD'), 'earnings', weekly_earnings, 'trips', weekly_trips) ORDER BY week_start) INTO v_weekly
+    FROM (SELECT date_trunc('week', t.completed_at)::DATE AS week_start, COALESCE(SUM(t.final_fare), 0) AS weekly_earnings, COUNT(*) AS weekly_trips FROM public.trips t WHERE t.driver_id = p_driver_id AND t.status = 'FINISHED' AND t.completed_at BETWEEN p_start_date AND p_end_date GROUP BY date_trunc('week', t.completed_at)) weekly;
+    RETURN jsonb_build_object('total_earned', v_total_earned, 'total_trips', v_total_trips, 'total_distance_km', v_total_distance, 'total_time_min', v_total_time, 'average_per_trip', CASE WHEN v_total_trips > 0 THEN v_total_earned / v_total_trips ELSE 0 END, 'weekly_breakdown', COALESCE(v_weekly, '[]'::jsonb), 'period_start', p_start_date, 'period_end', p_end_date);
+END;
+$$;
 
+-- process_genesis_bonus
+CREATE OR REPLACE FUNCTION process_genesis_bonus(p_driver_id UUID, p_city_launch_id UUID)
+RETURNS JSONB LANGUAGE plpgsql AS $$
+DECLARE
+    v_guarantee RECORD;
+    v_subsidy NUMERIC(10,2);
+    v_wallet_id UUID;
+    v_current_balance NUMERIC(10,2);
+BEGIN
+    SELECT * INTO v_guarantee FROM public.driver_guarantees WHERE driver_id = p_driver_id AND city_launch_id = p_city_launch_id AND status = 'active';
+    IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'Garantia nao encontrada'); END IF;
+    IF v_guarantee.earned_amount >= v_guarantee.guaranteed_amount THEN
+        UPDATE public.driver_guarantees SET status = 'completed', txap_subsidy = 0 WHERE id = v_guarantee.id;
+        RETURN jsonb_build_object('success', true, 'message', 'Motorista ja atingiu a meta');
+    END IF;
+    v_subsidy := v_guarantee.guaranteed_amount - v_guarantee.earned_amount;
+    SELECT id, balance INTO v_wallet_id, v_current_balance FROM public.wallets WHERE profile_id = p_driver_id;
+    INSERT INTO public.wallet_transactions (profile_id, wallet_id, type, amount, balance_before, balance_after, status, description, reference_type, reference_id, expires_at)
+    VALUES (p_driver_id, v_wallet_id, 'genesis_bonus', v_subsidy, v_current_balance, v_current_balance + v_subsidy, 'confirmed', 'Bonus Garantido Primeiro Dolar TXAP', 'city_launch', p_city_launch_id, timezone('utc'::text, now()) + INTERVAL '30 days');
+    UPDATE public.driver_guarantees SET txap_subsidy = v_subsidy, status = 'completed', unlock_date = timezone('utc'::text, now()) + INTERVAL '30 days' WHERE id = v_guarantee.id;
+    RETURN jsonb_build_object('success', true, 'subsidy', v_subsidy, 'unlock_date', timezone('utc'::text, now()) + INTERVAL '30 days');
+END;
+$$;
+
+-- Materialized view: wallet balance snapshot
+DROP MATERIALIZED VIEW IF EXISTS wallet_balance_snapshot;
+CREATE MATERIALIZED VIEW wallet_balance_snapshot AS
+SELECT profile_id, SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback') THEN amount ELSE -amount END) AS balance FROM wallet_transactions WHERE status = 'confirmed' GROUP BY profile_id;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_balance_snapshot_profile ON wallet_balance_snapshot(profile_id);
+
+-- Dashboard views
 CREATE OR REPLACE VIEW public.driver_dashboard_view AS
 SELECT dp.id AS driver_id, dp.cpf, dp.status AS driver_status, dp.rating, dp.total_trips, dp.acceptance_rate, dp.cancellation_rate, dp.modalities,
-  p.full_name, p.email, p.phone,
-  COALESCE(weekly.weekly_earnings, 0) AS weekly_earnings, COALESCE(weekly.weekly_trips, 0) AS weekly_trips,
-  COALESCE(monthly.monthly_earnings, 0) AS monthly_earnings, COALESCE(monthly.monthly_trips, 0) AS monthly_trips,
-  COALESCE(wlt.balance, 0) AS wallet_balance, COALESCE(online.status, 'OFFLINE') AS online_status
+    p.full_name, p.email, p.phone,
+    COALESCE(weekly.weekly_earnings, 0) AS weekly_earnings, COALESCE(weekly.weekly_trips, 0) AS weekly_trips,
+    COALESCE(monthly.monthly_earnings, 0) AS monthly_earnings, COALESCE(monthly.monthly_trips, 0) AS monthly_trips,
+    COALESCE(wlt.balance, 0) AS wallet_balance, COALESCE(online.status, 'OFFLINE') AS online_status
 FROM public.driver_profiles dp JOIN public.profiles p ON p.id = dp.id
 LEFT JOIN LATERAL (SELECT COALESCE(SUM(t.final_fare), 0) AS weekly_earnings, COUNT(*) AS weekly_trips FROM public.trips t WHERE t.driver_id = dp.id AND t.status = 'FINISHED' AND t.completed_at >= date_trunc('week', now())) weekly ON true
 LEFT JOIN LATERAL (SELECT COALESCE(SUM(t.final_fare), 0) AS monthly_earnings, COUNT(*) AS monthly_trips FROM public.trips t WHERE t.driver_id = dp.id AND t.status = 'FINISHED' AND t.completed_at >= date_trunc('month', now())) monthly ON true
-LEFT JOIN LATERAL (SELECT COALESCE(SUM(CASE WHEN wt.type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning') THEN wt.amount ELSE -wt.amount END), 0) AS balance FROM public.wallet_transactions wt WHERE wt.profile_id = dp.id AND wt.status = 'confirmed') wlt ON true
+LEFT JOIN LATERAL (SELECT COALESCE(SUM(CASE WHEN wt.type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning', 'freight_earning') THEN wt.amount ELSE -wt.amount END), 0) AS balance FROM public.wallet_transactions wt WHERE wt.profile_id = dp.id AND wt.status = 'confirmed') wlt ON true
 LEFT JOIN public.drivers_online online ON online.driver_id = dp.id;
 
 CREATE OR REPLACE VIEW public.company_dashboard_view AS
 SELECT c.id AS company_id, c.corporate_name, c.trade_name, c.cnpj, c.status, p.full_name AS responsible_name, p.email, p.phone,
-  COALESCE(driver_count.driver_count, 0) AS total_drivers, COALESCE(active_drivers.active_count, 0) AS active_drivers,
-  COALESCE(monthly_spend.total_spent, 0) AS monthly_spend, COALESCE(monthly_spend.trip_count, 0) AS monthly_trips,
-  COALESCE(wlt.balance, 0) AS wallet_balance
+    COALESCE(driver_count.driver_count, 0) AS total_drivers, COALESCE(active_drivers.active_count, 0) AS active_drivers,
+    COALESCE(monthly_spend.total_spent, 0) AS monthly_spend, COALESCE(monthly_spend.trip_count, 0) AS monthly_trips,
+    COALESCE(wlt.balance, 0) AS wallet_balance
 FROM public.companies c JOIN public.profiles p ON p.id = c.id
 LEFT JOIN LATERAL (SELECT COUNT(*) AS driver_count FROM public.driver_profiles dp WHERE dp.company_id = c.id) driver_count ON true
 LEFT JOIN LATERAL (SELECT COUNT(*) AS active_count FROM public.driver_profiles dp JOIN public.drivers_online d ON d.driver_id = dp.id AND d.status != 'OFFLINE') active_drivers ON true
 LEFT JOIN LATERAL (SELECT COALESCE(SUM(t.final_fare), 0) AS total_spent, COUNT(*) AS trip_count FROM public.trips t JOIN public.driver_profiles dp ON dp.id = t.driver_id WHERE dp.company_id = c.id AND t.status = 'FINISHED' AND t.completed_at >= date_trunc('month', now())) monthly_spend ON true
 LEFT JOIN LATERAL (SELECT COALESCE(SUM(CASE WHEN wt.type IN ('deposit', 'refund', 'bonus', 'cashback') THEN wt.amount ELSE -wt.amount END), 0) AS balance FROM public.wallet_transactions wt WHERE wt.profile_id = c.id AND wt.status = 'confirmed') wlt ON true;
-
--- =============================================================================
--- 32. MATERIALIZED VIEW (wallet balance)
--- =============================================================================
-
-DROP MATERIALIZED VIEW IF EXISTS wallet_balance_snapshot;
-CREATE MATERIALIZED VIEW wallet_balance_snapshot AS
-SELECT profile_id, SUM(CASE WHEN type IN ('deposit', 'refund', 'bonus', 'cashback') THEN amount ELSE -amount END) AS balance
-FROM wallet_transactions WHERE status = 'confirmed' GROUP BY profile_id;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_balance_snapshot_profile ON wallet_balance_snapshot(profile_id);
-
--- =============================================================================
--- 33. ADMIN AUTO-CREATE
--- =============================================================================
-
-DO $$
-DECLARE admin_id UUID; admin_auth_id UUID; admin_email TEXT := COALESCE(current_setting('app.admin_email', true), 'matheus16k@gmail.com');
-BEGIN
-  SELECT id INTO admin_id FROM profiles WHERE email = admin_email;
-  IF admin_id IS NOT NULL THEN
-    UPDATE profiles SET role = 'admin' WHERE id = admin_id AND role != 'admin';
-  ELSE
-    SELECT id INTO admin_auth_id FROM auth.users WHERE email = admin_email;
-    IF admin_auth_id IS NOT NULL THEN
-      INSERT INTO profiles (id, email, full_name, role, account_type, phone_verified, cpf_verified) VALUES (admin_auth_id, admin_email, 'Matheus16k', 'admin', 'business', true, true);
-    END IF;
-  END IF;
-END $$;
-
--- =============================================================================
--- 30. TABELA DE BACKUP DE CREDENCIAIS
--- =============================================================================
-CREATE TABLE IF NOT EXISTS public.credential_backup (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
-    phone TEXT,
-    cpf TEXT,
-    full_name TEXT,
-    account_type VARCHAR(20),
-    ip_address TEXT,
-    device_fingerprint TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_credential_backup_email ON credential_backup(email);
-CREATE INDEX IF NOT EXISTS idx_credential_backup_cpf ON credential_backup(cpf);
 
 COMMIT;

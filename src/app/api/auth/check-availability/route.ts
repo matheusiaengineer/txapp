@@ -39,9 +39,15 @@ export async function GET(req: NextRequest) {
           .select("id, is_banned")
           .eq("cpf", cleanCpf)
           .maybeSingle()
-        result.cpfAvailable = !existingCpf
-        result.cpfMessage = existingCpf
-          ? existingCpf.is_banned
+        const { data: existingCpfDriver } = existingCpf ? { data: null } : await supabase
+          .from("driver_profiles")
+          .select("id")
+          .eq("cpf", cleanCpf)
+          .maybeSingle()
+        const found = existingCpf || existingCpfDriver
+        result.cpfAvailable = !found
+        result.cpfMessage = found
+          ? existingCpf?.is_banned
             ? "Este CPF esta bloqueado permanentemente"
             : "Este CPF ja esta em uso"
           : "CPF disponivel"

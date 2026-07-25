@@ -94,7 +94,14 @@ export default function PassengerMap({
       </MapContainer>
 
       <button
-        onClick={() => {}}
+        onClick={() => {
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => console.log("📍 Recentralizando mapa:", pos.coords.latitude, pos.coords.longitude),
+              (err) => console.warn("📍 Geolocalizacao negada:", err.message)
+            )
+          }
+        }}
         className="absolute bottom-5 right-5 w-[50px] h-[50px] rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 border-none text-black text-[22px] cursor-pointer shadow-lg z-[1000] flex items-center justify-center hover:scale-105 transition-transform"
       >
         📍

@@ -80,8 +80,8 @@ export default function RegisterPage() {
 
       if (signInError) {
         console.error("[REGISTER] Erro login apos criacao:", signInError)
-        setError("Conta criada! Faca login para continuar.")
         setLoading(false)
+        router.push("/auth/login?conta=criada")
         return
       }
 

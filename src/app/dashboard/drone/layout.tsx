@@ -101,13 +101,13 @@ export default function DroneDashboardLayout({ children }: { children: React.Rea
           <button onClick={() => router.push("/dashboard/drone")} className="flex flex-col items-center text-emerald-400 text-xs gap-1">
             <span>🏠</span><span>Início</span>
           </button>
-          <button onClick={() => router.push("/dashboard/drone/360-image")} className="flex flex-col items-center text-gray-500 text-xs gap-1">
+          <button onClick={() => alert("📸 Módulo 360° em desenvolvimento")} className="flex flex-col items-center text-gray-500 text-xs gap-1">
             <span>📸</span><span>360°</span>
           </button>
-          <button onClick={() => router.push("/dashboard/drone/map")} className="flex flex-col items-center text-gray-500 text-xs gap-1">
+          <button onClick={() => alert("🗺️ Mapa de drone em desenvolvimento")} className="flex flex-col items-center text-gray-500 text-xs gap-1">
             <span>🗺️</span><span>Mapa</span>
           </button>
-          <button onClick={() => router.push("/dashboard/drone/settings")} className="flex flex-col items-center text-gray-500 text-xs gap-1">
+          <button onClick={() => alert("⚙️ Configurações em desenvolvimento")} className="flex flex-col items-center text-gray-500 text-xs gap-1">
             <span>⚙️</span><span>Config</span>
           </button>
         </div>
