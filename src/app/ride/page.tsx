@@ -80,7 +80,7 @@ function RideContent() {
     const dist = calculateDistance(coords, [destination.lat, destination.lng])
     const estimatedPrice = selectedDriver.price_per_km * dist
 
-    const res = await fetch("/api/rides", {
+    const res = await fetch("/api/trips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

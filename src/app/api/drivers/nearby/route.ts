@@ -36,10 +36,11 @@ export async function GET(req: NextRequest) {
         name: d.profiles?.full_name || "Motorista",
         lat: d.profiles?.lat || lat,
         lng: d.profiles?.lng || lng,
-        vehicleType: d.vehicle_type || "carro",
+        vehicle_type: d.vehicle_type || "carro",
         rating: d.profiles?.rating || 4.5,
-        pricePerKm: d.price_per_km || 3.00,
+        price_per_km: d.price_per_km || 3.00,
         isOnline: d.profiles?.is_online || false,
+        distance_meters: 0,
       }))
 
       return NextResponse.json({ success: true, drivers, count: drivers.length })
