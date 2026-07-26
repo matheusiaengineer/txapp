@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { PLATFORM_COMMISSION_PERCENT } from "@/lib/payment/constants"
 import { withRateLimit } from "@/lib/api-middleware"
 
+export const dynamic = "force-dynamic"
+
 const handler = async (req: NextRequest) => {
   try {
     const supabase = await createClient()

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withRateLimit } from "@/lib/api-middleware";
 
+export const dynamic = "force-dynamic"
+
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org";
 
 const handler = async (req: NextRequest) => {

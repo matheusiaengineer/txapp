@@ -3,6 +3,8 @@ import { getStripe } from "@/lib/payment/stripe-server";
 import { createClient } from "@/lib/supabase/server";
 import { withRateLimit } from "@/lib/api-middleware";
 
+export const dynamic = "force-dynamic"
+
 const handler = async (req: NextRequest) => {
   try {
     const supabase = await createClient()

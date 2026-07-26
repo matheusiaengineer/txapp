@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server"
 import { withRateLimit } from "@/lib/api-middleware"
 import { PLATFORM_COMMISSION_PERCENT } from "@/lib/payment/constants"
 
+export const dynamic = "force-dynamic"
+
 const handler = async (req: NextRequest) => {
   try {
     const supabase = await createClient()
@@ -28,7 +30,7 @@ const handler = async (req: NextRequest) => {
       return NextResponse.json({ error: "Motorista não possui conta Stripe Connect" }, { status: 400 })
     }
 
-    const amountInCents = Math.round(amount)
+    const amountInCents = Math.round(amount * 100)
     const commission = Math.round(amountInCents * PLATFORM_COMMISSION_PERCENT)
 
     if (method === "pix") {

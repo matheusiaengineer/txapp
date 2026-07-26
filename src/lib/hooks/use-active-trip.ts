@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/browser";
 
 export interface ActiveTrip {
@@ -35,7 +35,7 @@ const ACTIVE_STATUSES = [
 export function useActiveTrip(driverId: string | undefined) {
   const [trip, setTrip] = useState<ActiveTrip | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchActiveTrip = useCallback(async () => {
     if (!driverId) {
@@ -90,7 +90,7 @@ export function useActiveTrip(driverId: string | undefined) {
       setTrip(null);
     }
     setLoading(false);
-  }, [driverId, supabase]);
+  }, [driverId]);
 
   useEffect(() => {
     fetchActiveTrip();
@@ -117,7 +117,7 @@ export function useActiveTrip(driverId: string | undefined) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [driverId, supabase, fetchActiveTrip]);
+  }, [driverId, fetchActiveTrip]);
 
   const updateStatus = useCallback(async (newStatus: string): Promise<boolean> => {
     if (!trip) return false;

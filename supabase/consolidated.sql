@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS public.ratings (
     rater_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     ratee_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     ride_id UUID,
+    rating_type TEXT DEFAULT 'passenger_to_driver',
     score INTEGER CHECK (score >= 1 AND score <= 5),
     comment TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -154,22 +155,6 @@ CREATE TABLE IF NOT EXISTS public.cities (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS public.pricing_rules (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    city_id UUID REFERENCES public.cities(id) ON DELETE CASCADE,
-    vehicle_category_id UUID REFERENCES public.vehicle_categories(id) ON DELETE CASCADE,
-    base_fare DECIMAL(10,2) NOT NULL,
-    price_per_unit DECIMAL(10,2) NOT NULL,
-    price_per_minute DECIMAL(10,2) NOT NULL,
-    min_fare DECIMAL(10,2) NOT NULL,
-    platform_fee_percent DECIMAL(5,2) DEFAULT 15.00,
-    surge_multiplier DECIMAL(5,2) DEFAULT 1.00,
-    max_dispatch_radius_km DECIMAL(10,2) DEFAULT 5.0,
-    search_expansion_interval_sec INTEGER DEFAULT 15,
-    UNIQUE (city_id, vehicle_category_id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS public.vehicle_categories (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     name TEXT UNIQUE NOT NULL,
@@ -189,6 +174,22 @@ INSERT INTO public.vehicle_categories (name, display_name, max_passengers) VALUE
 INSERT INTO public.vehicle_categories (name, display_name, max_passengers, max_load_weight_kg) VALUES ('moto', 'Moto', 1, 20) ON CONFLICT (name) DO NOTHING;
 INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3) VALUES ('van', 'Van de Carga', 1500, 10) ON CONFLICT (name) DO NOTHING;
 INSERT INTO public.vehicle_categories (name, display_name, max_load_weight_kg, max_load_volume_m3, requires_special_license) VALUES ('truck', 'Caminhão', 8000, 40, TRUE) ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS public.pricing_rules (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    city_id UUID REFERENCES public.cities(id) ON DELETE CASCADE,
+    vehicle_category_id UUID REFERENCES public.vehicle_categories(id) ON DELETE CASCADE,
+    base_fare DECIMAL(10,2) NOT NULL,
+    price_per_unit DECIMAL(10,2) NOT NULL,
+    price_per_minute DECIMAL(10,2) NOT NULL,
+    min_fare DECIMAL(10,2) NOT NULL,
+    platform_fee_percent DECIMAL(5,2) DEFAULT 15.00,
+    surge_multiplier DECIMAL(5,2) DEFAULT 1.00,
+    max_dispatch_radius_km DECIMAL(10,2) DEFAULT 5.0,
+    search_expansion_interval_sec INTEGER DEFAULT 15,
+    UNIQUE (city_id, vehicle_category_id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS public.driver_heartbeats (
     driver_id UUID REFERENCES public.driver_profiles(id) ON DELETE CASCADE PRIMARY KEY,

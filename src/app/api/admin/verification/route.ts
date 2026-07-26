@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withRateLimit } from "@/lib/api-middleware";
 
+export const dynamic = "force-dynamic"
+
 const handler = async (request: NextRequest) => {
   try {
     const supabase = await createClient();

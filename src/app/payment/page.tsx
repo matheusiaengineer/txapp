@@ -104,7 +104,7 @@ function PaymentContent() {
           tripId,
           userId: user.id,
           driverId: trip?.driver_id,
-          amount: Math.round(finalFare * 100),
+          amount: finalFare,
           method: "pix",
         }),
       })
@@ -129,7 +129,7 @@ function PaymentContent() {
           tripId,
           userId: user.id,
           driverId: trip?.driver_id,
-          amount: Math.round(finalFare * 100),
+          amount: finalFare,
           method: "card",
         }),
       })

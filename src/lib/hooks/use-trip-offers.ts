@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/browser";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -28,7 +28,7 @@ export function useTripOffers(driverId: string | undefined, online: boolean) {
   const [offer, setOffer] = useState<TripOffer | null>(null);
   const [loading, setLoading] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const fetchOfferDetails = useCallback(async (offerId: string, tripId: string, driverIdVal: string): Promise<TripOffer | null> => {
     try {
@@ -120,7 +120,7 @@ export function useTripOffers(driverId: string | undefined, online: boolean) {
         channelRef.current = null;
       }
     };
-  }, [driverId, online, supabase, fetchOfferDetails]);
+  }, [driverId, online, fetchOfferDetails]);
 
   const acceptOffer = useCallback(async () => {
     if (!offer) return false;

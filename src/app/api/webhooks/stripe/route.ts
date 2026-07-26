@@ -4,6 +4,8 @@ import { getStripe } from "@/lib/payment/stripe-server"
 import { createClient } from "@supabase/supabase-js"
 import { REQUIRED_DEPOSITS } from "@/lib/payment/constants"
 
+export const dynamic = "force-dynamic"
+
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature")
   if (!signature) {
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   switch (event.type) {
     case "payment_intent.succeeded": {
-      const pi = event.data as any
+      const pi = event.data.object as any
       const tripId = pi.metadata?.trip_id
       const driverId = pi.metadata?.driver_id
       const userId = pi.metadata?.user_id || pi.metadata?.rider_id
@@ -98,17 +100,17 @@ export async function POST(req: NextRequest) {
     }
 
     case "payment_intent.payment_failed":
-      console.error("[Webhook] Payment failed:", event.data.id)
+      console.error("[Webhook] Payment failed:", (event.data.object as any).id)
       break
 
     case "charge.dispute.created": {
-      const dispute = event.data as any
+      const dispute = event.data.object as any
       console.warn("[Webhook] Dispute created:", dispute.id, "PI:", dispute.payment_intent)
       break
     }
 
     case "checkout.session.completed": {
-      const session = event.data as any
+      const session = event.data.object as any
 
       if (session.metadata?.type === "company_subscription") {
         const companyId = session.metadata.company_id

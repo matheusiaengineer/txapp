@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getStripe } from "@/lib/payment/stripe-server"
 import { createClient } from "@/lib/supabase/server"
 
+export const dynamic = "force-dynamic"
+
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

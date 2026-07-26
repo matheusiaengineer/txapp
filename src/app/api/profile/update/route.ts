@@ -52,8 +52,8 @@ export async function PATCH(req: NextRequest) {
       if (!profile.can_change_name) {
         return NextResponse.json({ error: "Nome só pode ser alterado uma vez a cada 30 dias" }, { status: 403 })
       }
-      updates.can_change_name = false
-      updates.name_last_changed_at = new Date().toISOString()
+      safeUpdates.can_change_name = false
+      safeUpdates.name_last_changed_at = new Date().toISOString()
     }
 
     const { error } = await admin

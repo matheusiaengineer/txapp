@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { PLATFORM_COMMISSION_PERCENT } from "@/lib/payment/constants"
 import QRCode from "qrcode"
 
+export const dynamic = "force-dynamic"
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const tripId = (await params).id

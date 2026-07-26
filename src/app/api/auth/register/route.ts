@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { withRateLimit } from "@/lib/api-middleware"
 
+export const dynamic = "force-dynamic"
+
 const VALID_TYPES = ["passenger", "driver_moto", "driver_car", "freight", "business"] as const
 
 function validateCpf(cpf: string): boolean {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+export const dynamic = "force-dynamic"
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const cityId = searchParams.get("cityId")

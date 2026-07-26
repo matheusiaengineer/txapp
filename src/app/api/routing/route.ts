@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic"
+
 const OSRM_BASE = "https://router.project-osrm.org";
 
 export async function GET(req: NextRequest) {

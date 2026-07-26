@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { withRateLimit } from "@/lib/api-middleware";
 
+export const dynamic = "force-dynamic"
+
 const handler = async (req: NextRequest) => {
   try {
     const body = await req.json();
