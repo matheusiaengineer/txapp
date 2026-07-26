@@ -4,8 +4,6 @@ import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase/browser"
 
-export const dynamic = "force-dynamic"
-
 export default function AdminDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
