@@ -5,4 +5,4 @@ Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /auth/
 
-Sitemap: https://txdapp.com/sitemap.xml
+Sitemap: https://txap.vercel.app/sitemap.xml

@@ -34,7 +34,7 @@ const handler = async (request: NextRequest) => {
         user_id: driverId,
         type: "verification",
         title: action === "approve" ? "Documentos aprovados" : "Documentos rejeitados",
-        message: reason || (action === "approve"
+        body: reason || (action === "approve"
           ? "Seus documentos foram aprovados! Você já pode começar a dirigir."
           : "Seus documentos foram rejeitados. Envie novamente."),
       });

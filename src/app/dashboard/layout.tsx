@@ -14,8 +14,9 @@ const NAV_CONFIG: Record<string, { label: string; icon: string; href: string }[]
   ],
   driver: [
     { label: "Início", icon: "🏠", href: "/dashboard/driver" },
+    { label: "Mapa", icon: "🗺️", href: "/dashboard/driver/map" },
     { label: "Corrida", icon: "🚗", href: "/dashboard/driver/active-trip" },
-    { label: "Ganhos", icon: "📊", href: "/dashboard/driver/earnings" },
+    { label: "Viagens", icon: "📋", href: "/dashboard/driver/trips" },
     { label: "Carteira", icon: "💰", href: "/dashboard/driver/wallet" },
   ],
   transporter: [
@@ -50,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))" }}>
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {navItems.map((item) => {
-            const active = pathname === item.href;
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link key={item.label} href={item.href}
                 className={`flex flex-col items-center gap-0.5 py-2 px-3 rounded-xl transition-colors ${

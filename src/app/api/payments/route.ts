@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/payment/stripe-server";
+import { createClient } from "@/lib/supabase/server";
 import { withRateLimit } from "@/lib/api-middleware";
 
 const handler = async (req: NextRequest) => {
   try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+
     const body = await req.json();
     const { amount, currency = "brl", paymentMethod, metadata } = body;
 

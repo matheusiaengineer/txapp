@@ -25,10 +25,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Campos obrigatorios faltando" }, { status: 400 })
     }
 
+    const vehicleName = vehicle_type === "carro" ? "car" : (vehicle_type || "car")
     const { data: vehicleCat, error: catError } = await supabase
       .from("vehicle_categories")
       .select("id")
-      .eq("name", vehicle_type || "carro")
+      .eq("name", vehicleName)
       .single()
 
     if (catError || !vehicleCat) {

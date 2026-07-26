@@ -51,7 +51,7 @@ export function useActiveTrip(driverId: string | undefined) {
       .in("status", ACTIVE_STATUSES)
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (data) {
       let passengerName = "Passageiro";

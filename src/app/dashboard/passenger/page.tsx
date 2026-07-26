@@ -1,17 +1,18 @@
 ﻿"use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase/browser";
+import { Search, MapPin, X, Loader2 } from "lucide-react";
 
 const MapWithNoSSR = dynamic(() => import("@/components/map/LeafletMap"), { ssr: false });
 
-type Category = "carro" | "moto" | "motoboy" | "caminhao" | "van" | "fiorino";
+type Category = "car" | "moto" | "motoboy" | "caminhao" | "van" | "fiorino";
 
 const CATEGORIES: { id: Category; label: string; icon: string }[] = [
-  { id: "carro", label: "Carro", icon: "🚗" },
+  { id: "car", label: "Carro", icon: "🚗" },
   { id: "moto", label: "Moto", icon: "🏍️" },
   { id: "motoboy", label: "Motoboy", icon: "📦" },
   { id: "caminhao", label: "Caminhão", icon: "🚛" },
@@ -27,10 +28,16 @@ const POPULAR_PLACES = [
   { label: "Supermercado", icon: "🛒", type: "supermarket" },
 ];
 
+interface Suggestion {
+  display: string;
+  lat: number;
+  lng: number;
+}
+
 export default function PassengerDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [category, setCategory] = useState<Category>("carro");
+  const [category, setCategory] = useState<Category>("car");
   const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
   const [showCategory, setShowCategory] = useState(true);
@@ -39,6 +46,12 @@ export default function PassengerDashboard() {
   const [surcharge, setSurcharge] = useState<number>(0);
   const [acceptSurcharge, setAcceptSurcharge] = useState(false);
   const [availableDrivers, setAvailableDrivers] = useState(0);
+
+  const [destQuery, setDestQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedDest, setSelectedDest] = useState<{ lat: number; lng: number; address: string } | null>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -51,7 +64,7 @@ export default function PassengerDashboard() {
         setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         fetchRespiratoryRate(pos.coords.latitude, pos.coords.longitude);
       },
-      () => setLocation({ lat: -19.9167, lng: -43.9345 }),
+      () => setLocation({ lat: -23.561, lng: -46.656 }),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
@@ -68,16 +81,37 @@ export default function PassengerDashboard() {
     } catch {}
   }
 
-  async function handleRequestRide() {
-    if (!pickup || !dropoff || !user || !location) return;
-    router.push(`/ride?pickup=${encodeURIComponent(pickup)}&dropoff=${encodeURIComponent(dropoff)}&category=${category}&originLat=${location.lat}&originLng=${location.lng}&surcharge=${acceptSurcharge ? surcharge : 0}`);
+  async function searchAddresses(q: string) {
+    setDestQuery(q);
+    if (q.length < 3) { setSuggestions([]); return; }
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await fetch(`/api/geocoding?q=${encodeURIComponent(q)}&limit=5`);
+        const data = await res.json();
+        setSuggestions(data.suggestions || []);
+      } catch { setSuggestions([]); }
+      setSearching(false);
+    }, 400);
   }
 
-  const handlePlaceSelect = useCallback((placeType: string) => {
-    if (!location) return;
-    setDropoff(placeType);
-    router.push(`/ride?pickup=${encodeURIComponent(pickup || "Localização atual")}&dropoff=${placeType}&category=${category}&originLat=${location.lat}&originLng=${location.lng}&surcharge=${acceptSurcharge ? surcharge : 0}`);
-  }, [location, category, pickup, surcharge, acceptSurcharge, router]);
+  function selectSuggestion(s: Suggestion) {
+    setDestQuery(s.display);
+    setSuggestions([]);
+    setSelectedDest({ lat: s.lat, lng: s.lng, address: s.display });
+    setDropoff(s.display);
+  }
+
+  async function handleRequestRide() {
+    const addr = selectedDest?.address || dropoff;
+    const lat = selectedDest?.lat || 0;
+    const lng = selectedDest?.lng || 0;
+    if (!addr || !user || !location) return;
+    router.push(
+      `/ride?pickup=${encodeURIComponent(pickup || "Localização atual")}&dropoff=${encodeURIComponent(addr)}&category=${category}&originLat=${location.lat}&originLng=${location.lng}&destLat=${lat}&destLng=${lng}&surcharge=${acceptSurcharge ? surcharge : 0}`
+    );
+  }
 
   return (
     <main className="h-[100dvh] bg-background flex flex-col relative overflow-hidden"
@@ -85,7 +119,13 @@ export default function PassengerDashboard() {
 
       {/* Mapa Full Screen */}
       <div className="absolute inset-0 z-0">
-        {location && <MapWithNoSSR pickupCoords={location} />}
+        {location && (
+          <MapWithNoSSR
+            pickupCoords={location}
+            destinationCoords={selectedDest ? { lat: selectedDest.lat, lng: selectedDest.lng } : null}
+            showLayers={true}
+          />
+        )}
       </div>
 
       {/* Topo: Logo + Busca */}
@@ -118,16 +158,41 @@ export default function PassengerDashboard() {
               className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
             />
           </div>
-          <div className="glass-panel flex items-center gap-3 px-4 py-3">
+          <div className="glass-panel flex items-center gap-3 px-4 py-3 relative">
             <div className="w-2 h-2 rounded-full bg-error shrink-0" />
-            <input
-              type="text"
-              value={dropoff}
-              onChange={(e) => setDropoff(e.target.value)}
-              placeholder="Para onde vai?"
-              className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
-              onFocus={() => setShowCategory(false)}
-            />
+            <div className="flex-1 flex items-center gap-2">
+              {searching ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin shrink-0" /> : <Search className="w-4 h-4 text-gray-500 shrink-0" />}
+              <input
+                type="text"
+                value={destQuery}
+                onChange={(e) => searchAddresses(e.target.value)}
+                placeholder="Para onde vai?"
+                className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
+                onFocus={() => setShowCategory(false)}
+              />
+              {destQuery && (
+                <button
+                  onClick={() => { setDestQuery(""); setSuggestions([]); setSelectedDest(null); setDropoff("") }}
+                  className="text-gray-500 hover:text-white shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-card-bg border border-card-border rounded-xl overflow-hidden max-h-48 overflow-y-auto z-50 shadow-xl">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selectSuggestion(s)}
+                    className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-card-bg-2 transition-colors border-b border-card-border last:border-0"
+                  >
+                    <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                    <span className="text-sm text-gray-300 line-clamp-2">{s.display}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -138,7 +203,10 @@ export default function PassengerDashboard() {
           {POPULAR_PLACES.map((p) => (
             <button
               key={p.type}
-              onClick={() => handlePlaceSelect(p.label)}
+              onClick={() => {
+                setDestQuery(p.label);
+                setDropoff(p.label);
+              }}
               className="glass-panel px-4 py-2 flex items-center gap-2 shrink-0"
             >
               <span>{p.icon}</span>

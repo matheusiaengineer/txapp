@@ -46,6 +46,17 @@ function MapController({ center }: { center: [number, number] }) {
   return null
 }
 
+function FitRouteBounds({ route }: { route: Array<[number, number]> }) {
+  const map = useMap()
+  useEffect(() => {
+    if (route && route.length > 1) {
+      const bounds = L.latLngBounds(route)
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 })
+    }
+  }, [route, map])
+  return null
+}
+
 function MapClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
   const map = useMap()
   useEffect(() => {
@@ -64,7 +75,7 @@ interface DriverMapProps {
     name: string
     lat: number
     lng: number
-    vehicleType: "moto" | "carro" | "van"
+    vehicleType: "moto" | "car" | "van"
     rating: number
     pricePerKm: number
     isOnline: boolean
@@ -88,7 +99,7 @@ export default function DriverMap({
   return (
     <div className="w-full h-full relative" style={{ borderRadius: "16px", overflow: "hidden" }}>
       <MapContainer
-        center={userLocation || [-23.5505, -46.6333]}
+        center={userLocation || [-23.561, -46.656]}
         zoom={15}
         className="w-full h-full"
         zoomControl={false}
@@ -96,18 +107,19 @@ export default function DriverMap({
         ref={mapRef}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
         <MapController center={userLocation} />
         <MapClickHandler onClick={onMapClick} />
+
+        {route && route.length > 1 && <FitRouteBounds route={route} />}
 
         {userLocation && (
           <>
             <Marker position={userLocation} icon={userIcon}>
               <Popup><div className="text-center font-medium">Voce esta aqui</div></Popup>
             </Marker>
-            <Circle center={userLocation} radius={100} pathOptions={{ color: "#00d4aa", fillColor: "#00d4aa", fillOpacity: 0.1, weight: 1 }} />
+            <Circle center={userLocation} radius={100} pathOptions={{ color: "#3ECB8E", fillColor: "#3ECB8E", fillOpacity: 0.1, weight: 1 }} />
           </>
         )}
 
@@ -136,7 +148,16 @@ export default function DriverMap({
         )}
 
         {route && route.length > 1 && (
-          <Polyline positions={route} pathOptions={{ color: "#00d4aa", weight: 4, opacity: 0.8, dashArray: "10, 10" }} />
+          <Polyline
+            positions={route}
+            pathOptions={{
+              color: "#3ECB8E",
+              weight: 5,
+              opacity: 0.85,
+              lineCap: "round",
+              lineJoin: "round",
+            }}
+          />
         )}
       </MapContainer>
 
@@ -146,9 +167,11 @@ export default function DriverMap({
         <button onClick={() => userLocation && mapRef.current?.setView(userLocation, 15)} className="w-10 h-10 rounded-xl bg-emerald-500 border-none text-black text-lg cursor-pointer flex items-center justify-center hover:bg-emerald-400">📍</button>
       </div>
 
-      <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur px-3 py-2 rounded-full text-emerald-500 text-xs font-bold border border-emerald-500/20 z-[1000]">
-        🛵 {nearbyDrivers.length} motoristas proximos
-      </div>
+      {nearbyDrivers.length > 0 && (
+        <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur px-3 py-2 rounded-full text-emerald-500 text-xs font-bold border border-emerald-500/20 z-[1000]">
+          🛵 {nearbyDrivers.length} motoristas proximos
+        </div>
+      )}
     </div>
   )
 }

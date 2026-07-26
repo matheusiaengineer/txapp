@@ -16,14 +16,12 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<any>({})
   const [config, setConfig] = useState<any>({})
 
-  const [banModal, setBanModal] = useState<any>(null)
   const [userFilter, setUserFilter] = useState("Todos")
   const filteredUsers = useMemo(() => {
     if (userFilter === "Todos") return users
     if (userFilter === "Passageiros") return users.filter(u => u.role === "passenger")
     if (userFilter === "Motoristas") return users.filter(u => u.role === "driver" || u.role === "transporter")
     if (userFilter === "Empresas") return users.filter(u => u.role === "company")
-    if (userFilter === "Banidos") return users.filter(u => u.is_banned)
     return users
   }, [users, userFilter])
   const [influencerModal, setInfluencerModal] = useState<any>(null)
@@ -55,37 +53,22 @@ export default function AdminDashboard() {
       const [statsRes, usersRes, infRes, configRes] = await Promise.all([
         fetch("/api/admin/stats").catch(() => ({ json: () => ({}) })),
         fetch("/api/admin/users").catch(() => ({ json: () => ({}) })),
-        fetch("/api/admin/influencers").then(r => r.json()).catch(() => []),
-        fetch("/api/admin/config").then(r => r.json()).catch(() => ({})),
+        fetch("/api/admin/influencers").catch(() => ({ json: () => [] })),
+        fetch("/api/admin/config").catch(() => ({ json: () => ({}) })),
       ])
-      setStats(await statsRes.json())
-      setInfluencers(Array.isArray(infRes) ? infRes : [])
-      setConfig(configRes)
+      const statsData = await statsRes.json()
+      setStats(statsData)
 
-      const u = await usersRes.json()
-      setUsers(Array.isArray(u) ? u : [])
+      const infData = await infRes.json()
+      setInfluencers(Array.isArray(infData) ? infData : [])
+
+      const configData = await configRes.json()
+      setConfig(configData)
+
+      const usersData: any = await usersRes.json()
+      setUsers(Array.isArray(usersData?.users) ? usersData.users : Array.isArray(usersData) ? usersData : [])
     } catch {}
     setLoading(false)
-  }
-
-  async function handleBan() {
-    if (!banModal) return
-    try {
-      const res = await fetch("/api/admin/ban", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(banModal),
-      })
-      if (res.ok) {
-        setBanModal(null)
-        loadData()
-      }
-    } catch {}
-  }
-
-  async function handleUnban(userId: string) {
-    await fetch(`/api/admin/ban?userId=${userId}`, { method: "DELETE" })
-    loadData()
   }
 
   async function saveInfluencer() {
@@ -205,20 +188,63 @@ export default function AdminDashboard() {
 
       <div className="p-4 max-w-5xl mx-auto">
         {tab === "stats" && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {[
-              { label: "Receita Hoje", value: "R$ 0" },
-              { label: "Corridas", value: "0" },
-              { label: "Motoristas Online", value: "0" },
-              { label: "Empresas Ativas", value: "0" },
-              { label: "Novos Usuarios", value: "0" },
-              { label: "Alertas", value: "0", alert: true },
-            ].map(s => (
-              <div key={s.label} className={`bg-card border rounded-xl p-4 ${s.alert ? "border-red-500" : "border-border"}`}>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-                <p className={`text-2xl font-bold mt-1 ${s.alert ? "text-red-500" : ""}`}>{s.value}</p>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[
+                { label: "Receita Hoje", value: `R$ ${(stats.todayRevenue || 0).toFixed(2)}` },
+                { label: "Corridas Hoje", value: String(stats.todayTrips || 0) },
+                { label: "Motoristas Online", value: String(stats.onlineNow || 0) },
+                { label: "Total Motoristas", value: String(stats.totalDrivers || 0) },
+                { label: "Total Usuarios", value: String(stats.totalUsers || 0) },
+                { label: "Verificacoes Pendentes", value: String(stats.pendingVerificationsCount || 0), alert: (stats.pendingVerificationsCount || 0) > 0 },
+              ].map(s => (
+                <div key={s.label} className={`bg-card border rounded-xl p-4 ${s.alert ? "border-red-500" : "border-border"}`}>
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                  <p className={`text-2xl font-bold mt-1 ${s.alert ? "text-red-500" : ""}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {Array.isArray(stats.weeklyRevenue) && stats.weeklyRevenue.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-sm font-medium mb-3">Receita Semanal</p>
+                <div className="flex items-end gap-2 h-32">
+                  {stats.weeklyRevenue.map((day: any, i: number) => {
+                    const maxVal = Math.max(...stats.weeklyRevenue.map((d: any) => d.value || 1))
+                    const height = maxVal > 0 ? ((day.value || 0) / maxVal) * 100 : 0
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground">R$ {(day.value || 0).toFixed(0)}</span>
+                        <div className="w-full bg-primary/20 rounded-t relative" style={{ height: `${Math.max(height, 4)}%` }}>
+                          <div className="absolute bottom-0 w-full bg-primary rounded-t" style={{ height: "100%" }} />
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">{day.day}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            ))}
+            )}
+
+            {Array.isArray(stats.recentTrips) && stats.recentTrips.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4">
+                <p className="text-sm font-medium mb-3">Ultimas Corridas</p>
+                <div className="space-y-2">
+                  {stats.recentTrips.map((t: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                      <div>
+                        <p className="text-sm">{t.route}</p>
+                        <p className="text-[11px] text-muted-foreground">{t.passenger} → {t.driver}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{t.amount}</p>
+                        <p className="text-[10px] text-muted-foreground">{t.status}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -295,7 +321,7 @@ export default function AdminDashboard() {
         {tab === "users" && (
           <div className="space-y-4">
             <div className="flex gap-2 overflow-x-auto pb-2">
-              {["Todos", "Passageiros", "Motoristas", "Empresas", "Banidos"].map(f => (
+              {["Todos", "Passageiros", "Motoristas", "Empresas"].map(f => (
                 <button key={f} onClick={() => setUserFilter(f)} className={`px-3 py-1.5 rounded-full text-xs border whitespace-nowrap transition-colors ${userFilter === f ? "bg-primary text-black border-primary" : "border-border bg-card"}`}>{f}</button>
               ))}
             </div>
@@ -303,50 +329,20 @@ export default function AdminDashboard() {
             {filteredUsers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">Nenhum usuario encontrado</p>
             ) : filteredUsers.map((u: any) => (
-              <div key={u.id} className={`bg-card border rounded-xl p-4 ${u.is_banned ? "border-red-500/50 bg-red-500/5" : "border-border"}`}>
+              <div key={u.id} className="bg-card border border-border rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-sm">{u.full_name || u.email}</p>
+                    <p className="font-semibold text-sm">{u.name || u.full_name || u.email}</p>
                     <p className="text-xs text-muted-foreground">{u.email} {u.phone ? `| ${u.phone}` : ""}</p>
                     <div className="flex gap-2 mt-1">
-                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">{u.account_type || u.role}</span>
-                      {u.is_banned && <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Banido</span>}
+                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">{u.role}</span>
+                      {u.driverStatus && <span className="text-[10px] bg-card-bg-2 border border-border px-2 py-0.5 rounded-full text-gray-400">{u.driverStatus}</span>}
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {u.is_banned ? (
-                      <button onClick={() => handleUnban(u.id)} className="text-xs text-green-600 underline">Desbanir</button>
-                    ) : (
-                      <button onClick={() => setBanModal({ userId: u.id, reason: "", banDevice: false })} className="text-xs text-red-500 underline">Banir</button>
-                    )}
+                    <p className="text-[10px] text-muted-foreground mt-1">{u.totalTrips || 0} corridas · {u.joinDate}</p>
                   </div>
                 </div>
               </div>
             ))}
-
-            {banModal && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                <div className="bg-card rounded-xl p-6 w-full max-w-md space-y-4">
-                  <h3 className="font-semibold text-red-600">Banir Usuario</h3>
-                  <p className="text-xs text-muted-foreground">ID: {banModal.userId}</p>
-                  <textarea
-                    placeholder="Motivo do banimento..."
-                    required
-                    className="w-full border rounded-lg px-3 py-2 text-sm min-h-[80px]"
-                    value={banModal.reason}
-                    onChange={e => setBanModal((prev: any) => ({ ...prev, reason: e.target.value }))}
-                  />
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={banModal.banDevice} onChange={e => setBanModal((prev: any) => ({ ...prev, banDevice: e.target.checked }))} />
-                    Banir dispositivo tambem
-                  </label>
-                  <div className="flex gap-2">
-                    <button onClick={handleBan} disabled={!banModal.reason} className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50">Banir Permanentemente</button>
-                    <button onClick={() => setBanModal(null)} className="flex-1 bg-gray-100 py-2 rounded-lg text-sm">Cancelar</button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 

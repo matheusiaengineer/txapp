@@ -1,7 +1,6 @@
 "use client"
 
 import { useRef, useState } from "react"
-import L from "leaflet"
 
 interface DroneCameraProps {
   userLocation: [number, number]

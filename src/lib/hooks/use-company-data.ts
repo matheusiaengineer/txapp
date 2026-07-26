@@ -28,7 +28,7 @@ export function useCompanyData(userId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) { setLoading(false); return; }
 
     Promise.all([
       supabase.from("companies").select("*").eq("id", userId).single(),

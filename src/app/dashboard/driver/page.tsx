@@ -80,8 +80,9 @@ export default function DriverDashboard() {
         supabase.from("profiles").select("account_type").eq("id", userId).maybeSingle(),
       ]);
 
+      const fetchedAccountType = accountRes.data?.account_type || ""
       if (accountRes.data) {
-        setAccountType(accountRes.data.account_type || "")
+        setAccountType(fetchedAccountType)
       }
 
       if (profileRes.data) {
@@ -91,8 +92,8 @@ export default function DriverDashboard() {
           tipo_veiculo: vehicleRes.data?.category || null,
           placa: vehicleRes.data?.license_plate || null,
           preco_por_km: pricingRes.data?.min_price_per_km || null,
-          status: profileRes.data.status, // approved, pending, rejected
-          is_freight: accountType === "freight", // Tag para identificar se é motorista de frete
+          status: profileRes.data.status,
+          is_freight: fetchedAccountType === "freight",
         };
         setDriver(driverData)
         setOnline(profileRes.data.current_live_status === "ONLINE")
@@ -206,7 +207,7 @@ export default function DriverDashboard() {
         <Link href="/dashboard/driver/earnings" className="text-primary text-sm font-medium">Ganhos</Link>
       </div>
 
-      <div className="flex-1 p-4 max-w-md mx-auto w-full space-y-4 overflow-y-auto">
+      <div className="flex-1 p-4 max-w-md mx-auto w-full space-y-4 overflow-y-auto pb-4">
         {needsKyc && (
           <div className="txd-card p-5 border-warning/30 bg-warning/5 rounded-2xl space-y-3">
             <span className="text-3xl block">🪪</span>
@@ -293,28 +294,6 @@ export default function DriverDashboard() {
             ))}
           </>
         )}
-      </div>
-
-      <nav className="border-t border-card-border px-4 py-2 flex justify-around bg-card-bg/40 backdrop-blur-md sticky bottom-0 z-50">
-        <Link href="/dashboard/driver" className="flex flex-col items-center text-primary text-xs gap-1">
-          <span>🏠</span><span>Início</span>
-        </Link>
-        <Link href="/dashboard/driver/map" className="flex flex-col items-center text-gray-500 text-xs gap-1">
-          <span>🗺️</span><span>Mapa</span>
-        </Link>
-        <Link href="/dashboard/driver/trips" className="flex flex-col items-center text-gray-500 text-xs gap-1">
-          <span>📋</span><span>Viagens</span>
-        </Link>
-        <Link href="/dashboard/driver/wallet" className="flex flex-col items-center text-gray-500 text-xs gap-1">
-          <span>💰</span><span>Carteira</span>
-        </Link>
-      </nav>
-
-      <div className="fixed right-4 bottom-24 z-[1000]">
-        <Link href="/dashboard/driver/drone" className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-all cursor-pointer border-2 border-emerald-400/30">
-          <span className="text-xl">🚁</span>
-        </Link>
-        <div className="text-xs text-center mt-1 text-gray-400">Drone</div>
       </div>
 
       {incomingRequest && (

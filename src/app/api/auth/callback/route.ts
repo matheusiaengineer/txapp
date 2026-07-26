@@ -4,7 +4,8 @@ import { createServerClient } from "@supabase/ssr"
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code = searchParams.get("code")
-  const next = searchParams.get("next") ?? "/"
+  let next = searchParams.get("next") ?? "/"
+  if (!next.startsWith("/") || next.startsWith("//")) next = "/"
 
   if (code) {
     const cookiesToForward: { name: string; value: string; options?: any }[] = []

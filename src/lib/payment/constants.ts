@@ -6,6 +6,7 @@ export const STRIPE_API_VERSION = "2025-03-31.basil" as const
 
 export const REQUIRED_DEPOSITS: Record<string, number> = {
   moto: 15,
+  car: 25,
   carro: 25,
   freight: 30,
 }

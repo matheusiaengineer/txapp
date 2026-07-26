@@ -8,8 +8,6 @@ const nextConfig: NextConfig = {
       "leaflet",
       "react-leaflet",
       "@supabase/ssr",
-
-      "react-webcam",
     ],
   },
   images: {
@@ -29,13 +27,9 @@ const nextConfig: NextConfig = {
     "framer-motion",
     "leaflet",
     "react-leaflet",
-    "@simplewebauthn/browser",
-    "@simplewebauthn/server",
   ],
   async rewrites() {
-    return [
-      { source: "/sw.js", destination: "/service-worker.js" },
-    ];
+    return [];
   },
 };
 

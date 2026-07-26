@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { createClient } from "@/lib/supabase/server"
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+
     const { influencerId } = await req.json()
     if (!influencerId) {
       return NextResponse.json({ error: "influencerId é obrigatório" }, { status: 400 })
+    }
+
+    if (influencerId !== user.id) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 403 })
     }
 
     const { data: influencer } = await supabase

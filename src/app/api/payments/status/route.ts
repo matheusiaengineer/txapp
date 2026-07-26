@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getStripe } from "@/lib/payment/stripe-server"
+import { createClient } from "@/lib/supabase/server"
 
 export async function GET(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const pi = searchParams.get("pi")
 

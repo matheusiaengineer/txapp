@@ -2,24 +2,28 @@ import { NextRequest, NextResponse } from "next/server"
 import { getStripe } from "@/lib/payment/stripe-server"
 import { createClient } from "@/lib/supabase/server"
 import { PLATFORM_COMMISSION_PERCENT } from "@/lib/payment/constants"
+import { withRateLimit } from "@/lib/api-middleware"
 
-export async function POST(req: NextRequest) {
+const handler = async (req: NextRequest) => {
   try {
-    const { tripId, amount, driverId, riderId } = await req.json()
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
 
-    if (!tripId || !amount || !driverId || !riderId) {
-      return NextResponse.json({ error: "tripId, amount, driverId e riderId obrigatórios" }, { status: 400 })
+    const { tripId, amount, driverId } = await req.json()
+    const riderId = user.id
+
+    if (!tripId || !amount || !driverId) {
+      return NextResponse.json({ error: "tripId, amount e driverId obrigatórios" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: account } = await supabase
-      .from("stripe_accounts")
-      .select("stripe_account_id")
-      .eq("user_id", driverId)
+    const { data: driverProfile } = await supabase
+      .from("profiles")
+      .select("stripe_connect_account_id")
+      .eq("id", driverId)
       .single()
 
-    if (!account?.stripe_account_id) {
+    if (!driverProfile?.stripe_connect_account_id) {
       return NextResponse.json({ error: "Motorista sem conta Stripe Connect" }, { status: 400 })
     }
 
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
         source: "pix_qr",
       },
       transfer_data: {
-        destination: account.stripe_account_id,
+        destination: driverProfile.stripe_connect_account_id,
       },
       application_fee_amount: platformFee,
     })
@@ -73,4 +77,6 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
-}
+};
+
+export const POST = withRateLimit(handler, 'payment');

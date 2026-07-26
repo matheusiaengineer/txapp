@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { stripeService } from "@/lib/payment/stripe-service"
 import { getStripe } from "@/lib/payment/stripe-server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
 import { REQUIRED_DEPOSITS } from "@/lib/payment/constants"
 
 export async function POST(req: NextRequest) {
@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   switch (event.type) {
     case "payment_intent.succeeded": {
@@ -25,7 +28,7 @@ export async function POST(req: NextRequest) {
       const tripId = pi.metadata?.trip_id
       const driverId = pi.metadata?.driver_id
       const userId = pi.metadata?.user_id || pi.metadata?.rider_id
-      const serviceType = pi.metadata?.service_type || "carro"
+      const serviceType = pi.metadata?.service_type || "car"
       const source = pi.metadata?.source || "checkout"
 
       if (tripId) {
@@ -34,7 +37,7 @@ export async function POST(req: NextRequest) {
           status: newStatus,
           payment_status: "paid",
           final_fare: pi.amount / 100,
-          payment_id: pi.id,
+          stripe_payment_intent_id: pi.id,
           updated_at: new Date().toISOString(),
         }).eq("id", tripId)
       }
@@ -64,14 +67,6 @@ export async function POST(req: NextRequest) {
         const amount = pi.amount_received || pi.amount
         const fee = pi.application_fee_amount || 0
         const driverAmount = (amount - fee) / 100
-        await supabase.from("driver_earnings").upsert({
-          driver_id: driverId,
-          amount: driverAmount,
-          trip_id: tripId,
-          payment_intent: pi.id,
-          status: "available",
-          created_at: new Date().toISOString(),
-        })
 
         if (source === "pix_qr") {
           const { data: w } = await supabase.from("wallets").select("id, balance").eq("profile_id", driverId).single()
@@ -170,7 +165,7 @@ export async function POST(req: NextRequest) {
         if (tripId) {
           await supabase.from("trips").update({
             status: "PAYMENT_CONFIRMED",
-            payment_id: pi.id,
+            stripe_payment_intent_id: pi.id,
             updated_at: new Date().toISOString(),
           }).eq("id", tripId)
         }

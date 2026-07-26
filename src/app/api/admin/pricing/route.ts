@@ -17,7 +17,7 @@ export async function GET() {
   const { data } = await supabase
     .from("pricing_rules")
     .select("*, cities(name, state)")
-    .order("vehicle_category");
+    .order("vehicle_category_id");
 
   return NextResponse.json({ pricing: data || [] });
 }
@@ -28,17 +28,17 @@ export async function POST(request: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Acesso restrito" }, { status: 403 });
 
   const body = await request.json();
-  const { city_id, vehicle_category, base_fare, price_per_unit, price_per_minute, min_fare, platform_fee_percent, surge_multiplier } = body;
+  const { city_id, vehicle_category_id, base_fare, price_per_unit, price_per_minute, min_fare, platform_fee_percent, surge_multiplier } = body;
 
-  if (!city_id || !vehicle_category || base_fare === undefined) {
-    return NextResponse.json({ error: "city_id, vehicle_category e base_fare obrigatórios" }, { status: 400 });
+  if (!city_id || !vehicle_category_id || base_fare === undefined) {
+    return NextResponse.json({ error: "city_id, vehicle_category_id e base_fare obrigatórios" }, { status: 400 });
   }
 
   const { data, error } = await supabase
     .from("pricing_rules")
     .insert({
       city_id,
-      vehicle_category,
+      vehicle_category_id,
       base_fare,
       price_per_unit: price_per_unit || 0,
       price_per_minute: price_per_minute || 0,

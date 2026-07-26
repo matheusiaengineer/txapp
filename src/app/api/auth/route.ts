@@ -12,6 +12,11 @@ const handler = async (req: NextRequest) => {
       return NextResponse.json({ error: "Campos obrigatórios faltando" }, { status: 400 });
     }
 
+    const ALLOWED_ROLES = ["passenger", "driver", "transporter", "company", "employee"];
+    if (action === "signup" && role && !ALLOWED_ROLES.includes(role)) {
+      return NextResponse.json({ error: "Função inválida" }, { status: 400 });
+    }
+
     const cookiesToForward: { name: string; value: string; options?: any }[] = [];
 
     const supabase = createServerClient(
@@ -88,7 +93,7 @@ const handler = async (req: NextRequest) => {
         if (metadata?.vehicle_plate) {
           const { error: vehicleError } = await admin.from("vehicles").upsert({
             driver_id: userId,
-            category: metadata?.vehicle_category || "carro",
+            category: metadata?.vehicle_category || "car",
             license_plate: metadata?.vehicle_plate,
             brand: metadata?.vehicle_brand || "",
             model: metadata?.vehicle_model || "",

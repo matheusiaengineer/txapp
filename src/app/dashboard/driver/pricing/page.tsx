@@ -35,7 +35,7 @@ export default function DriverPricingPage() {
       .eq("driver_id", user.id)
       .maybeSingle();
 
-    const serviceType = vehicle?.category || "carro";
+    const serviceType = vehicle?.category || "car";
 
     await supabase.from("driver_pricing").upsert({
       driver_id: user.id,

@@ -127,7 +127,7 @@ const handler = async (req: NextRequest) => {
         cancellation_rate: 0.00,
         rating: 5.00,
         total_trips: 0,
-        modalities: accountType === "driver_moto" ? ["moto"] : accountType === "driver_car" ? ["carro"] : ["freight"],
+        modalities: accountType === "driver_moto" ? ["moto"] : accountType === "driver_car" ? ["car"] : ["freight"],
       })
       if (driverProfileError) {
         await admin.auth.admin.deleteUser(authData.user.id)

@@ -7,21 +7,24 @@ import { PLATFORM_COMMISSION_PERCENT } from "@/lib/payment/constants"
 
 const handler = async (req: NextRequest) => {
   try {
-    const { tripId, driverId, userId, amount, method = "card" } = await req.json()
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
 
-    if (!tripId || !driverId || !userId || !amount) {
-      return NextResponse.json({ error: "tripId, driverId, userId e amount são obrigatórios" }, { status: 400 })
+    const { tripId, driverId, amount, method = "card" } = await req.json()
+    const userId = user.id
+
+    if (!tripId || !driverId || !amount) {
+      return NextResponse.json({ error: "tripId, driverId e amount são obrigatórios" }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
-    const { data: account } = await supabase
-      .from("stripe_accounts")
-      .select("stripe_account_id")
-      .eq("user_id", driverId)
+    const { data: driverProfile } = await supabase
+      .from("profiles")
+      .select("stripe_connect_account_id")
+      .eq("id", driverId)
       .single()
 
-    if (!account?.stripe_account_id) {
+    if (!driverProfile?.stripe_connect_account_id) {
       return NextResponse.json({ error: "Motorista não possui conta Stripe Connect" }, { status: 400 })
     }
 
@@ -35,7 +38,7 @@ const handler = async (req: NextRequest) => {
         payment_method_types: ["pix"],
         application_fee_amount: commission,
         transfer_data: {
-          destination: account.stripe_account_id,
+          destination: driverProfile.stripe_connect_account_id,
         },
         metadata: {
           trip_id: tripId,
@@ -71,7 +74,7 @@ const handler = async (req: NextRequest) => {
       payment_intent_data: {
         application_fee_amount: commission,
         transfer_data: {
-          destination: account.stripe_account_id,
+          destination: driverProfile.stripe_connect_account_id,
         },
         metadata: {
           trip_id: tripId,

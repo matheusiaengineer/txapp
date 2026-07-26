@@ -17,7 +17,7 @@ export default function DriverKycPage() {
   const [cnhNumber, setCnhNumber] = useState("");
   const [selfieBlob, setSelfieBlob] = useState<string | null>(null);
   
-  const [vehicleType, setVehicleType] = useState("carro");
+  const [vehicleType, setVehicleType] = useState("car");
   const [placa, setPlaca] = useState("");
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
@@ -40,7 +40,7 @@ export default function DriverKycPage() {
 
   const VEHICLES = [
     { id: "moto", label: "Moto", icon: "🏍️" },
-    { id: "carro", label: "Carro", icon: "🚗" },
+    { id: "car", label: "Carro", icon: "🚗" },
     { id: "van", label: "Van / Fiorino", icon: "🚐" },
     { id: "caminhao", label: "Caminhão", icon: "🚛" },
   ];

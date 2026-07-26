@@ -5,13 +5,16 @@ import { withRateLimit } from "@/lib/api-middleware";
 
 const handler = async (req: NextRequest) => {
   try {
-    const { userId, email, country } = await req.json();
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
 
-    if (!userId || !email) {
-      return NextResponse.json({ error: "userId e email são obrigatórios" }, { status: 400 });
+    const { email, country } = await req.json();
+    const userId = user.id;
+
+    if (!email) {
+      return NextResponse.json({ error: "email obrigatório" }, { status: 400 });
     }
-
-    const supabase = await createClient();
 
     const account = await getStripe().accounts.create({
       type: "express",
@@ -23,12 +26,9 @@ const handler = async (req: NextRequest) => {
       business_type: "individual",
     });
 
-    await supabase.from("stripe_accounts").upsert({
-      user_id: userId,
-      stripe_account_id: account.id,
-      status: "pending",
-      created_at: new Date().toISOString(),
-    });
+    await supabase.from("profiles").update({
+      stripe_connect_account_id: account.id,
+    }).eq("id", userId);
 
     const link = await getStripe().accountLinks.create({
       account: account.id,

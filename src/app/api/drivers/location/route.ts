@@ -7,16 +7,19 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Nao autenticado" }, { status: 401 })
 
-    const { lat, lng } = await req.json()
+    const { lat, lng, vehicle_category } = await req.json()
     if (!lat || !lng) {
       return NextResponse.json({ error: "lat e lng obrigatorios" }, { status: 400 })
     }
 
-    const { error } = await supabase.from("profiles").update({
+    const { error } = await supabase.from("drivers_online").upsert({
+      driver_id: user.id,
       lat,
       lng,
-      location_updated_at: new Date().toISOString(),
-    }).eq("id", user.id)
+      vehicle_category: vehicle_category || "car",
+      status: "ONLINE",
+      last_updated_at: new Date().toISOString(),
+    }, { onConflict: "driver_id" })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

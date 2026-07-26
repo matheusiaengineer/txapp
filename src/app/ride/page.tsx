@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useCallback, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { useGeolocation } from "@/hooks/useGeolocation"
 import { supabase } from "@/lib/supabase/browser"
+import { Search, MapPin, X, Loader2 } from "lucide-react"
 
 const DriverMap = dynamic(() => import("@/components/maps/DriverMap"), {
   ssr: false,
@@ -13,14 +14,10 @@ const DriverMap = dynamic(() => import("@/components/maps/DriverMap"), {
   ),
 })
 
-function calculateDistance(coord1: [number, number], coord2: [number, number]): number {
-  const R = 6371
-  const dLat = (coord2[0] - coord1[0]) * Math.PI / 180
-  const dLon = (coord2[1] - coord1[1]) * Math.PI / 180
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(coord1[0] * Math.PI / 180) * Math.cos(coord2[0] * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2)
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+interface Suggestion {
+  display: string
+  lat: number
+  lng: number
 }
 
 function RideContent() {
@@ -32,30 +29,69 @@ function RideContent() {
 
   const [step, setStep] = useState<"location" | "vehicle" | "driver" | "confirm">("location")
   const [destination, setDestination] = useState<{ lat: number; lng: number; address: string } | null>(null)
-  const [vehicleType, setVehicleType] = useState<"moto" | "carro" | "van">(
-    preSelectedType === "moto" || preSelectedType === "motoboy" ? "moto" : "carro"
+  const [vehicleType, setVehicleType] = useState<"moto" | "car" | "van">(
+    preSelectedType === "moto" || preSelectedType === "motoboy" ? "moto" : "car"
   )
   const [nearbyDrivers, setNearbyDrivers] = useState<any[]>([])
   const [selectedDriver, setSelectedDriver] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [routeCoords, setRouteCoords] = useState<Array<[number, number]>>([])
+  const [routeDistance, setRouteDistance] = useState<number>(0)
+  const [routeDuration, setRouteDuration] = useState<number>(0)
+
+  const [destQuery, setDestQuery] = useState("")
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [searching, setSearching] = useState(false)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   async function fetchRoute(origin: [number, number], dest: [number, number]) {
     try {
       const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${origin[1]},${origin[0]};${dest[1]},${dest[0]}?geometries=geojson&overview=full`
+        `/api/routing?origin=${origin[0]},${origin[1]}&destination=${dest[0]},${dest[1]}`
       )
       const data = await res.json()
-      if (data.code === "Ok" && data.routes?.[0]?.geometry?.coordinates) {
-        setRouteCoords(data.routes[0].geometry.coordinates.map((c: number[]) => [c[1], c[0]]))
+      if (data.polyline && data.polyline.length > 1) {
+        setRouteCoords(data.polyline.map((p: { lat: number; lng: number }) => [p.lat, p.lng] as [number, number]))
+        setRouteDistance(data.distance || 0)
+        setRouteDuration(data.duration || 0)
       }
     } catch (err) {
       console.warn("[RIDE] Erro ao buscar rota:", err)
     }
   }
 
+  async function searchAddresses(q: string) {
+    setDestQuery(q)
+    if (q.length < 3) {
+      setSuggestions([])
+      return
+    }
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
+    searchTimeout.current = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(`/api/geocoding?q=${encodeURIComponent(q)}&limit=5`)
+        const data = await res.json()
+        setSuggestions(data.suggestions || [])
+      } catch {
+        setSuggestions([])
+      }
+      setSearching(false)
+    }, 400)
+  }
+
+  function selectSuggestion(s: Suggestion) {
+    setDestQuery(s.display)
+    setSuggestions([])
+    setDestination({ lat: s.lat, lng: s.lng, address: s.display })
+    if (coords && s.lat !== 0 && s.lng !== 0) {
+      fetchRoute(coords, [s.lat, s.lng])
+    }
+  }
+
   function handleSetDestination(lat: number, lng: number, address: string) {
     setDestination({ lat, lng, address })
+    setDestQuery(address)
     if (coords && lat !== 0 && lng !== 0) fetchRoute(coords, [lat, lng])
   }
 
@@ -72,13 +108,19 @@ function RideContent() {
       .catch(() => setLoading(false))
   }, [coords, vehicleType, step])
 
+  const estimatedPrice = selectedDriver && routeDistance > 0
+    ? selectedDriver.price_per_km * (routeDistance / 1000)
+    : selectedDriver && routeDistance === 0
+      ? selectedDriver.price_per_km * 5
+      : 0
+
   const handleCreateRide = async () => {
     if (!coords || !destination || !selectedDriver) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push("/auth/login"); return }
 
-    const dist = calculateDistance(coords, [destination.lat, destination.lng])
-    const estimatedPrice = selectedDriver.price_per_km * dist
+    const distKm = routeDistance > 0 ? routeDistance / 1000 : 5
+    const estimatedPrice = selectedDriver.price_per_km * distKm
 
     const res = await fetch("/api/trips", {
       method: "POST",
@@ -99,7 +141,7 @@ function RideContent() {
 
     const data = await res.json()
     if (data.success) {
-      router.push(`/ride/${data.rideId || data.tripId}/tracking`)
+      router.push(`/dashboard/passenger/history`)
     }
   }
 
@@ -122,7 +164,7 @@ function RideContent() {
             nearbyDrivers={step === "driver" ? nearbyDrivers : []}
             destination={destination ? [destination.lat, destination.lng] : undefined}
             route={routeCoords.length > 0 ? routeCoords : undefined}
-            onMapClick={step === "location" ? (lat, lng) => handleSetDestination(lat, lng, "Endereço selecionado") : undefined}
+            onMapClick={step === "location" ? (lat, lng) => handleSetDestination(lat, lng, "Endereço selecionado no mapa") : undefined}
             onDriverClick={step === "driver" ? setSelectedDriver : undefined}
           />
         </Suspense>
@@ -131,11 +173,55 @@ function RideContent() {
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
         {step === "location" && (
           <>
-            <input
-              type="text"
-              placeholder="Digite o endereço de destino..."
-              className="w-full bg-card-bg-2 border border-card-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-primary focus:outline-none"
-            />
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              </div>
+              <input
+                type="text"
+                value={destQuery}
+                onChange={(e) => searchAddresses(e.target.value)}
+                placeholder="Digite o endereço de destino..."
+                className="w-full bg-card-bg-2 border border-card-border rounded-xl px-4 py-3 pl-10 pr-10 text-white placeholder-gray-500 focus:border-primary focus:outline-none"
+              />
+              {destQuery && (
+                <button
+                  onClick={() => { setDestQuery(""); setSuggestions([]); setDestination(null); setRouteCoords([]) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {suggestions.length > 0 && (
+              <div className="bg-card-bg-2 border border-card-border rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selectSuggestion(s)}
+                    className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-card-bg transition-colors border-b border-card-border last:border-0"
+                  >
+                    <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                    <span className="text-sm text-gray-300 line-clamp-2">{s.display}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {destination && routeDistance > 0 && (
+              <div className="bg-card-bg-2 border border-card-border rounded-xl p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-primary text-sm">📏</span>
+                  <span className="text-sm text-gray-300">{(routeDistance / 1000).toFixed(1)} km</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-primary text-sm">⏱️</span>
+                  <span className="text-sm text-gray-300">{Math.round(routeDuration / 60)} min</span>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 overflow-x-auto scrollbar-hide">
               {[{ icon: "🏠", label: "Casa", address: "Rua Principal, 100 - Poté/MG" }, { icon: "💼", label: "Trabalho", address: "Av. Getúlio Vargas, 200 - Poté/MG" }, { icon: "❤️", label: "Namorada", address: "Rua das Flores, 50 - Poté/MG" }, { icon: "⭐", label: "Favoritos", address: "" }].map(p => (
                 <button key={p.label} onClick={() => p.address && handleSetDestination(0, 0, p.address)} className="flex-shrink-0 bg-card-bg-2 border border-card-border rounded-lg px-4 py-2 text-sm flex items-center gap-2 hover:bg-card-bg transition-colors">
@@ -145,8 +231,9 @@ function RideContent() {
               ))}
             </div>
             <button
-              onClick={() => setStep("vehicle")}
-              className="w-full bg-primary text-black font-bold py-4 rounded-xl disabled:opacity-50"
+              onClick={() => destination && setStep("vehicle")}
+              disabled={!destination}
+              className="w-full bg-primary text-black font-bold py-4 rounded-xl disabled:opacity-30"
             >
               Continuar
             </button>
@@ -157,7 +244,7 @@ function RideContent() {
           <div className="space-y-3">
             {[
               { type: "moto" as const, icon: "🛵", name: "Moto", desc: "Rápido e ágil", eta: "3-5 min" },
-              { type: "carro" as const, icon: "🚕", name: "Carro", desc: "Conforto e segurança", eta: "5-8 min" },
+              { type: "car" as const, icon: "🚕", name: "Carro", desc: "Conforto e segurança", eta: "5-8 min" },
               { type: "van" as const, icon: "🚐", name: "Van", desc: "Para grupos e cargas", eta: "8-12 min" },
             ].map(v => (
               <button
@@ -221,16 +308,28 @@ function RideContent() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Veículo</span>
-                <span>{vehicleType === "moto" ? "🛵 Moto" : "🚕 Carro"}</span>
+                <span>{vehicleType === "moto" ? "🛵 Moto" : vehicleType === "van" ? "🚐 Van" : "🚕 Carro"}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Preço/km</span>
                 <span className="text-primary font-bold">R$ {selectedDriver.price_per_km}</span>
               </div>
+              {routeDistance > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Distância</span>
+                  <span>{(routeDistance / 1000).toFixed(1)} km</span>
+                </div>
+              )}
+              {routeDuration > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-400">Tempo estimado</span>
+                  <span>{Math.round(routeDuration / 60)} min</span>
+                </div>
+              )}
               <div className="border-t border-card-border pt-2 flex justify-between">
                 <span className="font-bold">Total estimado</span>
                 <span className="text-primary font-bold text-lg">
-                  R$ {(selectedDriver.price_per_km * 5).toFixed(2)}
+                  R$ {estimatedPrice.toFixed(2)}
                 </span>
               </div>
             </div>

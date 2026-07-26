@@ -14,7 +14,7 @@ export function useTransporterData(userId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) { setLoading(false); return; }
 
     Promise.all([
       supabase.from("trips").select("*").eq("driver_id", userId).order("created_at", { ascending: false }).limit(20),

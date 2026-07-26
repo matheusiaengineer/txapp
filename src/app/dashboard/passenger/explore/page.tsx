@@ -40,7 +40,7 @@ export default function ExplorePage() {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => setLocation({ lat: -19.9167, lng: -43.9345 }),
+      () => setLocation({ lat: -23.561, lng: -46.656 }),
       { enableHighAccuracy: true, timeout: 10000 }
     )
   }, [])

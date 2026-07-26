@@ -43,7 +43,7 @@ export function useDriverData(userId: string | undefined) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) { setLoading(false); return; }
 
     Promise.all([
       supabase.from("driver_profiles").select("*").eq("id", userId).single(),
