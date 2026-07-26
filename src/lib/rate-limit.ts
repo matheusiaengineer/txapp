@@ -3,9 +3,15 @@ import { Redis } from "@upstash/redis";
 const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.UPSTASH_REDIS_URL;
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTASH_REDIS_TOKEN;
 
-const redis = UPSTASH_URL && UPSTASH_TOKEN
-  ? new Redis({ url: UPSTASH_URL, token: UPSTASH_TOKEN })
-  : null;
+let _redis: Redis | null | undefined;
+function getRedis(): Redis | null {
+  if (_redis === undefined) {
+    _redis = UPSTASH_URL && UPSTASH_TOKEN
+      ? new Redis({ url: UPSTASH_URL, token: UPSTASH_TOKEN })
+      : null;
+  }
+  return _redis;
+}
 
 const fallbackMap = new Map<string, { count: number; resetAt: number }>();
 let fallbackTimer: ReturnType<typeof setInterval> | undefined;
@@ -22,6 +28,7 @@ function startFallbackCleanup() {
 }
 
 export async function rateLimit(key: string, maxRequests: number, windowMs: number): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  const redis = getRedis();
   if (redis) {
     const windowKey = `rl:${key}`;
     const now = Date.now();
