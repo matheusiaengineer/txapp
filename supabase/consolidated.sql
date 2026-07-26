@@ -1224,7 +1224,115 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 -- =============================================================================
--- 18. RLS — ENABLE FOR ALL TABLES
+-- 18. MISSING TABLES FROM VISION: road_events, feed, push, mfa, promotions, reports
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS public.road_events (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    reported_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    event_type road_event_type NOT NULL,
+    lat DOUBLE PRECISION NOT NULL,
+    lng DOUBLE PRECISION NOT NULL,
+    description TEXT,
+    severity INTEGER DEFAULT 1 CHECK (severity BETWEEN 1 AND 5),
+    is_verified BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.feed_posts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    author_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    post_type TEXT NOT NULL CHECK (post_type IN ('promo', 'event', 'update', 'photo', 'coupon', 'business')),
+    title TEXT NOT NULL,
+    body TEXT,
+    image_url TEXT,
+    link_url TEXT,
+    business_id UUID REFERENCES public.businesses(id) ON DELETE SET NULL,
+    city TEXT,
+    state TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    is_featured BOOLEAN DEFAULT FALSE,
+    view_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.post_comments (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    post_id UUID REFERENCES public.feed_posts(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.post_likes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    post_id UUID REFERENCES public.feed_posts(id) ON DELETE CASCADE NOT NULL,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    UNIQUE (post_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.push_tokens (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    token TEXT NOT NULL,
+    platform TEXT NOT NULL CHECK (platform IN ('ios', 'android', 'web')),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    UNIQUE (user_id, token)
+);
+
+CREATE TABLE IF NOT EXISTS public.mfa_factors (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    factor_type TEXT NOT NULL CHECK (factor_type IN ('totp', 'sms', 'email')),
+    secret TEXT,
+    phone TEXT,
+    email TEXT,
+    is_primary BOOLEAN DEFAULT FALSE,
+    is_verified BOOLEAN DEFAULT FALSE,
+    last_used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.promotions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    business_id UUID REFERENCES public.businesses(id) ON DELETE CASCADE,
+    company_id UUID REFERENCES public.companies(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    discount_type TEXT CHECK (discount_type IN ('percentage', 'fixed')),
+    discount_value DECIMAL(10,2),
+    min_order_value DECIMAL(10,2) DEFAULT 0,
+    coupon_code TEXT,
+    starts_at TIMESTAMPTZ NOT NULL,
+    ends_at TIMESTAMPTZ NOT NULL,
+    max_redemptions INTEGER DEFAULT 0,
+    current_redemptions INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    city TEXT,
+    state TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.content_reports (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    reporter_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    content_type TEXT NOT NULL CHECK (content_type IN ('user', 'post', 'comment', 'business', 'review', 'trip')),
+    content_id UUID NOT NULL,
+    reason TEXT NOT NULL CHECK (reason IN ('spam', 'inappropriate', 'fake', 'harassment', 'other')),
+    description TEXT,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+    reviewed_by UUID REFERENCES public.profiles(id),
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+-- =============================================================================
+-- 19. RLS — ENABLE FOR ALL TABLES
 -- =============================================================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -1295,6 +1403,14 @@ ALTER TABLE public.professionals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.city_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.city_jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.road_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.feed_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mfa_factors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.content_reports ENABLE ROW LEVEL SECURITY;
 
 -- =============================================================================
 -- 19. RLS POLICIES
@@ -1494,6 +1610,34 @@ DO $$ BEGIN CREATE POLICY "city_jobs_read" ON public.city_jobs FOR SELECT USING 
 DO $$ BEGIN CREATE POLICY "orders_select_party" ON public.orders FOR SELECT USING (auth.uid() IN (user_id, business_id, driver_id, professional_id)); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE POLICY "orders_manage_business" ON public.orders FOR ALL USING (auth.uid() = business_id OR auth.uid() = driver_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
+-- road_events
+DO $$ BEGIN CREATE POLICY "road_events_read" ON public.road_events FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- feed_posts
+DO $$ BEGIN CREATE POLICY "feed_posts_read" ON public.feed_posts FOR SELECT USING (is_active = true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "feed_posts_manage_own" ON public.feed_posts FOR ALL USING (auth.uid() = author_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- post_comments
+DO $$ BEGIN CREATE POLICY "post_comments_read" ON public.post_comments FOR SELECT USING (true); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "post_comments_insert_own" ON public.post_comments FOR INSERT WITH CHECK (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "post_comments_delete_own" ON public.post_comments FOR DELETE USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- post_likes
+DO $$ BEGIN CREATE POLICY "post_likes_manage_own" ON public.post_likes FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- push_tokens
+DO $$ BEGIN CREATE POLICY "push_tokens_manage_own" ON public.push_tokens FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- mfa_factors
+DO $$ BEGIN CREATE POLICY "mfa_manage_own" ON public.mfa_factors FOR ALL USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- promotions
+DO $$ BEGIN CREATE POLICY "promotions_read" ON public.promotions FOR SELECT USING (is_active = true AND starts_at <= now() AND ends_at >= now()); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- content_reports
+DO $$ BEGIN CREATE POLICY "content_reports_insert_own" ON public.content_reports FOR INSERT WITH CHECK (auth.uid() = reporter_id); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE POLICY "content_reports_admin" ON public.content_reports FOR ALL USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin')); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
 -- Storage policies
 DO $$ BEGIN CREATE POLICY "avatar_public_read" ON storage.objects FOR SELECT USING (bucket_id = 'avatars'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE POLICY "avatar_upload_own" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]); EXCEPTION WHEN duplicate_object THEN null; END $$;
@@ -1626,6 +1770,34 @@ CREATE INDEX IF NOT EXISTS idx_ratings_rater ON public.ratings (rater_id, create
 CREATE INDEX IF NOT EXISTS idx_profiles_role_desc ON public.profiles (role);
 CREATE INDEX IF NOT EXISTS idx_profiles_location ON public.profiles USING GIST(location);
 
+-- Feed & social indexes
+CREATE INDEX IF NOT EXISTS idx_feed_posts_author ON public.feed_posts(author_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feed_posts_type ON public.feed_posts(post_type, is_active);
+CREATE INDEX IF NOT EXISTS idx_feed_posts_city ON public.feed_posts(city, state);
+CREATE INDEX IF NOT EXISTS idx_feed_posts_featured ON public.feed_posts(is_featured) WHERE is_featured = true;
+CREATE INDEX IF NOT EXISTS idx_post_comments_post ON public.post_comments(post_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_post_likes_post ON public.post_likes(post_id);
+
+-- Push tokens indexes
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON public.push_tokens(user_id) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_push_tokens_platform ON public.push_tokens(platform, is_active);
+
+-- MFA indexes
+CREATE INDEX IF NOT EXISTS idx_mfa_user ON public.mfa_factors(user_id);
+
+-- Promotions indexes
+CREATE INDEX IF NOT EXISTS idx_promotions_business ON public.promotions(business_id) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_promotions_dates ON public.promotions(starts_at, ends_at) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_promotions_city ON public.promotions(city) WHERE is_active = true;
+
+-- Content reports indexes
+CREATE INDEX IF NOT EXISTS idx_content_reports_status ON public.content_reports(status);
+CREATE INDEX IF NOT EXISTS idx_content_reports_content ON public.content_reports(content_type, content_id);
+
+-- Road events indexes
+CREATE INDEX IF NOT EXISTS idx_road_events_location ON public.road_events USING GIST (ll_to_earth(lat, lng));
+CREATE INDEX IF NOT EXISTS idx_road_events_type ON public.road_events(event_type);
+
 -- =============================================================================
 -- 21. REALTIME PUBLICATION
 -- =============================================================================
@@ -1659,6 +1831,18 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 DO $$ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.wallet_transactions;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.feed_posts;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.post_comments;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.post_likes;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
@@ -1798,7 +1982,7 @@ CREATE TRIGGER trg_update_driver_guarantee AFTER INSERT ON public.wallet_transac
 DO $$
 DECLARE tbl TEXT;
 BEGIN
-    FOR tbl IN SELECT unnest(ARRAY['app_config', 'saved_locations', 'withdrawals', 'coupons', 'messages', 'drivers_online', 'company_products', 'company_orders', 'professional_directory', 'city_launches', 'driver_guarantees', 'company_subscriptions'])
+    FOR tbl IN SELECT unnest(ARRAY['app_config', 'saved_locations', 'withdrawals', 'coupons', 'messages', 'drivers_online', 'company_products', 'company_orders', 'professional_directory', 'city_launches', 'driver_guarantees', 'company_subscriptions', 'feed_posts', 'push_tokens', 'content_reports', 'promotions'])
     LOOP
         EXECUTE format('DROP TRIGGER IF EXISTS update_%s_updated_at ON public.%s; CREATE TRIGGER update_%s_updated_at BEFORE UPDATE ON public.%s FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();', tbl, tbl, tbl, tbl);
     END LOOP;
