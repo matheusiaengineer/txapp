@@ -50,10 +50,15 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: "Nao autenticado" }, { status: 401 })
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
+  if (profile?.role !== "admin") return NextResponse.json({ error: "Apenas administradores" }, { status: 403 })
+
   const { searchParams } = new URL(req.url)
   const cityId = searchParams.get("cityId")
 
-  const supabase = await createClient()
   let query = supabase.from("city_launches").select("*")
 
   if (cityId) query = query.eq("city_id", cityId)

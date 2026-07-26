@@ -15,8 +15,7 @@ export default function DroneDashboardLayout({ children }: { children: React.Rea
     setDroneStatus("AIRBORNE")
     // Simulate drone takeoff
     setTimeout(() => {
-      alert("🚁 Drone decolou! Iniciando mapeamento 360°...")
-      router.push("/dashboard/drone/360-image")
+      alert("🚁 Drone decolou! Módulo 360° em desenvolvimento.")
     }, 2000)
   }
 

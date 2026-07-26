@@ -11,7 +11,7 @@
 
 1. [Visão Geral do Produto](#1-visão-geral-do-produto)
 2. [Arquitetura Técnica](#2-arquitetura-técnica)
-3. [Banco de Dados — 68 Tabelas](#3-banco-de-dados)
+3. [Banco de Dados — 75 Tabelas](#3-banco-de-dados)
 4. [Autenticação e Perfis](#4-autenticação-e-perfis)
 5. [Tela Inicial e Landing Page](#5-tela-inicial-e-landing-page)
 6. [Fluxo do Passageiro](#6-fluxo-do-passageiro)
@@ -161,7 +161,7 @@ O `proxy.ts` é o ponto de entrada de autenticação. Ele:
 
 ## 3. Banco de Dados
 
-### 3.1 Resumo das Tabelas (68+)
+### 3.1 Resumo das Tabelas (75)
 
 | Domínio | Tabelas |
 |---|---|
@@ -190,8 +190,14 @@ O `proxy.ts` é o ponto de entrada de autenticação. Ele:
 | `trip_status` | REQUEST_CREATED → SEARCHING_DRIVER → DRIVER_NOTIFIED → DRIVER_ACCEPTED → GOING_TO_PICKUP → ARRIVED → PASSENGER_ON_BOARD → IN_PROGRESS → FINISHING → COMPLETED → PAYMENT_PENDING → PAYMENT_CONFIRMED → FINISHED (+ CANCELLED, NO_DRIVER_FOUND, TIMEOUT, EXPIRED, REJECTED) |
 | `driver_live_status` | OFFLINE, ONLINE, AVAILABLE, RESERVED, GOING_TO_PICKUP, WAITING_PASSENGER, IN_TRIP, IN_DELIVERY, IN_FREIGHT, PAUSED, EMERGENCY |
 | `freight_load_status` | open, in_progress, completed, cancelled |
+| `freight_bid_status` | pending, accepted, rejected, withdrawn |
 | `order_status` | pending, confirmed, preparing, in_delivery, delivered, cancelled |
 | `service_category` | delivery, supermarket, pharmacy, restaurant, water, gas, mechanic, electrician, plumber, cleaning, petshop, other |
+| `address_type` | home, work, other |
+| `document_type` | cnh, selfie, vehicle_doc, vehicle_photo |
+| `road_event_type` | accident, traffic_jam, road_work, police, speed_camera, gas_station, ev_station, toll, weather_hazard |
+| `distance_unit` | km, mi |
+| `currency_code` | BRL, USD, EUR |
 
 ### 3.3 Índices Espaciais (PostGIS)
 
