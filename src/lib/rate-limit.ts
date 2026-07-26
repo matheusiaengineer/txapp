@@ -6,9 +6,8 @@ const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.UPSTAS
 let _redis: Redis | null | undefined;
 function getRedis(): Redis | null {
   if (_redis === undefined) {
-    _redis = UPSTASH_URL && UPSTASH_TOKEN
-      ? new Redis({ url: UPSTASH_URL, token: UPSTASH_TOKEN })
-      : null;
+    if (!UPSTASH_URL || !UPSTASH_TOKEN) { _redis = null; return null; }
+    try { _redis = new Redis({ url: UPSTASH_URL, token: UPSTASH_TOKEN }); } catch { _redis = null; }
   }
   return _redis;
 }
@@ -30,21 +29,36 @@ function startFallbackCleanup() {
 export async function rateLimit(key: string, maxRequests: number, windowMs: number): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
   const redis = getRedis();
   if (redis) {
-    const windowKey = `rl:${key}`;
-    const now = Date.now();
-    const windowStart = Math.floor(now / windowMs) * windowMs;
-    const redisKey = `${windowKey}:${windowStart}`;
+    try {
+      const windowKey = `rl:${key}`;
+      const now = Date.now();
+      const windowStart = Math.floor(now / windowMs) * windowMs;
+      const redisKey = `${windowKey}:${windowStart}`;
 
-    const count = await redis.incr(redisKey);
-    if (count === 1) {
-      await redis.expire(redisKey, Math.ceil(windowMs / 1000));
+      const count = await redis.incr(redisKey);
+      if (count === 1) {
+        await redis.expire(redisKey, Math.ceil(windowMs / 1000));
+      }
+
+      return {
+        allowed: count <= maxRequests,
+        remaining: Math.max(0, maxRequests - count),
+        resetAt: windowStart + windowMs,
+      };
+    } catch {
+      startFallbackCleanup();
+      const now = Date.now();
+      const entry = fallbackMap.get(key);
+      if (!entry || now > entry.resetAt) {
+        fallbackMap.set(key, { count: 1, resetAt: now + windowMs });
+        return { allowed: true, remaining: maxRequests - 1, resetAt: now + windowMs };
+      }
+      if (entry.count >= maxRequests) {
+        return { allowed: false, remaining: 0, resetAt: entry.resetAt };
+      }
+      entry.count++;
+      return { allowed: true, remaining: maxRequests - entry.count, resetAt: entry.resetAt };
     }
-
-    return {
-      allowed: count <= maxRequests,
-      remaining: Math.max(0, maxRequests - count),
-      resetAt: windowStart + windowMs,
-    };
   }
 
   startFallbackCleanup();
