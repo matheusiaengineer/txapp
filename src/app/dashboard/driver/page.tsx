@@ -29,7 +29,7 @@ function RideRequestPopup({ request, onAccept, onDecline }: {
         <div className="bg-card-bg-2 rounded-xl p-4 mb-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">De:</span>
-            <span className="font-medium">{request.from_address || "Localização do passageiro"}</span>
+            <span className="font-medium">{request.origin_address || "Localização do passageiro"}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Para:</span>
@@ -37,7 +37,7 @@ function RideRequestPopup({ request, onAccept, onDecline }: {
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Valor:</span>
-            <span className="text-primary font-bold">R$ {request.estimated_price}</span>
+            <span className="text-primary font-bold">R$ {request.estimated_fare || request.estimated_price || 0}</span>
           </div>
         </div>
         <div className="flex gap-3">
@@ -131,14 +131,14 @@ export default function DriverDashboard() {
         event: "INSERT",
         schema: "public",
         table: "trips",
-        filter: `status=eq.pending`,
+        filter: `status=eq.SEARCHING_DRIVER`,
       }, (payload) => {
         const trip = payload.new as any
-        if (!trip.from_lat || !trip.from_lng) return
+        if (!trip.origin_lat || !trip.origin_lng) return
 
         const distance = Math.sqrt(
-          Math.pow((driverLat - trip.from_lat) * 111, 2) +
-          Math.pow((driverLng - trip.from_lng) * 111 * Math.cos(driverLat * Math.PI / 180), 2)
+          Math.pow((driverLat - trip.origin_lat) * 111, 2) +
+          Math.pow((driverLng - trip.origin_lng) * 111 * Math.cos(driverLat * Math.PI / 180), 2)
         )
 
         if (distance <= 5) {
@@ -173,7 +173,8 @@ export default function DriverDashboard() {
 
   const handleAccept = useCallback(async () => {
     if (!incomingRequest) return
-    await supabase.from("trips").update({ status: "accepted", driver_id: user.id }).eq("id", incomingRequest.id)
+    await supabase.from("trips").update({ status: "DRIVER_ACCEPTED", driver_id: user.id }).eq("id", incomingRequest.id)
+    await supabase.from("trip_offers").update({ status: "accepted" }).eq("trip_id", incomingRequest.id).eq("driver_id", user.id)
     setIncomingRequest(null)
     router.push(`/dashboard/driver/active-trip?tripId=${incomingRequest.id}`)
   }, [incomingRequest, user?.id, router])

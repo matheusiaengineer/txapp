@@ -31,26 +31,21 @@ export function useRideLogic() {
   }, []);
 
   const estimatedCost = currentRide.distance * pricePerKm;
-  const canRequestRide =
-    !!currentRide.origin &&
-    !!currentRide.destination &&
-    !isRequestingRide &&
-    hasSufficientFunds(estimatedCost);
 
-  const handleRequestRide = useCallback(async () => {
-    if (!canRequestRide) return;
-
-    requestRide();
-
-    const totalBalance = realBalance + promotionalBalance;
-    const deductFromPromotional = Math.min(promotionalBalance, estimatedCost);
-    const deductFromReal = estimatedCost - deductFromPromotional;
-
-    useWalletStore.setState({
-      promotionalBalance: promotionalBalance - deductFromPromotional,
-      realBalance: realBalance - deductFromReal,
-    });
-  }, [canRequestRide, requestRide, realBalance, promotionalBalance, estimatedCost]);
+  const handleRequestRide = useCallback(async (params: {
+    driver_id: string;
+    from_lat: number;
+    from_lng: number;
+    to_lat: number;
+    to_lng: number;
+    from_address: string;
+    to_address: string;
+    vehicle_type: string;
+    estimated_price: number;
+  }) => {
+    const result = await requestRide(params);
+    return result;
+  }, [requestRide]);
 
   const handleCancelRide = useCallback(async () => {
     resetRide();
@@ -64,7 +59,6 @@ export function useRideLogic() {
     status: currentRide.status,
     isRequestingRide,
     estimatedCost,
-    canRequestRide,
     handleRequestRide,
     handleCancelRide,
     setOrigin,

@@ -25,6 +25,7 @@ export interface CurrentRide {
   driverId: string | null;
   driverName: string | null;
   driverLocation: Coordinates | null;
+  tripId: string | null;
 }
 
 function haversineDistance(a: Coordinates, b: Coordinates): number {
@@ -55,7 +56,17 @@ export interface RideState {
   setDriverFound: (driverId: string, driverName: string) => void;
   setDriverLocation: (location: Coordinates) => void;
   setRideStatus: (status: RideStatus) => void;
-  requestRide: () => void;
+  requestRide: (params: {
+    driver_id: string;
+    from_lat: number;
+    from_lng: number;
+    to_lat: number;
+    to_lng: number;
+    from_address: string;
+    to_address: string;
+    vehicle_type: string;
+    estimated_price: number;
+  }) => Promise<{ success: boolean; tripId?: string; error?: string }>;
   completeRide: () => void;
   cancelRide: () => void;
   resetRide: () => void;
@@ -72,6 +83,7 @@ const initialRide: CurrentRide = {
   driverId: null,
   driverName: null,
   driverLocation: null,
+  tripId: null,
 };
 
 export const useRideStore = create<RideState>()(
@@ -124,11 +136,43 @@ export const useRideStore = create<RideState>()(
       setRideStatus: (status) =>
         set((state) => { state.currentRide.status = status; }),
 
-      requestRide: () =>
+      requestRide: async (params) => {
         set((state) => {
           state.isRequestingRide = true;
           state.currentRide.status = "searching";
-        }),
+        });
+
+        try {
+          const res = await fetch("/api/trips", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(params),
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            set((state) => {
+              state.currentRide.tripId = data.tripId;
+              state.currentRide.driverId = params.driver_id;
+              state.currentRide.origin = { lat: params.from_lat, lng: params.from_lng };
+              state.currentRide.destination = { lat: params.to_lat, lng: params.to_lng };
+            });
+            return { success: true, tripId: data.tripId };
+          } else {
+            set((state) => {
+              state.isRequestingRide = false;
+              state.currentRide.status = "idle";
+            });
+            return { success: false, error: data.error };
+          }
+        } catch (err: any) {
+          set((state) => {
+            state.isRequestingRide = false;
+            state.currentRide.status = "idle";
+          });
+          return { success: false, error: err.message };
+        }
+      },
 
       completeRide: () =>
         set((state) => {

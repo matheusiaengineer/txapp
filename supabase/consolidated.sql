@@ -2153,6 +2153,57 @@ RETURNS BOOLEAN LANGUAGE SQL STABLE AS $$
     SELECT EXISTS(SELECT 1 FROM coverage_areas WHERE ST_DWithin(ST_MakePoint(p_lng, p_lat)::GEOGRAPHY, boundary, 0) AND is_active = true);
 $$;
 
+-- calculate_respiratory_rate (supply/demand pricing)
+CREATE OR REPLACE FUNCTION calculate_respiratory_rate(p_city_id UUID)
+RETURNS JSONB LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    v_available INTEGER;
+    v_active_requests INTEGER;
+    v_rate DECIMAL(5,2);
+    v_incentive DECIMAL(10,2);
+BEGIN
+    SELECT COUNT(*) INTO v_available FROM drivers_online d
+    JOIN driver_profiles dp ON dp.id = d.driver_id
+    WHERE d.status = 'ONLINE' AND d.last_updated_at > now() - INTERVAL '5 minutes';
+
+    SELECT COUNT(*) INTO v_active_requests FROM trips
+    WHERE status IN ('SEARCHING_DRIVER', 'REQUEST_CREATED')
+    AND created_at > now() - INTERVAL '10 minutes';
+
+    IF v_available = 0 THEN
+        v_rate := 0;
+        v_incentive := 5.00;
+    ELSIF v_active_requests > v_available * 2 THEN
+        v_rate := LEAST((v_active_requests::DECIMAL / GREATEST(v_available, 1)) * 0.1, 0.5);
+        v_incentive := v_rate * 2.50;
+    ELSE
+        v_rate := 0;
+        v_incentive := 0;
+    END IF;
+
+    INSERT INTO respiratory_snapshots (city_id, available_drivers, active_requests, breath_rate, dynamic_incentive)
+    VALUES (p_city_id, v_available, v_active_requests, v_rate, v_incentive);
+
+    RETURN jsonb_build_object(
+        'available_drivers', v_available,
+        'active_requests', v_active_requests,
+        'breath_rate', v_rate,
+        'dynamic_incentive', v_incentive
+    );
+END;
+$$;
+
+-- get_calculated_balance (wallet balance from transactions)
+CREATE OR REPLACE FUNCTION get_calculated_balance(p_profile_id UUID)
+RETURNS NUMERIC LANGUAGE SQL STABLE AS $$
+    SELECT COALESCE(SUM(CASE
+        WHEN type IN ('deposit', 'refund', 'bonus', 'cashback', 'ride_earning', 'freight_earning', 'genesis_bonus', 'tip') THEN amount
+        ELSE -amount
+    END), 0)
+    FROM wallet_transactions
+    WHERE profile_id = p_profile_id AND status = 'confirmed';
+$$;
+
 -- get_driver_earnings
 CREATE OR REPLACE FUNCTION get_driver_earnings(p_driver_id UUID, p_start_date TIMESTAMPTZ DEFAULT NOW() - INTERVAL '30 days', p_end_date TIMESTAMPTZ DEFAULT NOW())
 RETURNS JSONB LANGUAGE plpgsql STABLE AS $$

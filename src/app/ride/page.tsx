@@ -43,6 +43,8 @@ function RideContent() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [searching, setSearching] = useState(false)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [rideCreated, setRideCreated] = useState(false)
+  const [createdTripId, setCreatedTripId] = useState<string | null>(null)
 
   async function fetchRoute(origin: [number, number], dest: [number, number]) {
     try {
@@ -141,7 +143,8 @@ function RideContent() {
 
     const data = await res.json()
     if (data.success) {
-      router.push(`/dashboard/passenger/history`)
+      setRideCreated(true)
+      setCreatedTripId(data.tripId)
     }
   }
 
@@ -338,6 +341,29 @@ function RideContent() {
               <button onClick={handleCreateRide} className="flex-1 bg-primary text-black font-bold py-3 rounded-xl text-lg">🚗 Confirmar</button>
             </div>
           </>
+        )}
+
+        {rideCreated && (
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-lg font-bold text-primary">Procurando motorista...</p>
+            <p className="text-sm text-gray-400 text-center">
+              {selectedDriver?.name} esta sendo notificado
+            </p>
+            <p className="text-xs text-gray-500 text-center">
+              Aguarde a confirmacao ou volte para escolher outro motorista
+            </p>
+            <button
+              onClick={() => {
+                setRideCreated(false)
+                setCreatedTripId(null)
+                setStep("driver")
+              }}
+              className="mt-4 px-6 py-2 bg-card-bg-2 border border-card-border rounded-xl text-sm"
+            >
+              ← Cancelar e voltar
+            </button>
+          </div>
         )}
       </div>
     </div>
