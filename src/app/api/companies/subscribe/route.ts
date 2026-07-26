@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import Stripe from "stripe"
+import { getStripe } from "@/lib/payment/stripe-server"
 
 export const dynamic = "force-dynamic"
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
-
 export async function POST(req: NextRequest) {
   try {
+    const stripe = getStripe()
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
