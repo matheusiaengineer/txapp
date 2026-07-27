@@ -20,29 +20,29 @@ function RideRequestPopup({ request, onAccept, onDecline }: {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-card-bg border border-primary/20 rounded-2xl p-6 max-w-sm w-full">
+      <div className="bg-white border border-primary/20 rounded-2xl p-6 max-w-sm w-full shadow-xl">
         <div className="text-center mb-4">
           <div className="text-4xl mb-2">🚗</div>
-          <div className="font-bold text-lg">Nova solicitação!</div>
-          <div className="text-sm text-gray-400">{countdown}s para aceitar</div>
+          <div className="font-bold text-lg text-foreground">Nova solicitação!</div>
+          <div className="text-sm text-muted">{countdown}s para aceitar</div>
         </div>
-        <div className="bg-card-bg-2 rounded-xl p-4 mb-4 space-y-2">
+        <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">De:</span>
-            <span className="font-medium">{request.origin_address || "Localização do passageiro"}</span>
+            <span className="text-muted">De:</span>
+            <span className="font-medium text-foreground">{request.origin_address || "Localização do passageiro"}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Para:</span>
-            <span className="font-medium">{request.to_address}</span>
+            <span className="text-muted">Para:</span>
+            <span className="font-medium text-foreground">{request.to_address}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Valor:</span>
+            <span className="text-muted">Valor:</span>
             <span className="text-primary font-bold">R$ {request.estimated_fare || request.estimated_price || 0}</span>
           </div>
         </div>
         <div className="flex gap-3">
-          <button onClick={onDecline} className="flex-1 bg-card-bg-2 border border-card-border text-white font-bold py-3 rounded-xl">Recusar</button>
-          <button onClick={onAccept} className="flex-1 bg-primary text-black font-bold py-3 rounded-xl">Aceitar</button>
+          <button onClick={onDecline} className="flex-1 bg-gray-100 border border-gray-200 text-foreground font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors">Recusar</button>
+          <button onClick={onAccept} className="flex-1 bg-primary text-black font-bold py-3 rounded-xl hover:bg-primary-hover transition-colors">Aceitar</button>
         </div>
       </div>
     </div>
@@ -183,6 +183,38 @@ export default function DriverDashboard() {
     setIncomingRequest(null)
   }, [])
 
+  // Stripe Connect state
+  const [stripeConnectId, setStripeConnectId] = useState<string | null>(null)
+  const [stripeLoading, setStripeLoading] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    supabase.from("profiles").select("stripe_connect_account_id").eq("id", user.id).single().then(({ data }) => {
+      setStripeConnectId(data?.stripe_connect_account_id || null)
+    })
+  }, [user])
+
+  async function handleStripeOnboarding() {
+    if (!user) return
+    setStripeLoading(true)
+    try {
+      const res = await fetch("/api/stripe/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email, country: "BR" }),
+      })
+      const data = await res.json()
+      if (data.onboardingUrl) {
+        window.location.href = data.onboardingUrl
+      } else {
+        alert("Erro ao criar conta. Tente novamente.")
+      }
+    } catch {
+      alert("Erro de conexão.")
+    }
+    setStripeLoading(false)
+  }
+
   // KYC States
   const needsKyc = !driver;
   const kycPending = driver && driver.status === "pending";
@@ -198,12 +230,12 @@ export default function DriverDashboard() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-background flex flex-col text-white"
+    <main className="min-h-[100dvh] bg-[#f8f9fa] flex flex-col text-foreground"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-      <div className="px-4 py-3 flex items-center justify-between border-b border-card-border bg-card-bg/40 backdrop-blur-md sticky top-0 z-50">
+      <div className="px-4 py-3 flex items-center justify-between border-b border-gray-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div>
-          <h1 className="text-lg font-bold text-white">{accountType === "driver_moto" ? "Motoboy" : accountType === "driver_car" || accountType === "freight" ? "Motorista" : "Motorista"}</h1>
-          <p className="text-xs text-gray-400">{user?.email}</p>
+          <h1 className="text-lg font-bold text-foreground">{accountType === "driver_moto" ? "Motoboy" : accountType === "driver_car" || accountType === "freight" ? "Motorista" : "Motorista"}</h1>
+          <p className="text-xs text-muted">{user?.email}</p>
         </div>
         <Link href="/dashboard/driver/earnings" className="text-primary text-sm font-medium">Ganhos</Link>
       </div>
@@ -248,23 +280,41 @@ export default function DriverDashboard() {
 
         {kycApproved && (
           <>
-            <div className="txd-card p-4 flex items-center justify-between rounded-2xl border-card-border">
-              <div>
-                <p className="text-sm text-gray-400">Status de Trabalho</p>
-                <p className={`text-lg font-bold mt-0.5 ${online ? "text-primary" : "text-gray-500"}`}>
-                  {online ? "🟢 Online" : "⚫ Offline"}
+            {!stripeConnectId && (
+              <div className="txd-card p-5 border-amber-500/30 bg-amber-500/5 rounded-2xl space-y-3">
+                <span className="text-3xl block">💳</span>
+                <p className="text-sm font-bold text-amber-400">Configure sua conta para receber pagamentos</p>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Para receber o dinheiro das corridas, você precisa cadastrar uma conta Stripe.
+                  É rápido e seguro — seus pagamentos cairão direto na sua conta bancária.
                 </p>
-                {online && <p className="text-xs text-primary mt-1">Ouvindo solicitações de corridas...</p>}
+                <button onClick={handleStripeOnboarding} disabled={stripeLoading}
+                  className="w-full text-center text-sm bg-primary text-black font-bold px-4 py-3.5 rounded-full inline-block transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+                  {stripeLoading ? "Abrindo cadastro..." : "Cadastrar conta de pagamento"}
+                </button>
+                <p className="text-[10px] text-gray-500 text-center">Levamos você ao Stripe para criar sua conta. Volte aqui depois de finalizar.</p>
               </div>
-              <button
-                onClick={toggleOnline}
-                className={`w-20 h-10 rounded-full transition-all flex items-center px-1 ${
-                  online ? "bg-primary justify-end" : "bg-gray-600 justify-start"
-                }`}
-              >
-                <div className={`w-8 h-8 rounded-full ${online ? "bg-white" : "bg-gray-400"}`} />
-              </button>
-            </div>
+            )}
+
+            {stripeConnectId && (
+              <div className="txd-card p-4 flex items-center justify-between rounded-2xl border-card-border">
+                <div>
+                  <p className="text-sm text-gray-400">Status de Trabalho</p>
+                  <p className={`text-lg font-bold mt-0.5 ${online ? "text-primary" : "text-gray-500"}`}>
+                    {online ? "🟢 Online" : "⚫ Offline"}
+                  </p>
+                  {online && <p className="text-xs text-primary mt-1">Ouvindo solicitações de corridas...</p>}
+                </div>
+                <button
+                  onClick={toggleOnline}
+                  className={`w-20 h-10 rounded-full transition-all flex items-center px-1 ${
+                    online ? "bg-primary justify-end" : "bg-gray-600 justify-start"
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full ${online ? "bg-white" : "bg-gray-400"}`} />
+                </button>
+              </div>
+            )}
 
             <div className="txd-card p-4 rounded-2xl border-card-border">
               <p className="text-sm text-gray-400 mb-1">Seu preço</p>
@@ -274,18 +324,18 @@ export default function DriverDashboard() {
 
             <div className="txd-card p-4 rounded-2xl border-card-border">
               <p className="text-sm text-gray-400 mb-1">Veículo cadastrado</p>
-              <p className="text-white font-semibold capitalize text-base">{driver?.tipo_veiculo || "—"}</p>
+              <p className="text-foreground font-semibold capitalize text-base">{driver?.tipo_veiculo || "—"}</p>
               <p className="text-xs text-gray-500 mt-0.5">{driver?.placa || "—"}</p>
             </div>
 
-            <h3 className="text-sm font-semibold text-white mt-4">Últimas corridas</h3>
+            <h3 className="text-sm font-semibold text-foreground mt-4">Últimas corridas</h3>
             {rides.length === 0 && (
               <p className="text-sm text-gray-500 py-4 text-center">Nenhuma corrida registrada</p>
             )}
             {rides.map((ride: any) => (
               <div key={ride.id} className="txd-card p-4 flex justify-between items-center rounded-2xl border-card-border">
                 <div>
-                  <p className="text-sm font-bold text-white">R$ {ride.final_fare || ride.estimated_fare || "—"}</p>
+                  <p className="text-sm font-bold text-foreground">R$ {ride.final_fare || ride.estimated_fare || "—"}</p>
                   <p className="text-xs text-gray-400 capitalize mt-0.5">{ride.status.toLowerCase().replace(/_/g, " ")}</p>
                 </div>
                 <span className="text-xs text-gray-500">
