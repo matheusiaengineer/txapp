@@ -146,9 +146,9 @@ input, select, textarea, button { font-family: inherit; }
 }
 
 @media (pointer: coarse) {
-  input, select, textarea { min-height: 48px; font-size: 16px !important; }
-  button, a { min-height: 44px; }
-  .min-tap-target { min-height: 44px; min-width: 44px; }
+  input, select, textarea { min-height: 48px; font-size: 16px !important; touch-action: manipulation; }
+  button, a { min-height: 44px; touch-action: manipulation; }
+  .min-tap-target { min-height: 44px; min-width: 44px; touch-action: manipulation; }
 }
 
 .leaflet-container { font-family: inherit !important; }

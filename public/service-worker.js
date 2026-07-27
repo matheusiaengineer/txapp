@@ -1,9 +1,7 @@
-const CACHE_NAME = "txd-v4";
+const CACHE_NAME = "txd-v5";
 const STATIC_ASSETS = [
-  "/",
   "/manifest.json",
   "/icon.svg",
-  "/offline.html",
 ];
 const API_CACHE = "txd-api-v1";
 const MAP_CACHE = "txd-map-v1";
@@ -49,7 +47,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirst(request, CACHE_NAME, "/offline.html"));
+    event.respondWith(networkOnly(request));
     return;
   }
 
@@ -57,7 +55,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  const data = event.data?.json() || { title: "TXDAPP", body: "" };
+  const data = event.data?.json() || { title: "TXAP", body: "" };
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
@@ -90,7 +88,7 @@ async function cacheFirst(request) {
   }
 }
 
-async function networkFirst(request, cacheName, fallbackUrl) {
+async function networkFirst(request, cacheName) {
   try {
     const response = await fetch(request);
     if (response.ok) {
@@ -101,15 +99,17 @@ async function networkFirst(request, cacheName, fallbackUrl) {
   } catch {
     const cached = await caches.match(request);
     if (cached) return cached;
-    if (fallbackUrl) {
-      const fallback = await caches.match(fallbackUrl);
-      if (fallback) return fallback;
-    }
     return new Response(JSON.stringify({ error: "offline" }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
     });
   }
+}
+
+async function networkOnly(request) {
+  return fetch(request).catch(() => {
+    return new Response("", { status: 408 });
+  });
 }
 
 async function mapStrategy(request) {
