@@ -54,6 +54,7 @@ function RideContent() {
   const [rideCreated, setRideCreated] = useState(false)
   const [createdTripId, setCreatedTripId] = useState<string | null>(null)
   const [tripStatus, setTripStatus] = useState<string | null>(null)
+  const [driverLoc, setDriverLoc] = useState<[number, number] | null>(null)
 
   async function fetchRoute(origin: [number, number], dest: [number, number]) {
     try {
@@ -186,6 +187,8 @@ function RideContent() {
               destination={destination && destination.lat !== 0 && destination.lng !== 0 ? [destination.lat, destination.lng] : undefined}
               route={routeCoords.length > 0 ? routeCoords : undefined}
               onDriverClick={step === "driver" ? setSelectedDriver : undefined}
+              driverLocation={driverLoc}
+              driverName={selectedDriver?.name}
             />
           </Suspense>
         </div>
@@ -251,7 +254,15 @@ function RideContent() {
                     </div>
                     <div className="flex-1 text-left">
                       <div className="font-bold text-sm text-foreground">{driver.name}</div>
-                      <div className="text-xs text-muted">⭐ {driver.rating} • {Math.round(driver.distance_meters / 100) / 10} km</div>
+                      <div className="text-xs text-muted">
+                        ⭐ {driver.rating} • {Math.round(driver.distance_meters / 100) / 10} km
+                        {driver.license_plate && <span> • {driver.license_plate}</span>}
+                      </div>
+                      {driver.vehicle_color && driver.vehicle_model && (
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          {driver.vehicle_color} {driver.vehicle_model}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-primary text-sm">R$ {driver.price_per_km}/km</div>
@@ -277,6 +288,18 @@ function RideContent() {
                 <span className="text-muted">Veículo</span>
                 <span className="text-foreground">{vehicleType === "moto" ? "🛵 Moto" : vehicleType === "van" ? "🚐 Van" : "🚕 Carro"}</span>
               </div>
+              {selectedDriver.license_plate && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted">Placa</span>
+                  <span className="text-foreground font-medium">{selectedDriver.license_plate}</span>
+                </div>
+              )}
+              {selectedDriver.vehicle_color && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted">Cor</span>
+                  <span className="text-foreground">{selectedDriver.vehicle_color}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Preço/km</span>
                 <span className="text-primary font-bold">R$ {selectedDriver.price_per_km}</span>

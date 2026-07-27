@@ -255,6 +255,17 @@ export default function PassengerDashboard() {
                 pickupCoords={location}
                 destinationCoords={selectedDest && selectedDest.lat !== 0 ? { lat: selectedDest.lat, lng: selectedDest.lng } : null}
                 showLayers={true}
+                placeMarkers={placeResults.map(p => ({
+                  lat: p.lat,
+                  lng: p.lng,
+                  name: p.name,
+                  category: p.category,
+                  icon: POPULAR_PLACES.find(pp => pp.label === p.category)?.icon || "📍",
+                }))}
+                onPlaceClick={(place) => {
+                  const found = placeResults.find(p => p.name === place.name)
+                  if (found) selectPlace(found)
+                }}
               />
             )}
             <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md rounded-xl px-3 py-1.5 shadow-sm border border-gray-100">

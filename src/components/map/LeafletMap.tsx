@@ -7,19 +7,32 @@ import { Zap, CloudRain, AlertTriangle, Navigation, Locate } from "lucide-react"
 
 const DEFAULT_CENTER = { lat: -23.561, lng: -46.656 };
 
+interface PlaceMarker {
+  lat: number;
+  lng: number;
+  name: string;
+  category: string;
+  icon?: string;
+}
+
 interface TxdMapProps {
   pickupCoords?: { lat: number; lng: number } | null;
   destinationCoords?: { lat: number; lng: number } | null;
   directions?: { polyline: { lat: number; lng: number }[]; distance?: number; duration?: number } | null;
   showLayers?: boolean;
   className?: string;
+  placeMarkers?: PlaceMarker[];
+  onPlaceClick?: (place: PlaceMarker) => void;
+  driverLocation?: { lat: number; lng: number } | null;
 }
 
-export default function TxdLeafletMap({ pickupCoords, destinationCoords, directions, showLayers = true, className }: TxdMapProps) {
+export default function TxdLeafletMap({ pickupCoords, destinationCoords, directions, showLayers = true, className, placeMarkers = [], onPlaceClick, driverLocation }: TxdMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const pickupMarkerRef = useRef<L.Marker | null>(null);
   const destMarkerRef = useRef<L.Marker | null>(null);
+  const driverMarkerRef = useRef<L.Marker | null>(null);
+  const placeMarkerRefs = useRef<L.Marker[]>([]);
   const polylineRef = useRef<L.Polyline | null>(null);
   const trafficLayerRef = useRef<L.TileLayer | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -93,6 +106,51 @@ export default function TxdLeafletMap({ pickupCoords, destinationCoords, directi
       destMarkerRef.current = marker;
     }
   }, [destinationCoords, mapReady]);
+
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return;
+    placeMarkerRefs.current.forEach(m => m.remove());
+    placeMarkerRefs.current = [];
+    if (placeMarkers.length > 0) {
+      const bounds = L.latLngBounds([]);
+      placeMarkers.forEach(p => {
+        const marker = L.marker([p.lat, p.lng], {
+          icon: L.divIcon({
+            className: "",
+            html: `<div style="display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:white;border:2px solid #3ECB8E;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:16px;cursor:pointer">${p.icon || "📍"}</div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+          }),
+        }).addTo(mapRef.current!);
+        marker.bindTooltip(p.name, { direction: "top", offset: L.point(0, -20), className: "bg-white text-foreground text-xs rounded-xl px-3 py-1.5 border border-gray-100 shadow-md" });
+        marker.on("click", () => onPlaceClick?.(p));
+        placeMarkerRefs.current.push(marker);
+        bounds.extend([p.lat, p.lng]);
+      });
+      if (pickupCoords) bounds.extend([pickupCoords.lat, pickupCoords.lng]);
+      mapRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
+    }
+    return () => { placeMarkerRefs.current.forEach(m => m.remove()); placeMarkerRefs.current = []; };
+  }, [placeMarkers, mapReady]);
+
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return;
+    if (driverMarkerRef.current) {
+      driverMarkerRef.current.setLatLng([driverLocation!.lat, driverLocation!.lng]);
+      return;
+    }
+    if (driverLocation) {
+      const marker = L.marker([driverLocation.lat, driverLocation.lng], {
+        icon: L.divIcon({
+          className: "",
+          html: `<div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;background:#3ECB8E;border:3px solid #fff;border-radius:50%;box-shadow:0 0 16px rgba(62,203,142,0.6)"><div style="width:10px;height:10px;background:#fff;border-radius:50%"></div></div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        }),
+      }).addTo(mapRef.current);
+      driverMarkerRef.current = marker;
+    }
+  }, [driverLocation, mapReady]);
 
   useEffect(() => {
     if (!mapRef.current || !mapReady) return;

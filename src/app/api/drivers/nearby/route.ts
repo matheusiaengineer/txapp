@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
       const { data: vehicles } = await supabase
         .from("vehicles")
-        .select("driver_id, category")
+        .select("driver_id, category, license_plate, brand, model, color")
         .in("driver_id", driverIds)
 
       const profileMap = new Map((profiles || []).map((p) => [p.id, p]))
@@ -90,6 +90,10 @@ export async function GET(req: NextRequest) {
             lat: d.lat,
             lng: d.lng,
             vehicle_type: v?.category || d.vehicle_category || "car",
+            license_plate: v?.license_plate || null,
+            vehicle_brand: v?.brand || null,
+            vehicle_model: v?.model || null,
+            vehicle_color: v?.color || null,
             rating: 4.5,
             price_per_km: pr?.min_price_per_km || 3.0,
             isOnline: d.status === "ONLINE",

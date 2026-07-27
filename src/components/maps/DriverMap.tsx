@@ -79,12 +79,22 @@ interface DriverMapProps {
     rating: number
     pricePerKm: number
     isOnline: boolean
+    license_plate?: string
   }>
   destination?: [number, number]
   route?: Array<[number, number]>
   onDriverClick?: (driver: any) => void
   onMapClick?: (lat: number, lng: number) => void
+  driverLocation?: [number, number] | null
+  driverName?: string
 }
+
+const driverIcon = L.divIcon({
+  className: "",
+  html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:#3ECB8E;border:3px solid #fff;border-radius:50%;box-shadow:0 0 20px rgba(62,203,142,0.7)"><div style="font-size:14px">🚗</div></div>`,
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+})
 
 export default function DriverMap({
   userLocation,
@@ -93,6 +103,8 @@ export default function DriverMap({
   route,
   onDriverClick,
   onMapClick,
+  driverLocation,
+  driverName,
 }: DriverMapProps) {
   const mapRef = useRef<L.Map | null>(null)
 
@@ -107,7 +119,7 @@ export default function DriverMap({
         ref={mapRef}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
         <MapController center={userLocation} />
         <MapClickHandler onClick={onMapClick} />
@@ -121,6 +133,17 @@ export default function DriverMap({
             </Marker>
             <Circle center={userLocation} radius={100} pathOptions={{ color: "#3ECB8E", fillColor: "#3ECB8E", fillOpacity: 0.1, weight: 1 }} />
           </>
+        )}
+
+        {driverLocation && (
+          <Marker position={driverLocation} icon={driverIcon}>
+            <Popup>
+              <div className="min-w-[140px] font-sans">
+                <div className="font-bold text-sm mb-1">🚗 {driverName || "Motorista"}</div>
+                <div className="text-xs text-emerald-500 font-medium">🟢 A caminho</div>
+              </div>
+            </Popup>
+          </Marker>
         )}
 
         {nearbyDrivers.map((driver) => (
