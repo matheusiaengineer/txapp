@@ -140,3 +140,33 @@ This version has breaking changes — APIs, conventions, and file structure may 
 5. **Testar fluxo completo:** passageiro registra → pede → motoboy aceita → paga → avalia
 6. **KYC driver → admin approve/reject** — UI admin completa + notificação ao motorista
 7. **Documentação API pública** — para futuras integrações
+
+## 🎨 REDESIGN LANDING PAGE (27/07/2026)
+
+### Mudanças feitas
+- **Tema**: Dark → Light/White (Uber-like)
+- **Cores**: `#0a0d12` fundo → `#ffffff`; texto `#ffffff` → `#111111`
+- **gloss.css**: Reescrevido — glassmorphism removido, cards com sombra suave, scrollbar clara
+- **layout.tsx**: `themeColor` mudado de `#3ECB8E` → `#ffffff`; `statusBarStyle` de `black-translucent` → `default`
+
+### Novas seções na landing page
+| Seção | Arquivo | Descrição |
+|-------|---------|-----------|
+| Navbar | `src/components/landing/navbar.tsx` | Branco fixo, logo + Entrar / Criar conta |
+| Hero | `src/components/landing/hero.tsx` | Headline, CTAs, badges verdes |
+| Como funciona | `src/components/landing/como-funciona.tsx` | 5 passos em grid responsivo |
+| Categorias | `src/components/landing/categorias.tsx` | 6 veículos em grid (fundo cinza claro) |
+| **Depoimentos** | `src/components/landing/depoimentos.tsx` | **NOVO** — 4 cards com avaliações de usuários |
+| **Seja remunerado** | `src/components/landing/seja-remunerado.tsx` | **NOVO** — pagamento instantâneo + saldo mock |
+| **Trabalhe conosco** | `src/components/landing/trabalhe-conosco.tsx` | **NOVO** — benefícios para motoristas |
+| Influenciadores | `src/components/landing/influencers.tsx` | Adaptado para tema claro |
+| CTA Final | `src/components/landing/cta.tsx` | "Pronto para começar?" |
+| Footer | `src/components/landing/footer.tsx` | 3 colunas: marca, links, app badges |
+
+### page.tsx
+**Antes**: 322 linhas com tudo inline (navbar, hero, categorias, etc. tudo no mesmo arquivo)
+**Depois**: ~20 linhas, apenas imports dos componentes — modular, limpo, server component
+
+### Status
+- Build: ✅ 0 erros TS
+- Deploy: ✅ https://txapp-sepia.vercel.app
