@@ -49,6 +49,71 @@ function RideRequestPopup({ request, onAccept, onDecline }: {
   )
 }
 
+function DispatchOrdersSection() {
+  const [orders, setOrders] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [claimingId, setClaimingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch("/api/dispatch/available-orders")
+      .then(r => r.json())
+      .then(data => setOrders(data.orders || []))
+      .catch(() => setOrders([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function handleClaim(orderId: string) {
+    setClaimingId(orderId)
+    try {
+      const res = await fetch("/api/dispatch/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrders(prev => prev.filter(o => o.id !== orderId))
+        alert("Entrega aceita! Vá até a empresa buscar o pedido.")
+      } else {
+        alert(data.error || "Erro ao aceitar")
+      }
+    } catch { alert("Erro de conexão") }
+    setClaimingId(null)
+  }
+
+  if (loading) return <div className="txd-card p-4 rounded-2xl border-card-border"><p className="text-sm text-gray-400 text-center">Carregando entregas disponíveis...</p></div>
+  if (orders.length === 0) return null
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-foreground mb-3">📦 Entregas disponíveis</h3>
+      <div className="space-y-2">
+        {orders.slice(0, 5).map((order: any) => (
+          <div key={order.id} className="txd-card p-3.5 rounded-2xl border-card-border">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground truncate">{order.companies?.trade_name || order.companies?.corporate_name}</p>
+                <p className="text-xs text-muted mt-0.5 line-clamp-2">{order.delivery_address}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] text-gray-400">R$ {order.delivery_fee?.toFixed(2) || "0,00"} entrega</span>
+                  <span className="text-[10px] text-gray-400">• Total: R$ {order.total_amount?.toFixed(2)}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => handleClaim(order.id)}
+                disabled={claimingId === order.id}
+                className="shrink-0 bg-primary text-black font-bold text-xs px-3.5 py-2 rounded-xl hover:bg-primary-hover disabled:opacity-50 transition-all"
+              >
+                {claimingId === order.id ? "..." : "Aceitar"}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DriverDashboard() {
   const router = useRouter()
   const [user, setUser] = useState<any>(null)
@@ -327,6 +392,12 @@ export default function DriverDashboard() {
               <p className="text-foreground font-semibold capitalize text-base">{driver?.tipo_veiculo || "—"}</p>
               <p className="text-xs text-gray-500 mt-0.5">{driver?.placa || "—"}</p>
             </div>
+
+            {(accountType === "driver_moto") && (
+              <div className="mt-4">
+                <DispatchOrdersSection />
+              </div>
+            )}
 
             <h3 className="text-sm font-semibold text-foreground mt-4">Últimas corridas</h3>
             {rides.length === 0 && (

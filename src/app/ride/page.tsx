@@ -55,6 +55,17 @@ function RideContent() {
   const [createdTripId, setCreatedTripId] = useState<string | null>(null)
   const [tripStatus, setTripStatus] = useState<string | null>(null)
   const [driverLoc, setDriverLoc] = useState<[number, number] | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [payWithWallet, setPayWithWallet] = useState(true)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) return
+      supabase.from("wallets").select("balance").eq("profile_id", data.user.id).single().then(({ data: w }) => {
+        if (w) setWalletBalance(w.balance)
+      })
+    })
+  }, [])
 
   async function fetchRoute(origin: [number, number], dest: [number, number]) {
     try {
@@ -128,6 +139,10 @@ function RideContent() {
     const distKm = routeDistance > 0 ? routeDistance / 1000 : 5
     const estimatedPrice = selectedDriver.price_per_km * distKm
 
+    if (payWithWallet && walletBalance !== null && walletBalance < estimatedPrice) {
+      setPayWithWallet(false)
+    }
+
     const res = await fetch("/api/trips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -141,6 +156,7 @@ function RideContent() {
         to_address: destination.address,
         vehicle_type: vehicleType,
         estimated_price: Math.round(estimatedPrice * 100) / 100,
+        pay_with_wallet: payWithWallet && walletBalance !== null && walletBalance >= estimatedPrice,
       }),
     })
 
@@ -322,6 +338,52 @@ function RideContent() {
                   R$ {estimatedPrice.toFixed(2)}
                 </span>
               </div>
+              {walletBalance !== null && (
+                <div className={`pt-2 ${payWithWallet ? "" : "border-t border-gray-100"}`}>
+                  {payWithWallet && walletBalance >= estimatedPrice ? (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">💰</span>
+                        <div>
+                          <p className="text-xs font-medium text-green-700">Saldo da carteira</p>
+                          <p className="text-[10px] text-green-600">R$ {walletBalance.toFixed(2)} disponível</p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold text-green-700 bg-white px-2.5 py-1 rounded-full border border-green-200">
+                        Pagamento via carteira
+                      </span>
+                    </div>
+                  ) : payWithWallet && walletBalance < estimatedPrice ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">⚠️</span>
+                          <p className="text-xs font-medium text-amber-700">Saldo insuficiente</p>
+                        </div>
+                        <span className="text-xs font-bold text-amber-700">R$ {walletBalance.toFixed(2)}</span>
+                      </div>
+                      <p className="text-[10px] text-amber-600 mb-2">Faltam R$ {(estimatedPrice - walletBalance).toFixed(2)} para pagar com carteira</p>
+                      <button onClick={() => setPayWithWallet(false)}
+                        className="w-full text-center text-xs font-medium bg-white border border-amber-200 rounded-xl py-2 text-amber-700 hover:bg-amber-50">
+                        Pagar no final da corrida (QR Code)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">💳</span>
+                        <div>
+                          <p className="text-xs font-medium text-foreground">Pagamento no final</p>
+                          <p className="text-[10px] text-muted">Motorista gera QR Code PIX</p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted bg-white px-2.5 py-1 rounded-full border border-gray-200">
+                        Saldo: R$ {walletBalance.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <button onClick={() => setStep("driver")} className="flex-1 bg-gray-100 text-foreground font-medium py-4 rounded-2xl text-sm hover:bg-gray-200 transition-colors">

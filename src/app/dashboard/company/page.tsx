@@ -312,7 +312,25 @@ export default function CompanyDashboard() {
                     <div className="text-right">
                       <div className="text-sm font-bold text-primary">R$ {d.price_per_km}/km</div>
                       <button
-                        onClick={() => alert(`Solicitar entrega com ${d.name} (em breve)`)}
+                        onClick={() => {
+                          const addr = prompt("Endereço de entrega:")
+                          if (addr && addr.trim()) {
+                            fetch("/api/orders", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                companyId: user?.id,
+                                items: [{ productId: "00000000-0000-0000-0000-000000000000", name: "Entrega", price: 0, quantity: 1 }],
+                                deliveryAddress: addr.trim(),
+                                deliveryLat: 0,
+                                deliveryLng: 0,
+                              }),
+                            }).then(r => r.json()).then(data => {
+                              if (data.id) alert("Pedido criado! ID: " + data.id.slice(0, 8) + "...")
+                              else alert("Erro ao criar pedido")
+                            }).catch(() => alert("Erro de conexão"))
+                          }
+                        }}
                         className="text-xs text-primary font-medium hover:underline"
                       >
                         Solicitar
