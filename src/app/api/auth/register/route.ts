@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { withRateLimit } from "@/lib/api-middleware"
 
 export const dynamic = "force-dynamic"
 
@@ -152,4 +153,4 @@ const handler = async (req: NextRequest) => {
   }
 }
 
-export const POST = handler
+export const POST = withRateLimit(handler, 'auth')
