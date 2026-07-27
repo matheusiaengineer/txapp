@@ -39,7 +39,7 @@ const DASHBOARD_ROUTES: Record<string, string> = {
   company: "/dashboard/company",
   transporter: "/dashboard/transporter",
   employee: "/dashboard/employee",
-  admin: "/admin",
+  admin: "/admin/dashboard",
 };
 
 export function getDashboardRoute(role: Role): string {

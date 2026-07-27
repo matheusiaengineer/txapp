@@ -41,7 +41,19 @@ export async function GET(req: NextRequest) {
         if (profile?.role) role = profile.role
       }
 
-      const url = new URL(`${origin}${next === "/" ? `/dashboard/${role}` : next}`)
+      const roleRoute: Record<string, string> = {
+          admin: "/admin/dashboard",
+          passenger: "/dashboard/passenger",
+          driver: "/dashboard/driver",
+          driver_moto: "/dashboard/driver",
+          driver_car: "/dashboard/driver",
+          freight: "/dashboard/driver",
+          transporter: "/dashboard/transporter",
+          company: "/dashboard/company",
+          business: "/dashboard/company",
+          employee: "/dashboard/employee",
+        }
+        const url = new URL(`${origin}${next === "/" ? roleRoute[role] || `/dashboard/${role}` : next}`)
       const res = NextResponse.redirect(url)
       cookiesToForward.forEach(({ name, value, options }) =>
         res.cookies.set(name, value, options)

@@ -88,6 +88,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
 **O que foi criado:** Profile admin para `awqy@awqy.com`
 **Estado atual:** Banco limpo — só `awqy@awqy.com` (admin)
 
+### 6. Login 404 — rota /dashboard/admin inexistente
+**Problema:** Login redirecionava admin para `/dashboard/admin` (rota inexistente → 404). Admin fica em `/admin/dashboard`.
+**Solução:** Adicionado mapeamento de roles → rotas no login, register e auth callback.
+**Arquivos:** `src/app/auth/login/page.tsx`, `src/app/api/auth/callback/route.ts`
+
+### 7. Tema claro nos dashboards
+**Problema:** Dashboards usavam `text-white` em fundo branco → texto invisível.
+**Solução:** CSS overrides em `globals.css` para `.dashboard-content` + layout usa `bg-[#f8f9fa]`.
+**Arquivos:** `src/app/dashboard/layout.tsx`, `src/app/globals.css`
+
+### 8. proxy.ts já existe (Next.js 16 middleware)
+**Nota:** `src/proxy.ts` já faz todo o gerenciamento de sessão + proteção de rotas. Não criar `src/middleware.ts` — conflita.
+
 ---
 
 ## 🧪 CREDENCIAIS DE TESTE

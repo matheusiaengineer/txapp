@@ -72,7 +72,7 @@ export async function proxy(request: NextRequest) {
       business: "/dashboard/company",
       company: "/dashboard/company", // Legacy companies
       employee: "/dashboard/employee",
-      admin: "/admin",
+      admin: "/admin/dashboard",
     }
     
     // Prefer account_type if set, otherwise use role

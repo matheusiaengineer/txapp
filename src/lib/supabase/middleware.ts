@@ -56,7 +56,7 @@ export async function updateSession(request: NextRequest) {
       company: "/dashboard/company",
       transporter: "/dashboard/transporter",
       employee: "/dashboard/employee",
-      admin: "/admin",
+      admin: "/admin/dashboard",
     };
 
     const url = request.nextUrl.clone();

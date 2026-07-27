@@ -42,7 +42,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navItems = NAV_CONFIG[role] || NAV_CONFIG.passenger;
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground">
+    <div className="min-h-[100dvh] bg-[#f8f9fa] text-foreground dashboard-content">
       <main className="pb-20 min-h-[100dvh]">
         {children}
       </main>

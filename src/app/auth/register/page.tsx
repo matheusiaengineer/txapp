@@ -105,7 +105,7 @@ export default function RegisterPage() {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-[#00a884] flex items-center justify-center mx-auto mb-5 shadow-lg shadow-primary/20">
             <span className="text-black font-bold text-2xl">T</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Criar Conta</h1>
+          <h1 className="text-2xl font-bold text-foreground">Criar Conta</h1>
           <p className="text-sm text-gray-500 mt-1">
             {step === 1 ? "Escolha seu perfil" : "Preencha seus dados"}
           </p>
@@ -134,7 +134,7 @@ export default function RegisterPage() {
                   <span className="text-xl">{type.icon}</span>
                 </div>
                 <div>
-                  <p className="font-semibold text-white">{type.label}</p>
+                  <p className="font-semibold text-foreground">{type.label}</p>
                   <p className="text-sm text-gray-400">{type.desc}</p>
                 </div>
                 <svg className="w-5 h-5 ml-auto text-gray-600 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -147,7 +147,7 @@ export default function RegisterPage() {
               <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${ACCOUNT_TYPES.find(t => t.id === form.accountType)?.gradient} flex items-center justify-center`}>
                 <span className="text-lg">{ACCOUNT_TYPES.find(t => t.id === form.accountType)?.icon}</span>
               </div>
-              <span className="text-sm font-medium text-white flex-1">
+              <span className="text-sm font-medium text-foreground flex-1">
                 {ACCOUNT_TYPES.find(t => t.id === form.accountType)?.label}
               </span>
               <button type="button" onClick={() => setStep(1)} className="text-xs text-primary font-medium hover:underline">
@@ -163,7 +163,7 @@ export default function RegisterPage() {
                   type="tel"
                   required
                   placeholder="(11) 99999-9999"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-foreground placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                   value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   onBlur={e => checkAvailability("phone", e.target.value)}
@@ -185,7 +185,7 @@ export default function RegisterPage() {
                   type="text"
                   required
                   placeholder="000.000.000-00"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-foreground placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                   value={form.cpf}
                   onChange={e => setForm(f => ({ ...f, cpf: e.target.value }))}
                   onBlur={e => checkAvailability("cpf", e.target.value)}
@@ -207,7 +207,7 @@ export default function RegisterPage() {
                   type="text"
                   required
                   placeholder="Seu nome completo"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-foreground placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                 />
@@ -222,7 +222,7 @@ export default function RegisterPage() {
                   type="email"
                   required
                   placeholder="seu@email.com"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-foreground placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 />
@@ -238,7 +238,7 @@ export default function RegisterPage() {
                   required
                   minLength={6}
                   placeholder="Mínimo 6 caracteres"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-white placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                  className="w-full pl-10 pr-4 py-3.5 rounded-2xl bg-card-bg-2 border border-card-border text-foreground placeholder-gray-500 text-base focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
                   value={form.password}
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                 />

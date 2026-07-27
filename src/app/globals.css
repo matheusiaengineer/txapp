@@ -166,3 +166,31 @@ input, select, textarea, button { font-family: inherit; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Dashboard text overrides for white/light theme */
+.dashboard-content .text-white:not(.btn-text-white) {
+  color: #111111 !important;
+}
+.dashboard-content .text-gray-300 {
+  color: #6b7280 !important;
+}
+.dashboard-content .bg-card-bg {
+  background-color: #ffffff !important;
+}
+.dashboard-content input,
+.dashboard-content textarea {
+  color: #111111 !important;
+}
+.dashboard-content .placeholder-gray-500::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Auth pages - inputs com texto escuro */
+.bg-background input,
+.bg-background textarea {
+  color: #111111;
+}
+.bg-background input::placeholder,
+.bg-background textarea::placeholder {
+  color: #9ca3af;
+}

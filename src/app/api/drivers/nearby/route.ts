@@ -25,10 +25,16 @@ export async function GET(req: NextRequest) {
     })
 
     if (error) {
-      const { data: onlineDrivers, error: onlineErr } = await supabase
+      let query = supabase
         .from("drivers_online")
         .select("driver_id, lat, lng, vehicle_category, status")
         .eq("status", "ONLINE")
+
+      if (vehicleType) {
+        query = query.eq("vehicle_category", vehicleType)
+      }
+
+      const { data: onlineDrivers, error: onlineErr } = await query
 
       if (onlineErr || !onlineDrivers || onlineDrivers.length === 0) {
         return NextResponse.json({ success: true, drivers: [], count: 0 })
