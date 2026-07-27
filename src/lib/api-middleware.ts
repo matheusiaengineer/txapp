@@ -9,14 +9,14 @@ interface RateLimitConfig {
 }
 
 const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
-  default: { requests: 30, windowMs: 60000 },
-  auth: { requests: 5, windowMs: 60000 },
+  default: { requests: 60, windowMs: 60000 },
+  auth: { requests: 30, windowMs: 60000 },
   heartbeat: { requests: 60, windowMs: 60000 },
-  nearby: { requests: 30, windowMs: 60000 },
-  upload: { requests: 10, windowMs: 60000 },
-  dispatch: { requests: 20, windowMs: 60000 },
-  payment: { requests: 10, windowMs: 60000 },
-  webhook: { requests: 100, windowMs: 60000 },
+  nearby: { requests: 60, windowMs: 60000 },
+  upload: { requests: 30, windowMs: 60000 },
+  dispatch: { requests: 30, windowMs: 60000 },
+  payment: { requests: 30, windowMs: 60000 },
+  webhook: { requests: 200, windowMs: 60000 },
 };
 
 function getClientIp(req: NextRequest): string {
