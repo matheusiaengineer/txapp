@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { useGeolocation } from "@/hooks/useGeolocation"
 import { supabase } from "@/lib/supabase/browser"
-import { Search, MapPin, X, Loader2 } from "lucide-react"
+import { Search, MapPin, X, Loader2, ArrowLeft, ChevronRight } from "lucide-react"
 
 const DriverMap = dynamic(() => import("@/components/maps/DriverMap"), {
   ssr: false,
@@ -20,8 +20,6 @@ interface Suggestion {
   lng: number
 }
 
-const SAVED_PLACES: { label: string; icon: string; template: string }[] = []
-
 function RideContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -33,7 +31,7 @@ function RideContent() {
   const initialDestLat = searchParams.get("destLat")
   const initialDestLng = searchParams.get("destLng")
 
-  const [step, setStep] = useState<"location" | "vehicle" | "driver" | "confirm">("location")
+  const [step, setStep] = useState<"vehicle" | "driver" | "confirm" | "searching">("vehicle")
   const [destination, setDestination] = useState<{ lat: number; lng: number; address: string } | null>(
     initialDestLat && initialDestLng && initialDropoff
       ? { lat: parseFloat(initialDestLat), lng: parseFloat(initialDestLng), address: initialDropoff }
@@ -57,14 +55,6 @@ function RideContent() {
   const [createdTripId, setCreatedTripId] = useState<string | null>(null)
   const [tripStatus, setTripStatus] = useState<string | null>(null)
 
-  // Auto-advance if destination was pre-selected from dashboard
-  useEffect(() => {
-    if (destination && step === "location" && coords) {
-      fetchRoute(coords, [destination.lat, destination.lng])
-      setStep("vehicle")
-    }
-  }, [destination, step, coords])
-
   async function fetchRoute(origin: [number, number], dest: [number, number]) {
     try {
       const res = await fetch(
@@ -81,71 +71,14 @@ function RideContent() {
     }
   }
 
-  async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-    try {
-      const res = await fetch(`/api/geocoding?q=${encodeURIComponent(address)}&limit=1`)
-      const data = await res.json()
-      if (data.suggestions && data.suggestions.length > 0) {
-        return { lat: data.suggestions[0].lat, lng: data.suggestions[0].lng }
-      }
-    } catch {}
-    return null
-  }
-
-  async function searchAddresses(q: string) {
-    setDestQuery(q)
-    if (q.length < 3) {
-      setSuggestions([])
-      return
+  useEffect(() => {
+    if (destination && coords) {
+      fetchRoute(coords, [destination.lat, destination.lng])
     }
-    if (searchTimeout.current) clearTimeout(searchTimeout.current)
-    searchTimeout.current = setTimeout(async () => {
-      setSearching(true)
-      try {
-        const res = await fetch(`/api/geocoding?q=${encodeURIComponent(q)}&limit=5`)
-        const data = await res.json()
-        setSuggestions(data.suggestions || [])
-      } catch {
-        setSuggestions([])
-      }
-      setSearching(false)
-    }, 400)
-  }
-
-  function selectSuggestion(s: Suggestion) {
-    setDestQuery(s.display)
-    setSuggestions([])
-    setDestination({ lat: s.lat, lng: s.lng, address: s.display })
-    if (coords && s.lat !== 0 && s.lng !== 0) {
-      fetchRoute(coords, [s.lat, s.lng])
-    }
-  }
-
-  async function handleSavedPlace(address: string) {
-    setDestQuery(address)
-    const coords = await geocodeAddress(address)
-    if (coords) {
-      setDestination({ lat: coords.lat, lng: coords.lng, address })
-      if (coords) {
-        fetchRoute(useGeolocationCoords(), [coords.lat, coords.lng])
-      }
-    } else {
-      setDestination({ lat: 0, lng: 0, address })
-    }
-  }
+  }, [destination, coords])
 
   function useGeolocationCoords(): [number, number] {
     return coords || [-23.5505, -46.6333]
-  }
-
-  function handleSetDestination(lat: number, lng: number, address: string) {
-    if (lat === 0 && lng === 0) {
-      handleSavedPlace(address)
-      return
-    }
-    setDestination({ lat, lng, address })
-    setDestQuery(address)
-    if (coords && lat !== 0 && lng !== 0) fetchRoute(coords, [lat, lng])
   }
 
   useEffect(() => {
@@ -160,7 +93,6 @@ function RideContent() {
       .catch(() => setLoading(false))
   }, [coords, vehicleType, step])
 
-  // Realtime subscription for trip status
   useEffect(() => {
     if (!createdTripId) return
     const channel = supabase
@@ -218,114 +150,68 @@ function RideContent() {
     }
   }
 
+  const vehicleOptions = [
+    { type: "moto" as const, icon: "🛵", name: "Moto", desc: "Rápido e ágil" },
+    { type: "car" as const, icon: "🚕", name: "Carro", desc: "Conforto e segurança" },
+    { type: "van" as const, icon: "🚐", name: "Van", desc: "Para grupos e cargas" },
+  ]
+
   return (
     <div className="min-h-screen bg-white text-foreground flex flex-col">
-      <div className="p-4 flex items-center gap-3 border-b border-gray-100">
-        <button onClick={() => router.back()} className="text-foreground text-xl">←</button>
-        <h1 className="font-bold text-lg text-foreground">
-          {step === "location" && "Para onde?"}
-          {step === "vehicle" && "Escolha o veículo"}
-          {step === "driver" && "Escolha o motorista"}
-          {step === "confirm" && "Confirmar corrida"}
-        </h1>
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 flex items-center gap-3">
+        <button onClick={() => router.back()} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+          <ArrowLeft className="w-5 h-5 text-foreground" />
+        </button>
+        <div className="flex-1">
+          <h1 className="font-bold text-base text-foreground">
+            {step === "vehicle" && "Escolha o veículo"}
+            {step === "driver" && "Escolha o motorista"}
+            {step === "confirm" && "Confirmar corrida"}
+            {step === "searching" && "Procurando motorista..."}
+          </h1>
+          {destination && (
+            <p className="text-xs text-muted truncate">{destination.address}</p>
+          )}
+        </div>
       </div>
 
-      <div className="h-[50vh] relative">
-        <Suspense fallback={<div className="h-full bg-gray-100 flex items-center justify-center text-primary">Carregando mapa...</div>}>
-          <DriverMap
-            userLocation={useGeolocationCoords()}
-            nearbyDrivers={step === "driver" ? nearbyDrivers : []}
-            destination={destination && destination.lat !== 0 && destination.lng !== 0 ? [destination.lat, destination.lng] : undefined}
-            route={routeCoords.length > 0 ? routeCoords : undefined}
-            onMapClick={step === "location" ? (lat, lng) => handleSetDestination(lat, lng, "Endereço selecionado no mapa") : undefined}
-            onDriverClick={step === "driver" ? setSelectedDriver : undefined}
-          />
-        </Suspense>
+      {/* Map */}
+      <div className="flex-1 px-4 pb-4">
+        <div className="h-full w-full rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+          <Suspense fallback={<div className="h-full bg-gray-100 flex items-center justify-center text-primary">Carregando mapa...</div>}>
+            <DriverMap
+              userLocation={useGeolocationCoords()}
+              nearbyDrivers={step === "driver" ? nearbyDrivers : []}
+              destination={destination && destination.lat !== 0 && destination.lng !== 0 ? [destination.lat, destination.lng] : undefined}
+              route={routeCoords.length > 0 ? routeCoords : undefined}
+              onDriverClick={step === "driver" ? setSelectedDriver : undefined}
+            />
+          </Suspense>
+        </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        {step === "location" && (
-          <>
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              </div>
-              <input
-                type="text"
-                value={destQuery}
-                onChange={(e) => searchAddresses(e.target.value)}
-                placeholder="Digite o endereço de destino..."
-                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 pl-10 pr-10 text-foreground placeholder-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
-              {destQuery && (
-                <button
-                  onClick={() => { setDestQuery(""); setSuggestions([]); setDestination(null); setRouteCoords([]) }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
+      {/* Bottom Panel */}
+      <div className="bg-white border-t border-gray-100 px-4 pt-4 pb-6"
+        style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
 
-            {suggestions.length > 0 && (
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto shadow-sm">
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => selectSuggestion(s)}
-                    className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
-                  >
-                    <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
-                    <span className="text-sm text-foreground line-clamp-2">{s.display}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {destination && destination.lat !== 0 && routeDistance > 0 && (
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-primary text-sm">{(routeDistance / 1000).toFixed(1)} km</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-primary text-sm">{Math.round(routeDuration / 60)} min</span>
-                </div>
-              </div>
-            )}
-
-            {SAVED_PLACES.length > 0 && (
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                {SAVED_PLACES.map(p => (
-                  <button key={p.label} onClick={() => handleSavedPlace(p.template)} className="flex-shrink-0 bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm flex items-center gap-2 hover:border-primary/40 transition-colors">
-                    <span>{p.icon}</span>
-                    <span>{p.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <button
-              onClick={() => destination && destination.lat !== 0 && setStep("vehicle")}
-              disabled={!destination || destination.lat === 0}
-              className="w-full bg-primary text-white font-bold py-4 rounded-xl disabled:opacity-30 hover:bg-primary-hover transition-all"
-            >
-              Continuar
-            </button>
-          </>
+        {/* Route info */}
+        {routeDistance > 0 && (
+          <div className="flex items-center gap-2 mb-4 text-sm">
+            <span className="text-muted">{(routeDistance / 1000).toFixed(1)} km</span>
+            <span className="text-gray-300">•</span>
+            <span className="text-muted">{Math.round(routeDuration / 60)} min</span>
+          </div>
         )}
 
         {step === "vehicle" && (
-          <div className="space-y-3">
-            {[
-              { type: "moto" as const, icon: "🛵", name: "Moto", desc: "Rápido e ágil", eta: "3-5 min" },
-              { type: "car" as const, icon: "🚕", name: "Carro", desc: "Conforto e segurança", eta: "5-8 min" },
-              { type: "van" as const, icon: "🚐", name: "Van", desc: "Para grupos e cargas", eta: "8-12 min" },
-            ].map(v => (
+          <div className="space-y-2">
+            {vehicleOptions.map(v => (
               <button
                 key={v.type}
                 onClick={() => { setVehicleType(v.type); setStep("driver") }}
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                  vehicleType === v.type ? "border-primary bg-primary/5" : "border-gray-200 bg-white"
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                  vehicleType === v.type ? "border-primary bg-primary/5" : "border-gray-100 bg-white hover:border-gray-200"
                 }`}
               >
                 <span className="text-3xl">{v.icon}</span>
@@ -333,7 +219,7 @@ function RideContent() {
                   <div className="font-bold text-foreground">{v.name}</div>
                   <div className="text-xs text-muted">{v.desc}</div>
                 </div>
-                <div className="text-xs text-primary">{v.eta}</div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
               </button>
             ))}
           </div>
@@ -342,40 +228,47 @@ function RideContent() {
         {step === "driver" && (
           <>
             {loading ? (
-              <div className="text-center py-8 text-muted">Buscando motoristas próximos...</div>
+              <div className="text-center py-6 text-muted text-sm">Buscando motoristas próximos...</div>
             ) : nearbyDrivers.length === 0 ? (
-              <div className="text-center py-8 text-muted">Nenhum motorista próximo no momento.</div>
+              <div className="text-center py-6">
+                <p className="text-muted text-sm mb-3">Nenhum motorista próximo no momento.</p>
+                <button onClick={() => setStep("vehicle")} className="text-primary text-sm font-medium hover:underline">
+                  ← Escolher outro veículo
+                </button>
+              </div>
             ) : (
-              <div className="space-y-3 max-h-60 overflow-y-auto">
+              <div className="space-y-2 max-h-52 overflow-y-auto">
                 {nearbyDrivers.map((driver: any) => (
                   <button
                     key={driver.id}
                     onClick={() => { setSelectedDriver(driver); setStep("confirm") }}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
-                      selectedDriver?.id === driver.id ? "border-primary bg-primary/5" : "border-gray-200 bg-white"
+                    className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all ${
+                      selectedDriver?.id === driver.id ? "border-primary bg-primary/5" : "border-gray-100 bg-white hover:border-gray-200"
                     }`}
                   >
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-[#00a884] flex items-center justify-center text-lg text-white">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
                       {driver.vehicle_type === "moto" ? "🛵" : "🚕"}
                     </div>
                     <div className="flex-1 text-left">
                       <div className="font-bold text-sm text-foreground">{driver.name}</div>
-                      <div className="text-xs text-muted">⭐ {driver.rating} • {Math.round(driver.distance_meters / 100) / 10}km</div>
+                      <div className="text-xs text-muted">⭐ {driver.rating} • {Math.round(driver.distance_meters / 100) / 10} km</div>
                     </div>
-                    <div className="text-right font-bold text-primary">R$ {driver.price_per_km}/km</div>
+                    <div className="text-right">
+                      <div className="font-bold text-primary text-sm">R$ {driver.price_per_km}/km</div>
+                    </div>
                   </button>
                 ))}
               </div>
             )}
-            <div className="flex gap-2">
-              <button onClick={() => setStep("vehicle")} className="flex-1 bg-white border border-gray-200 text-foreground py-3 rounded-xl text-sm hover:bg-gray-50">← Voltar</button>
-            </div>
+            <button onClick={() => setStep("vehicle")} className="w-full text-center text-sm text-muted mt-3 py-2 hover:text-foreground transition-colors">
+              ← Voltar
+            </button>
           </>
         )}
 
         {step === "confirm" && selectedDriver && (
           <>
-            <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2 shadow-sm">
+            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 mb-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Motorista</span>
                 <span className="font-bold text-foreground">{selectedDriver.name}</span>
@@ -396,28 +289,32 @@ function RideContent() {
               )}
               {routeDuration > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted">Tempo estimado</span>
+                  <span className="text-muted">Tempo</span>
                   <span className="text-foreground">{Math.round(routeDuration / 60)} min</span>
                 </div>
               )}
-              <div className="border-t border-gray-100 pt-2 flex justify-between">
-                <span className="font-bold text-foreground">Total estimado</span>
-                <span className="text-primary font-bold text-lg">
+              <div className="border-t border-gray-200 pt-3 flex justify-between items-center">
+                <span className="font-bold text-foreground">Total</span>
+                <span className="text-primary font-bold text-xl">
                   R$ {estimatedPrice.toFixed(2)}
                 </span>
               </div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => setStep("driver")} className="flex-1 bg-white border border-gray-200 text-foreground py-3 rounded-xl text-sm hover:bg-gray-50">← Voltar</button>
-              <button onClick={handleCreateRide} className="flex-1 bg-primary text-white font-bold py-3 rounded-xl text-lg hover:bg-primary-hover">🚗 Confirmar</button>
+            <div className="flex gap-3">
+              <button onClick={() => setStep("driver")} className="flex-1 bg-gray-100 text-foreground font-medium py-4 rounded-2xl text-sm hover:bg-gray-200 transition-colors">
+                ← Voltar
+              </button>
+              <button onClick={handleCreateRide} className="flex-1 bg-primary hover:bg-primary-hover text-black font-bold py-4 rounded-2xl text-base shadow-lg shadow-primary/20 active:scale-[0.98] transition-all">
+                Confirmar
+              </button>
             </div>
           </>
         )}
 
         {rideCreated && (
-          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+          <div className="flex flex-col items-center py-8 space-y-4">
             <div className="w-12 h-12 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-lg font-bold text-primary">Procurando motorista...</p>
+            <p className="text-base font-bold text-primary">Procurando motorista...</p>
             <p className="text-sm text-muted text-center">
               {selectedDriver?.name} está sendo notificado
             </p>
@@ -430,9 +327,9 @@ function RideContent() {
                 setCreatedTripId(null)
                 setStep("driver")
               }}
-              className="mt-4 px-6 py-2 bg-white border border-gray-200 rounded-xl text-sm text-muted hover:bg-gray-50"
+              className="mt-2 px-6 py-3 bg-gray-100 rounded-2xl text-sm text-muted hover:bg-gray-200 transition-colors"
             >
-              ← Cancelar e voltar
+              Cancelar
             </button>
           </div>
         )}

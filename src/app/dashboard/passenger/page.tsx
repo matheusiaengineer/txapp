@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -21,11 +21,11 @@ const CATEGORIES: { id: Category; label: string; icon: string }[] = [
 ];
 
 const POPULAR_PLACES = [
-  { label: "Shopping", icon: "🛍️", type: "shopping_mall" },
-  { label: "Aeroporto", icon: "✈️", type: "airport" },
-  { label: "Hospital", icon: "🏥", type: "hospital" },
-  { label: "Universidade", icon: "🎓", type: "university" },
-  { label: "Supermercado", icon: "🛒", type: "supermarket" },
+  { label: "Shopping", icon: "🛍️" },
+  { label: "Aeroporto", icon: "✈️" },
+  { label: "Hospital", icon: "🏥" },
+  { label: "Supermercado", icon: "🛒" },
+  { label: "Farmácia", icon: "💊" },
 ];
 
 interface Suggestion {
@@ -38,20 +38,15 @@ export default function PassengerDashboard() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [category, setCategory] = useState<Category>("car");
-  const [pickup, setPickup] = useState("");
   const [dropoff, setDropoff] = useState("");
-  const [showCategory, setShowCategory] = useState(true);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [breathRate, setBreathRate] = useState<number>(0);
-  const [surcharge, setSurcharge] = useState<number>(0);
-  const [acceptSurcharge, setAcceptSurcharge] = useState(false);
-  const [availableDrivers, setAvailableDrivers] = useState(0);
 
   const [destQuery, setDestQuery] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [searching, setSearching] = useState(false);
   const [selectedDest, setSelectedDest] = useState<{ lat: number; lng: number; address: string } | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showCategories, setShowCategories] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -60,26 +55,11 @@ export default function PassengerDashboard() {
     });
 
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        fetchRespiratoryRate(pos.coords.latitude, pos.coords.longitude);
-      },
+      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       () => setLocation({ lat: -23.561, lng: -46.656 }),
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }, []);
-
-  async function fetchRespiratoryRate(lat: number, lng: number) {
-    try {
-      const res = await fetch(`/api/pricing/respiratory?cityId=${lat}-${lng}`);
-      const data = await res.json();
-      if (data?.breath_rate !== undefined) {
-        setBreathRate(data.breath_rate);
-        setSurcharge(data.dynamic_incentive || 0);
-        setAvailableDrivers(data.available_drivers || 0);
-      }
-    } catch {}
-  }
 
   async function searchAddresses(q: string) {
     setDestQuery(q);
@@ -103,20 +83,24 @@ export default function PassengerDashboard() {
     setDropoff(s.display);
   }
 
+  function confirmDestination() {
+    if (destQuery.trim()) {
+      setShowCategories(true);
+    }
+  }
+
   async function handleRequestRide() {
     const addr = selectedDest?.address || dropoff;
     const lat = selectedDest?.lat || 0;
     const lng = selectedDest?.lng || 0;
     if (!addr || !user || !location) return;
     router.push(
-      `/ride?pickup=${encodeURIComponent(pickup || "Localização atual")}&dropoff=${encodeURIComponent(addr)}&category=${category}&originLat=${location.lat}&originLng=${location.lng}&destLat=${lat}&destLng=${lng}&surcharge=${acceptSurcharge ? surcharge : 0}`
+      `/ride?pickup=${encodeURIComponent("Localização atual")}&dropoff=${encodeURIComponent(addr)}&category=${category}&originLat=${location.lat}&originLng=${location.lng}&destLat=${lat}&destLng=${lng}`
     );
   }
 
   return (
-    <main className="h-[100dvh] bg-background flex flex-col relative overflow-hidden"
-      style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-
+    <main className="h-[100dvh] bg-white flex flex-col relative overflow-hidden">
       {/* Mapa Full Screen */}
       <div className="absolute inset-0 z-0">
         {location && (
@@ -128,172 +112,142 @@ export default function PassengerDashboard() {
         )}
       </div>
 
-      {/* Topo: Logo + Busca */}
-      <div className="relative z-10 px-4 pt-3 space-y-2 pointer-events-none">
-        <div className="flex items-center justify-between pointer-events-auto">
-          <div className="flex items-center gap-2 glass-panel px-3 py-2">
+      {/* Top bar */}
+      <div className="relative z-20 px-4 pt-6 pb-2">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-sm border border-gray-100">
             <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-black font-bold text-xs">T</span>
             </div>
-            <span className="font-bold text-sm text-white">TXAP</span>
+            <span className="font-bold text-sm text-foreground">TXAP</span>
           </div>
           <div className="flex gap-2">
-            <Link href="/dashboard/passenger/history" className="glass-panel px-3 py-2 text-xs text-white pointer-events-auto">
+            <Link href="/dashboard/passenger/history"
+              className="bg-white/90 backdrop-blur-md rounded-2xl px-4 py-2.5 text-xs text-foreground font-medium shadow-sm border border-gray-100 hover:bg-white transition-all">
               📋 Histórico
             </Link>
-            <Link href="/dashboard/passenger/wallet" className="glass-panel px-3 py-2 text-xs text-white pointer-events-auto">
+            <Link href="/dashboard/passenger/wallet"
+              className="bg-white/90 backdrop-blur-md rounded-2xl px-4 py-2.5 text-xs text-foreground font-medium shadow-sm border border-gray-100 hover:bg-white transition-all">
               💰 Carteira
             </Link>
           </div>
         </div>
 
-        <div className="space-y-2 pointer-events-auto">
-          <div className="glass-panel flex items-center gap-3 px-4 py-3">
-            <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+        {/* Search bar */}
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2">
+              {searching ? <Loader2 className="w-4 h-4 text-gray-400 animate-spin" /> : <Search className="w-4 h-4 text-gray-400" />}
+            </div>
             <input
               type="text"
-              value={pickup}
-              onChange={(e) => setPickup(e.target.value)}
-              placeholder="Local de partida"
-              className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
+              value={destQuery}
+              onChange={(e) => searchAddresses(e.target.value)}
+              placeholder="Para onde vai?"
+              className="w-full bg-transparent text-foreground text-base placeholder-gray-400 pl-10 pr-10 py-4 focus:outline-none"
             />
-          </div>
-          <div className="glass-panel flex items-center gap-3 px-4 py-3 relative">
-            <div className="w-2 h-2 rounded-full bg-error shrink-0" />
-            <div className="flex-1 flex items-center gap-2">
-              {searching ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin shrink-0" /> : <Search className="w-4 h-4 text-gray-500 shrink-0" />}
-              <input
-                type="text"
-                value={destQuery}
-                onChange={(e) => searchAddresses(e.target.value)}
-                placeholder="Para onde vai?"
-                className="flex-1 bg-transparent text-white text-sm placeholder-gray-500 focus:outline-none"
-                onFocus={() => setShowCategory(false)}
-              />
-              {destQuery && (
-                <button
-                  onClick={() => { setDestQuery(""); setSuggestions([]); setSelectedDest(null); setDropoff("") }}
-                  className="text-gray-500 hover:text-white shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            {suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-card-bg border border-card-border rounded-xl overflow-hidden max-h-48 overflow-y-auto z-50 shadow-xl">
-                {suggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => selectSuggestion(s)}
-                    className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-card-bg-2 transition-colors border-b border-card-border last:border-0"
-                  >
-                    <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
-                    <span className="text-sm text-gray-300 line-clamp-2">{s.display}</span>
-                  </button>
-                ))}
-              </div>
+            {destQuery && (
+              <button
+                onClick={() => { setDestQuery(""); setSuggestions([]); setSelectedDest(null); setDropoff(""); setShowCategories(false) }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
+
+          {suggestions.length > 0 && (
+            <div className="border-t border-gray-100 max-h-48 overflow-y-auto">
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => selectSuggestion(s)}
+                  className="w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                >
+                  <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                  <span className="text-sm text-foreground">{s.display}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Lugares Populares */}
-      <div className="relative z-10 px-4 mt-2 pointer-events-none">
-        <div className="flex gap-2 overflow-x-auto pb-1 pointer-events-auto scrollbar-none">
+      <div className="relative z-20 px-4 mb-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
           {POPULAR_PLACES.map((p) => (
             <button
-              key={p.type}
+              key={p.label}
               onClick={() => {
                 setDestQuery(p.label);
                 setDropoff(p.label);
               }}
-              className="glass-panel px-4 py-2 flex items-center gap-2 shrink-0"
+              className="bg-white/90 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-2 shrink-0 shadow-sm border border-gray-100 hover:bg-white transition-all"
             >
               <span>{p.icon}</span>
-              <span className="text-xs text-white font-medium">{p.label}</span>
+              <span className="text-xs text-foreground font-medium">{p.label}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Bottom Sheet */}
-      <div className="relative z-10 mt-auto pointer-events-none">
-        <div className="glass-panel rounded-t-3xl rounded-b-none p-4 space-y-4 pointer-events-auto"
-          style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
-          
-          {/* Categorias */}
-          <div>
-            <p className="text-xs text-gray-400 mb-2">Escolha a categoria</p>
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCategory(c.id)}
-                  className={`px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all ${
-                    category === c.id
-                      ? "bg-primary text-black font-bold"
-                      : "bg-card-bg-2 text-gray-300 border border-card-border"
-                  }`}
-                >
-                  {c.icon} {c.label}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Bottom Sheet — só aparece depois de escolher destino */}
+      {showCategories && (
+        <div className="relative z-20 mt-auto pointer-events-none">
+          <div className="bg-white rounded-t-3xl shadow-xl border-t border-gray-100 px-5 pt-5 pb-6 pointer-events-auto"
+            style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
 
-          {/* Pulso da Cidade */}
-          {breathRate > 0 && (
-            <div className={`rounded-xl p-3 border transition-all ${
-              acceptSurcharge ? "border-primary bg-primary/10" : "border-card-border"
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm ${breathRate > 70 ? "text-warning" : "text-success"}`}>
-                    {breathRate > 70 ? "🌬️" : "✅"}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    {availableDrivers} motorista{availableDrivers !== 1 ? "s" : ""} disponíve{availableDrivers !== 1 ? "is" : "l"}
-                  </span>
-                </div>
-                <div className="h-2 w-20 bg-card-bg-2 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${
-                    breathRate > 70 ? "bg-warning" : "bg-success"
-                  }`} style={{ width: `${Math.min(breathRate, 100)}%` }} />
-                </div>
-              </div>
-              {surcharge > 0 && (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-400">
-                      Cidade movimentada — adicionar <span className="text-primary font-bold">R$ {surcharge.toFixed(2)}</span> chama um motoboy de longe
-                    </p>
-                    <p className="text-[10px] text-gray-500">100% repassado ao motorista</p>
-                  </div>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm text-muted">Destino:</p>
+              <p className="text-sm text-foreground font-medium truncate ml-2">{destQuery}</p>
+            </div>
+
+            <div className="mt-4">
+              <p className="text-xs text-muted mb-3 font-medium uppercase tracking-wider">Escolha o veículo</p>
+              <div className="grid grid-cols-3 gap-2">
+                {CATEGORIES.map((c) => (
                   <button
-                    onClick={() => setAcceptSurcharge(!acceptSurcharge)}
-                    className={`w-10 h-6 rounded-full transition-all ${
-                      acceptSurcharge ? "bg-primary" : "bg-card-bg-2"
-                    } relative`}
+                    key={c.id}
+                    onClick={() => setCategory(c.id)}
+                    className={`flex flex-col items-center gap-1 py-3 px-2 rounded-2xl text-sm transition-all border ${
+                      category === c.id
+                        ? "bg-primary/10 border-primary text-primary font-bold"
+                        : "bg-gray-50 border-gray-100 text-foreground hover:border-gray-200"
+                    }`}
                   >
-                    <div className={`w-4 h-4 rounded-full bg-white absolute top-1 transition-all ${
-                      acceptSurcharge ? "left-5" : "left-1"
-                    }`} />
+                    <span className="text-2xl">{c.icon}</span>
+                    <span className="text-xs">{c.label}</span>
                   </button>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
-          )}
 
-          {/* Solicitar */}
-          <button
-            onClick={handleRequestRide}
-            disabled={!dropoff}
-            className="w-full bg-primary hover:bg-primary-hover text-black font-bold py-4 rounded-2xl txd-green-glow-sm disabled:opacity-30 text-lg"
-          >
-            Solicitar {CATEGORIES.find(c => c.id === category)?.label}
-          </button>
+            <button
+              onClick={handleRequestRide}
+              className="w-full bg-primary hover:bg-primary-hover text-black font-bold py-4 rounded-2xl mt-4 text-base shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+            >
+              Solicitar {CATEGORIES.find(c => c.id === category)?.label}
+            </button>
+
+            <button
+              onClick={() => setShowCategories(false)}
+              className="w-full text-center text-sm text-muted mt-3 py-2 hover:text-foreground transition-colors"
+            >
+              Alterar destino
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Se não escolheu destino ainda — hint sutil */}
+      {!showCategories && (
+        <div className="relative z-20 mt-auto px-4 pb-4 text-center">
+          <p className="text-xs text-white/70 drop-shadow-sm">
+            Digite seu destino para começar
+          </p>
+        </div>
+      )}
     </main>
   );
 }

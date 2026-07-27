@@ -53,9 +53,9 @@ export default function PassengerWalletPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#f8f9fa] p-4"
-      style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-      <Link href="/dashboard/passenger" className="text-muted text-sm mb-4 inline-block hover:text-foreground transition-colors">← Voltar</Link>
+    <main className="min-h-[100dvh] bg-[#f8f9fa] px-4 pb-6"
+      style={{ paddingTop: "calc(1.5rem + env(safe-area-inset-top, 0px))" }}>
+      <Link href="/dashboard/passenger" className="text-muted text-sm mb-5 inline-block hover:text-foreground transition-colors">← Voltar</Link>
       <h1 className="text-2xl font-bold text-foreground mb-6">Carteira</h1>
 
       <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center mb-6 shadow-sm">
