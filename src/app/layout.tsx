@@ -16,15 +16,15 @@ export const metadata: Metadata = {
     { rel: "icon", url: "/icon.svg", type: "image/svg+xml", sizes: "192x192" },
     { rel: "apple-touch-icon", url: "/icon.svg", sizes: "192x192" },
   ],
-  appleWebApp: {
+    appleWebApp: {
     capable: true,
     title: "TXAP",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#3ECB8E",
+  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,

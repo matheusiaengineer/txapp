@@ -17,141 +17,126 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Realtime**: Supabase Realtime (trips, heartbeats, messages, notifications)
 - **Cache**: Upstash Redis (rate limiting)
 - **Hosting**: Vercel (auto-deploy from GitHub)
-- **CI/CD**: GitHub Actions (typecheck → lint → build → smoke test)
 
-## Database Schema (60+ tables)
-See `supabase/consolidated.sql` — 2000+ lines, fully production-ready.
+---
 
-### Core Tables
-- `profiles` — All users (passengers, drivers, companies, admins)
-- `driver_profiles` — Driver-specific data (CPF, rating, modalities)
-- `vehicles` — Registered vehicles
-- `companies` — Business accounts
-- `cities` — Operating cities with currency/unit/timezone
+## 🔒 CONFIGURAÇÃO PERMANENTE (NÃO PERDER!)
 
-### Mobility Engine
-- `trips` — All rides/deliveries/freights
-- `trip_offers` — Driver matching system
-- `driver_heartbeats` — Real-time driver locations
-- `drivers_online` — Active driver status
-- `pricing_rules` — Per-city, per-vehicle pricing
-- `driver_pricing` — Per-driver custom pricing
-- `negotiations` — Price negotiation between passenger/driver
+### Vercel Project
+- **Nome:** txapp
+- **Org:** matheuss-projects-c3850443
+- **Project ID:** prj_3ZeaIRgwlAoNyEnpLgGjtAeyRyHW
+- **URL Produção:** https://txapp-sepia.vercel.app
+- **GitHub:** https://github.com/matheusiaengineer/txapp.git
+- **Auto-deploy:** push to `main` branch
 
-### Freight Marketplace
-- `freight_loads` / `loads` — Freight requests
-- `freight_bids` / `bids` — Transporter bids
-- `freight_tracking` — Shipment tracking
+### Supabase
+- **URL:** https://hqydwwfulatawjpottlf.supabase.co (público)
+- **Anon Key (NEXT_PUBLIC_SUPABASE_ANON_KEY):** sb_publishable_p3LRTvqfIu6-3L0j1AvsDQ_zvdmKbWx (público)
+- **Service Role Key (SUPABASE_SERVICE_ROLE_KEY):** (Vercel env — secret)
+- **Service Role Key NOTAS:** sb_secret_xT3b... (só no Vercel, não commitar)
 
-### Financial
-- `wallets` — User wallets
-- `wallet_transactions` — All financial movements (deposit, withdrawal, ride_payment, ride_earning, etc.)
-- `withdrawals` — PIX withdrawal requests
-- `payment_methods` — Saved payment methods
-- `coupons` — Discount coupons
-- `promotions` — Business promotions
+### Stripe (Live)
+- **Publishable Key (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY):** pk_live_51TsXuPB9FwQfzeDPfyJm1TzgQxupZqMSjpLnmeT6EScIDuxnNGesHXjK3x63a55bZgIyHv2tN9W15NrbRsEo1RRt00WC00LD8P (público)
+- **Secret Key (STRIPE_SECRET_KEY):** (Vercel env — secret)
+- **Webhook Secret (STRIPE_WEBHOOK_SECRET):** (Vercel env — secret)
+- **Conta Stripe:** live (não test mode)
+- **Stripe Connect:** habilitado para motoristas (Express onboarding)
+- **Preço assinatura empresa:** R$ 99,00/mês (price_id: price_XXXX)
 
-### Social / Feed
-- `feed_posts` — Instagram-like feed (promos, events, updates, photos)
-- `post_comments` — Comments on posts
-- `post_likes` — Likes on posts
-- `favorites` — Saved drivers/places/routes
+### Upstash Redis
+- **UPSTASH_REDIS_REST_URL:** (Vercel env — non-sensitive)
+- **UPSTASH_REDIS_REST_TOKEN:** (Vercel env — non-sensitive)
+- **UPSTASH_REDIS_URL:** (Vercel env — non-sensitive)
+- **UPSTASH_REDIS_TOKEN:** (Vercel env — non-sensitive)
+- **NOTAS:** rediss://default:gQAA...@fluent-joey-127478.upstash.io:6379 (valores no Vercel)
+- **Resumo:** Todas as 4 Upstash vars são NON-SENSITIVE no Vercel
 
-### Business / Companies
-- `businesses` — Business directory listings
-- `business_products` — Product catalog
-- `business_reviews` — Business reviews
-- `company_products` / `company_orders` — Company e-commerce
-- `company_services` — Service listings
-- `company_subscriptions` — Subscription plans
-- `professional_directory` — Professional services
+### Google Maps (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
+- **Valor:** (não documentado localmente — deve ser obtido do Vercel env vars do projeto txap original, está como [SENSITIVE] no pull)
 
-### Security
-- `mfa_factors` — MFA/2FA factors (TOTP, SMS, email)
-- `biometric_credentials` — WebAuthn passkeys
-- `banned_devices` — Device bans
-- `signup_attempts_log` — Signup audit trail
-- `content_reports` — Abuse reports
-- `audit_logs` — System audit trail
-- `app_errors` — Error tracking
+### Outros
+- **NEXT_PUBLIC_APP_URL:** https://txapp.vercel.app (Non-sensitive type)
 
-### Notifications & Messaging
-- `notifications` — Push/in-app notifications
-- `push_tokens` — FCM push notification tokens
-- `trip_messages` / `messages` — In-trip chat
+---
 
-### Genesis Protocol (City Launches)
-- `city_launches` — City launch campaigns
-- `seed_missions` — Driver onboarding missions
-- `driver_guarantees` — Earnings guarantees
-- `respiratory_snapshots` — Supply/demand balancing
+## 🔧 FIXES APLICADOS (NÃO REFATORAR)
 
-### Other
-- `addresses` — Saved addresses
-- `documents` — KYC documents
-- `verifications` — Driver verification status
-- `coverage_areas` — Service coverage polygons
-- `app_config` / `global_config` — Platform configuration
-- `road_events` — Traffic incidents (accident, jam, police, etc.)
-- `influencers` / `influencer_referrals` / `influencer_goals` — Influencer program
-- `events` / `city_events` — City events
-- `city_jobs` — Job listings
-- `orders` — Generic order system
+### 1. rate-limit.ts — Redis LAZY + fallback in-memory
+**Problema:** `new Redis()` era chamado no topo do módulo. Vercel build sandbox bloqueia rede → módulo quebrava.
+**Solução:** Lazy init com `getRedis()` + try/catch + fallback in-memory se Redis falhar.
+**Arquivo:** `src/lib/rate-limit.ts`
 
-## Security Architecture
-- **Auth**: Supabase Auth (JWT + Refresh Token rotation)
-- **RLS**: Enabled on ALL 60+ tables with granular policies
-- **Proxy**: `src/proxy.ts` — Route protection (redirects unauthenticated users)
-- **API Auth**: Every route checks `supabase.auth.getUser()` + role verification
-- **Field Whitelist**: Profile update only allows safe fields
-- **Rate Limiting**: Upstash Redis on sensitive routes
-- **Open Redirect Prevention**: Auth callback validates `next` param
-- **XSS/CSRF**: Next.js built-in + Content Security Policy headers
-- **Admin-only**: Role check on all admin endpoints (service role for webhooks)
-- **Audit Trail**: wallet_transactions trigger → audit_logs
-- **Ban System**: profiles.is_banned + banned_devices + signup_attempts_log
+### 2. Env vars tipo — NEXT_PUBLIC_* como Non-sensitive
+**Problema:** TODOS os NEXT_PUBLIC_ vars foram adicionados com `vercel env add` sem `--no-sensitive` → tipo "Sensitive/Encrypted" → NÃO disponíveis no browser.
+**Solução:** Re-adicionar com `vercel env add KEY production --value "VALOR" --no-sensitive --yes`
+**Comando exemplo:** `vercel env add NEXT_PUBLIC_SUPABASE_URL production --value "https://hqydwwfulatawjpottlf.supabase.co" --no-sensitive --yes`
 
-## Admin Panel (`/admin/dashboard`)
-Single-page app with tabs:
-- **Dashboard**: Real-time stats (revenue, trips, drivers online, users)
-- **Verifications**: Approve/reject driver documents
-- **Influencers**: CRUD influencer profiles
-- **Users**: List/filter/search all users
-- **Config**: Platform configuration
+### 3. vercel.json — @app-url inválido
+**Problema:** `"env": { "NEXT_PUBLIC_APP_URL": "@app-url" }` referenciava secret `app-url` que não existe.
+**Solução:** Remover env section do vercel.json (agora as env vars são gerenciadas pelo Vercel project, não pelo vercel.json).
 
-## Vehicle Types
-| Name | Display | Max Passengers | Max Load |
-|------|---------|---------------|----------|
-| car | Carro Popular | 4 | - |
-| moto | Moto | 1 | 20kg |
-| van | Van de Carga | - | 1500kg / 10m³ |
-| truck | Caminhão | - | 8000kg / 40m³ |
+### 4. admin dashboard — force-dynamic em client component
+**Problema:** `export const dynamic = "force-dynamic"` em client component (`"use client"`) causava erro no Vercel.
+**Solução:** Remover — client components não precisam de `force-dynamic`.
 
-## Trip Status Flow
-REQUEST_CREATED → SEARCHING_DRIVER → DRIVER_NOTIFIED → DRIVER_ACCEPTED → GOING_TO_PICKUP → ARRIVED → PASSENGER_ON_BOARD → IN_PROGRESS → FINISHING → COMPLETED → PAYMENT_PENDING → PAYMENT_CONFIRMED → FINISHED
+### 5. Limpeza dados de teste
+**Realizado em:** 26/07/2026
+**O que foi deletado:**
+- Auth user: `teste20260723225409@teste.com` + profile
+- Auth user: `test1784859988134@example.com`
+**O que foi criado:** Profile admin para `awqy@awqy.com`
+**Estado atual:** Banco limpo — só `awqy@awqy.com` (admin)
 
-## Development Rules
-1. Never create files outside `src/`
-2. Always check `supabase/consolidated.sql` for table schema before writing API code
-3. All API routes must use `export const dynamic = "force-dynamic"`
-4. All API routes must authenticate with `supabase.auth.getUser()` (never trust client)
-5. All API routes must check role for admin endpoints
-6. Never use legacy tables (`rides`, `transactions`, `stripe_accounts`) — use `trips`, `wallet_transactions`, `profiles.stripe_connect_account_id`
-7. Vehicle category names: `car`, `moto`, `van`, `truck` (English, not Portuguese)
-8. Build must pass: `npx next build` — 0 TS errors
-9. Never hardcode UUIDs
-10. Never commit secrets — use `.env.local`
+---
 
-## Key Files
-- `src/proxy.ts` — Route protection middleware
-- `src/lib/supabase/browser.ts` — Client-side Supabase
-- `src/lib/supabase/server.ts` — Server-side Supabase
-- `src/lib/hooks/` — React hooks for data fetching
-- `src/lib/payment/constants.ts` — Payment configuration
-- `src/lib/api-middleware.ts` — Rate limiting wrapper
-- `src/app/api/` — All API routes
-- `src/components/` — Shared UI components
-- `src/components/maps/` — Map components (Leaflet)
-- `supabase/consolidated.sql` — Database schema (source of truth)
-- `vercel.json` — Deployment config + security headers
-- `.env.production.example` — Required environment variables
+## 🧪 CREDENCIAIS DE TESTE
+- **Email:** awqy@awqy.com
+- **Senha:** 123456789
+- **Role:** admin
+
+---
+
+## 🚨 PROBLEMAS CONHECIDOS
+
+### Rate limit muito agressivo
+**Fix:** Já foi aumentado de 5 → 30 req/min no tier `auth`. Se ainda reclamar, aumentar para 60.
+
+### CPF "já cadastrado" mesmo sendo novo
+**Causa:** Pode ser resquício de dados de teste no banco (já fizeram limpeza em 26/07/2026).
+**Se acontecer:** Verificar se `profiles` ou `driver_profiles` tem registro com aquele CPF.
+
+### Stripe Webhooks — parciais
+**Implementado:** `checkout.session.completed`, `account.updated`
+**Falta:** `payout.paid`, `charge.refunded`
+
+---
+
+## 📦 ENV VARS (Vercel Project — Production)
+
+| Nome | Tipo | Status |
+|------|------|--------|
+| NEXT_PUBLIC_APP_URL | Non-sensitive | ✅ |
+| NEXT_PUBLIC_SUPABASE_URL | Non-sensitive | ✅ |
+| NEXT_PUBLIC_SUPABASE_ANON_KEY | Non-sensitive | ✅ |
+| NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY | Non-sensitive | ✅ |
+| SUPABASE_SERVICE_ROLE_KEY | Sensitive/Encrypted | ✅ |
+| STRIPE_SECRET_KEY | Sensitive/Encrypted | ✅ |
+| STRIPE_WEBHOOK_SECRET | Sensitive/Encrypted | ✅ |
+| UPSTASH_REDIS_URL | Non-sensitive | ✅ |
+| UPSTASH_REDIS_TOKEN | Non-sensitive | ✅ |
+| UPSTASH_REDIS_REST_URL | Non-sensitive | ✅ |
+| UPSTASH_REDIS_REST_TOKEN | Non-sensitive | ✅ |
+| NEXT_PUBLIC_GOOGLE_MAPS_API_KEY | Sensitive/Encrypted | ✅ (obter do txap original se precisar resetar) |
+
+---
+
+## ✅ PRÓXIMOS PASSOS (prioridade)
+
+1. **PIX Saque** — endpoint `/api/wallet/withdraw` + webhook Stripe/MercadoPago
+2. **Push Notifications (FCM)** — Firebase project + service worker
+3. **Chat motorista-passageiro** — UI realtime com Supabase Realtime
+4. **Tracking ao vivo** — passageiro ver motoboy no mapa
+5. **Testar fluxo completo:** passageiro registra → pede → motoboy aceita → paga → avalia
+6. **KYC driver → admin approve/reject** — UI admin completa + notificação ao motorista
+7. **Documentação API pública** — para futuras integrações
